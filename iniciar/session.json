@@ -6325,5 +6325,15 @@
     "validacao": "test_orquestrador + test_api: 318 passed; bloco alvo: 336 passed; GATE COMPLETO 5392 passed / 19 skipped / 0 falha (223s). Prova viva: executar_cli(OpenClaude) -> SAIDA: ok.",
     "sem_bump": "1.46.0+2083. Entra no ar no proximo restart do od-core (autorizacao pendente, regra 7.1).",
     "pendente": "Restart do od-core (liberar cascata 13 + fix do cgroup no servico) e decisao do dono: continuar/parar download de 190 faixas (od-radio-lista-raul)."
+  },
+  "falso_sucesso_midia_2026_11_18": {
+    "pedido": "Continuar o backlog: fechar o P0 nº 1 restante (anti-falso-sucesso só cobria agenda/compromisso — 'Radio ligada com sucesso' e 'Volume definido para 20%' de conversa comum passavam e podiam ir ao dono/cache).",
+    "base": "Saída REAL da rota de ação conferida em core/intents.py:_formata_radio: '📻 Rádio tocando (volume 50%).', '🔊 Volume da rádio: 20%.', '📻 Rádio parada.' — nunca 'com sucesso'.",
+    "implementacao": "core/orchestrator.py:_FAKE_ACTION_RES ampliado: participíos de mídia/casa (ligad/desligad/aces/apagad/pausad/iniciad/tocad/definid/ajustad/alterad/regulad) na construção '… com sucesso' + padrão 'volume … (definido|ajustado|alterado|regulado|aumentado|diminuído) … N%'. tests/test_orchestrator.py: test_falso_sucesso_de_midia_e_casa_tambem_e_pego (7 inventadas recusadas, 7 respostas reais aceitas).",
+    "medicao": "Cache vivo (Postgres llm_cache, 145 entradas, somente leitura): regex antiga recusava 4; ampliação recusa +3, todas invenções reais ('Volume definido para 20%. Estado verificado.' e 2x 'Radio ligada com sucesso.'); 0 legítimas recusadas. Entradas não apagadas à mão: a guarda de leitura apaga no próximo uso.",
+    "validacao": "tests/test_orchestrator.py = 76 passed. od-core reiniciado (PID 459066), /health ok=true, journal sem ERROR/TRACEBACK.",
+    "limite": "Afirmação de estado SEM 'com sucesso' ('Radio ligada.') continua passando — pode ser leitura verdadeira, sem evidência para banir.",
+    "sem_bump": "1.46.0+2083 (sem deploy de versão; restart feito para a guarda valer).",
+    "docs": "docs/CHANGELOG.md (seção nova), docs/ANALISE_SISTEMA_TODO.md (P0 nº1 riscado como ENTREGUE, checkbox 1005 marcado), iniciar/2026-11-18_conversa_omegadrakon.md §12, iniciar/ATRIBUICOES.md."
   }
 }

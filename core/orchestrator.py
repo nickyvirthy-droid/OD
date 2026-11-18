@@ -410,8 +410,21 @@ def cache_serve_reason(text: str) -> str:
 _FAKE_ACTION_RES = re.compile(
     r"confirmar:"                       # eco de confirmação (✍️/💡/texto)
     r"|\b(?:criad[oa]s?|marcad[oa]s?|agendad[oa]s?|adicionad[oa]s?"
-    r"|inserid[oa]s?|executad[oa]s?|conclu[íi]d[oa]s?)"
+    r"|inserid[oa]s?|executad[oa]s?|conclu[íi]d[oa]s?"
+    # 18/11: mídia/casa na MESMA construção. A rota de ação nunca confirma
+    # com "com sucesso" — rádio/volume saem do retorno do player
+    # (intents._formata_radio: '📻 Rádio tocando (volume 50%).',
+    # '🔊 Volume da rádio: 50%.'). "Radio ligada com sucesso" era invenção
+    # de conversa comum passando pelo guarda (visto no cache vivo em 17/11).
+    r"|ligad[oa]s?|desligad[oa]s?|aces[ao]s?|apagad[oa]s?|pausad[oa]s?"
+    r"|iniciad[oa]s?|tocad[oa]s?|definid[oa]s?|ajustad[oa]s?|alterad[oa]s?"
+    r"|regulad[oa]s?)"
     r"(?:\s+\w+){0,3}\s+com\s+sucesso"   # '… criado com sucesso'
+    # 18/11: volume como CONJUNTO explícito, sem "com sucesso". O formatter
+    # real devolve '🔊 Volume da rádio: 20%.'; "Volume definido para 20%" é
+    # palpite do modelo (mesmo achado do cache vivo em 17/11).
+    r"|\bvolume\s+(?:foi\s+|j[áa]\s+)?(?:definid[oa]|ajustad[oa]|alterad[oa]"
+    r"|regulad[oa]|aumentad[oa]|diminu[íi]d[oa])\b[^.\n]{0,20}?\d{1,3}\s*%"
     r"|\b✅[^.\n]{0,60}(?:criad|marcad|agendad|adicionad|inserid|executad)"
     r"|\b(?:marquei|agendei|criei|adicionei|coloquei|anotei|inseri|executei)\b"
     r"[^.?!]{0,80}\b(?:compromisso|evento|agenda|hor[áa]rio)",

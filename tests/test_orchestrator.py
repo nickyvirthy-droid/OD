@@ -933,6 +933,36 @@ class TestFalsoSucessoDaAgenda:
         )
         assert fake_action_reason("") == ""
 
+    def test_falso_sucesso_de_midia_e_casa_tambem_e_pego(self) -> None:
+        """17/11: 'Radio ligada com sucesso' e 'Volume definido para 20%'
+        vinham de conversa comum (cache vivo) e passavam pelo guarda, que
+        só conhecia agenda/compromisso. A rota de ação real responde a
+        partir do retorno do player (intents._formata_radio)."""
+        from core.orchestrator import fake_action_reason
+
+        for inventada in (
+            "Radio ligada com sucesso.",
+            "Rádio ligada com sucesso.",
+            "As luzes foram acesas com sucesso.",
+            "Tomada desligada com sucesso.",
+            "Volume definido para 20%.",
+            "Volume ajustado para 20%.",
+            "O volume foi alterado para 50%.",
+        ):
+            assert fake_action_reason(inventada), inventada
+        # respostas REAIS da rota de ação continuam passando
+        for legitima in (
+            "📻 Rádio tocando (volume 50%).",
+            "🔊 Volume da rádio: 20%.",
+            "📻 Rádio parada.",
+            "🔇 Não consegui acionar a rádio: player fora do ar.",
+            "💡 3 acesa(s) de 5 luzes.",
+            # status/estado de conversa não é promessa de execução
+            "A rádio está ligada agora.",
+            "As luzes estão acesas.",
+        ):
+            assert fake_action_reason(legitima) == "", legitima
+
     async def test_llm_que_finge_executar_e_trocado_na_rest(
         self, tmp_path: Path
     ) -> None:

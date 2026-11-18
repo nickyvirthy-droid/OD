@@ -756,3 +756,65 @@ seguida (nada ficou no ar).
 - Symlinks das `.so` **não entram** no MANIFEST (ele hasheia arquivos reais) —
   restaurar com `cp -a`/`rsync -a`.
 - Binário é `x86_64`/glibc desta máquina; outra arquitetura exige reespelhar.
+
+---
+
+## §12 — Anti-falso-sucesso de mídia e casa: o P0 nº 1 fica realmente fechado (18/11, sem bump)
+
+O P0 nº 1 tinha sido entregue em 17/11 (§19 da transcrição daquele dia): a
+guarda na **leitura** do `llm_cache`. Mas ela reusava o anti-falso-sucesso
+existente, que só conhecia **agenda/compromisso**. O próprio TODO registrava o
+resto: *"Radio ligada com sucesso" / "Volume definido para 20%" inventados por
+conversa comum passam e podem ir para o dono/cache*.
+
+### 1. A base que faltava: o que a rota de ação devolve
+
+Ampliar a regex sem isso trocaria invenção por recusa legítima. A saída real
+está em `core/intents.py:_formata_radio`, e ela é **sempre leitura do player**:
+
+- `📻 Rádio tocando (volume 50%).`
+- `📻 Rádio parada.`
+- `🔊 Volume da rádio: 20%.`
+- `🔇 Não consegui acionar a rádio: <motivo>.`
+
+Nenhuma delas usa "com sucesso" nem "volume definido para". Ou seja, essas
+duas construções são invenção **por construção** quando vêm de conversa comum.
+
+### 2. O que mudou
+
+`_FAKE_ACTION_RES` ganhou:
+
+1. participíos de mídia/casa na construção "… com sucesso" — `ligad`,
+   `desligad`, `aces`, `apagad`, `pausad`, `iniciad`, `tocad`, `definid`,
+   `ajustad`, `alterad`, `regulad`;
+2. `volume … (definido|ajustado|alterado|regulado|aumentado|diminuído) … N%`
+   — o formato "Volume definido para 20%", sem "com sucesso".
+
+Fica **de fora**, declarado: afirmação de estado sem "com sucesso"
+("Radio ligada."). Pode ser leitura verdadeira; não há evidência para banir.
+
+### 3. Medição no cache vivo (somente leitura)
+
+`llm_cache` do Postgres, **145 entradas**:
+
+| | entradas |
+|---|---|
+| já recusadas pela regex antiga | 4 |
+| **novas** recusadas pela ampliação | **3** |
+| respostas legítimas recusadas | **0** |
+
+As 3 são exatamente as inventadas: *"Volume definido para 20%. Estado
+verificado."* e duas de *"Radio ligada com sucesso. Estado verificado."*.
+Não apaguei à mão: a guarda de leitura apaga no próximo uso (vira MISS e o
+turno vai ao LLM).
+
+### 4. Validação
+
+- `tests/test_orchestrator.py` — **76 passed**; teste novo
+  `test_falso_sucesso_de_midia_e_casa_tambem_e_pego` cobre 7 inventadas e
+  **7 respostas reais** da rota (`📻`/`🔊`), além de status de conversa.
+- `od-core` reiniciado (PID 459066): `/health` `ok=true`, journal sem
+  `ERROR`/traceback.
+- **Sem bump** (1.46.0+2083) — correção de servidor, contrato do app intacto.
+- **Limite:** a prova foi unitária + medição no cache; não disparei um turno
+  real pelo Telegram para não gastar cota nem injetar conversa no histórico.

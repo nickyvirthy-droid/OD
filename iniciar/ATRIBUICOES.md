@@ -1541,3 +1541,32 @@ P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
   `tests/test_orchestrator.py` + `tests/test_api.py` 277 passed. Cache vivo:
   4 de 144 entradas recusadas pelas guardas (invenção de agenda + avisos).
 - **Sem bump:** correção de servidor, contrato do app intacto (1.46.0+2083).
+
+## 2026-11-18 — Anti-falso-sucesso de rádio/volume no `llm_cache` (sem bump)
+
+**Autor:** Buffy (Codebuff) — continuação do P0 nº 1 de 17/11.
+
+### Arquivos
+
+- `core/orchestrator.py` — `_FAKE_ACTION_RES` ampliado: participíos de
+  mídia/casa na construção "… com sucesso" e `volume … para N%`.
+- `tests/test_orchestrator.py` — teste novo
+  `test_falso_sucesso_de_midia_e_casa_tambem_e_pego` (7 inventadas recusadas,
+  7 respostas reais da rota aceitas).
+- Registro: `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P0 nº 1
+  riscado como ENTREGUE; checkbox de mídia/casa fechado),
+  `iniciar/2026-11-18_conversa_omegadrakon.md` §12, `iniciar/session.json`
+  (`falso_sucesso_midia_2026_11_18`).
+
+### Intenção e estado
+
+- **Intenção:** a guarda de leitura do cache (17/11) reusava um
+  anti-falso-sucesso que só conhecia agenda; invenções de rádio/volume
+  passavam para o dono e para o cache.
+- **Base:** a saída real de `intents._formata_radio` nunca usa "com sucesso"
+  nem "volume definido para" — logo essas construções denunciam invenção.
+- **Pronto/validado:** `tests/test_orchestrator.py` **76 passed**; cache vivo
+  (145 entradas) recusa **3 novas**, todas invenções, e **0 legítimas**;
+  `od-core` reiniciado (PID 459066), `/health` `ok=true`, journal limpo.
+- **Limite:** estado sem "com sucesso" ("Radio ligada.") continua passando —
+  pode ser leitura verdadeira.

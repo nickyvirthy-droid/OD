@@ -12,6 +12,41 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Anti-falso-sucesso também para mídia e casa (2026-11-18, sem bump)
+
+**Contexto:** fecho do P0 nº 1. A guarda de leitura do `llm_cache` (17/11)
+reusava o anti-falso-sucesso existente, que só conhecia **agenda/compromisso**;
+frases como *"Radio ligada com sucesso"* e *"Volume definido para 20%"*
+(invenções de conversa comum, vistas no cache vivo em 17/11) continuavam
+passando e podiam ir ao dono e ao cache.
+
+**Base da decisão (o que a rota de ação devolve de verdade):**
+`core/intents.py:_formata_radio` responde a partir do retorno do player —
+`📻 Rádio tocando (volume 50%).`, `🔊 Volume da rádio: 20%.`,
+`📻 Rádio parada.` — e **nunca** usa "com sucesso". Logo, "… com sucesso"
+com verbo de mídia/casa é invenção por construção; volume com valor numérico
+na forma "definido/ajustado para N%" também não existe na saída real.
+
+**O que entrou:**
+
+| Item | Detalhe |
+|---|---|
+| `core/orchestrator.py` | `_FAKE_ACTION_RES` ganhou participíos de mídia/casa (`ligad`, `desligad`, `aces`, `apagad`, `pausad`, `iniciad`, `tocad`, `definid`, `ajustad`, `alterad`, `regulad`) na construção "… com sucesso" e o padrão `volume … para N%` |
+| `tests/test_orchestrator.py` | `test_falso_sucesso_de_midia_e_casa_tambem_e_pego`: 7 frases inventadas recusadas e 7 respostas **reais** da rota aceitas |
+
+**Medido no cache vivo (145 entradas, somente leitura):** 4 já eram recusadas
+pela regex antiga; a ampliação recusa **3 novas** — todas invenções reais
+("Volume definido para 20%. Estado verificado." e 2× "Radio ligada com
+sucesso."); **0 respostas legítimas** passaram a ser recusadas. As entradas
+não foram apagadas à mão: a guarda de leitura as descarta no próximo uso.
+
+**Verificação:** `tests/test_orchestrator.py` **76 passed**; `od-core`
+reiniciado (PID 459066), `/health` `ok=true`, journal sem `ERROR`/traceback.
+
+**Limite declarado:** afirmação de estado **sem** "com sucesso"
+("Radio ligada.") continua passando — pode ser leitura verdadeira e não há
+evidência para bani-la.
+
 ## Espelho completo: `.gguf` do 3B + runtime do llama.cpp no `od-mirror` (2026-11-18, sem bump)
 
 **Contexto:** P0 nº 4 de 17/11 — o "offline" do OD dependia de

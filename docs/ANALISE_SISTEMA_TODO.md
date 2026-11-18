@@ -92,7 +92,7 @@ registro):
 
 | # | Entrega | Por que agora | Esforço |
 |---|---------|---------------|---------|
-| 1 | **Guarda do `llm_cache` para conversa comum** | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
+| 1 | ~~**Guarda do `llm_cache` para conversa comum**~~ **ENTREGUE 17/11 + 18/11** — `_resposta_do_cache()` valida na LEITURA e apaga a entrada envenenada (vira MISS); 18/11 ampliou o anti-falso-sucesso para rádio/volume/luzes: **3 entradas inventadas** no cache vivo recusadas, 0 legítimas | Hoje o cache pode devolver resposta **inventada** de conversa (o guarda só barra comando de action). É a classe de defeito que faz o OD "parecer menos inteligente" e agora fica gravada em cache. | Baixo–médio |
 | 2 | ~~**Corpus de frases reais do dono**~~ **ENTREGUE 18/11** — `tests/test_corpus_frases_dono.py`, 32 testes, 13 frases verbatim com origem conferida | Os buracos de casamento só aparecem em uso (disco, papéis, rádio) e cada um custou um turno de conserto. Custo: nenhum — as frases já existem. | Baixo |
 | 3 | ~~**Teste ZIM ↔ compose**~~ **ENTREGUE 18/11** — `tests/test_zim_compose.py` (11 testes) + `tools/checar_zim_compose.py` (guarda nas duas direções, rodável no CI). Acervo real: **14 ZIMs alinhados** com o `command`. | Um ZIM novo só entra na busca se alguém lembrar do `command`; 14 ZIMs/40,3 GB já hoje sem guarda. | Baixo |
 | 4 | ~~**Espelho: `.gguf` 3B + binário do llama.cpp com MANIFEST**~~ **ENTREGUE 18/11** — `od-mirror/models/` + `od-mirror/runtimes/llama/`, MANIFEST 133 entradas (51 novas, 51/51 OK) e **prova real**: o `llama-server` do espelho subiu de `/tmp` sem `LD_LIBRARY_PATH`, carregou o `.gguf` do espelho e respondeu `/v1/models`. | O "offline" do OD dependia de `/home/alex/llama.cpp` sobreviver; o resto do espelho já está pronto em `od-mirror`. | Baixo |
@@ -1002,12 +1002,17 @@ esperar o timeout.
       "⚠️ Não executei nada" saiu do cache; 7 testes novos
       (`TestCacheDeConversa`), gate verde, sem bump. Medido no cache vivo: 4 de
       144 entradas passaram a ser recusadas (1 invenção de agenda + 3 avisos).
-- [ ] Anti-falso-sucesso: `_FAKE_ACTION_RES` só cobre agenda/compromisso —
-      "Radio ligada com sucesso" / "Volume definido para 20%" inventados por
-      conversa comum passam e podem ir para o dono/cache (visto no cache vivo
-      em 17/11). Motivo de não estar junto do P0: ampliar a regex exige saber
-      quais frases a rota de AÇÃO realmente devolve, senão troca invenção por
-      recusa legítima.
+- [x] Anti-falso-sucesso: `_FAKE_ACTION_RES` só cobria agenda/compromisso —
+      **ENTREGUE 18/11:** conhecendo a saída real da rota de ação
+      (`intents._formata_radio`: `📻 Rádio tocando (volume 50%).`,
+      `🔊 Volume da rádio: 20%.`, `📻 Rádio parada.` — nunca "com sucesso"),
+      a regex ganhou (a) participíos de mídia/casa na construção "… com
+      sucesso" e (b) `volume definido/ajustado para N%`. Medido no cache vivo
+      (145 entradas): **3 novas recusadas**, todas invenções reais
+      ("Radio ligada com sucesso", "Volume definido para 20%"); nenhuma
+      resposta legítima da rota foi recusada (teste cobre os formatos reais).
+      Fica de fora, por falta de evidência: afirmação de estado sem "com
+      sucesso" ("Radio ligada.") — pode ser leitura verdadeira.
 - [ ] Chat: `llm_cache` não guarda resposta de modelo local — **testado e
       descartado em 17/11:** sem evidência de erro (as invenções reais foram
       de nuvem) e derruba o cache normal (`test_second_identical_message_hits_cache`).
