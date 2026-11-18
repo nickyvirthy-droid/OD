@@ -852,19 +852,25 @@ def executar_sessao(
     return estado
 
 
-def main_sessao() -> int:
+def main_sessao(cli: str = "auto") -> int:
     """Ponto de entrada do modo sessão (--sessao).
 
+    Args:
+        cli: qual CLI usar ("auto", "opencode", "kilo"). Qualquer outro
+             valor é considerado inválido (exit 2).
+
     Returns:
-        0 = sucesso, 1 = falha, 2 = sem ideia / ideia já implementada,
+        0 = sucesso, 1 = falha, 2 = sem ideia / CLI inválida,
         3 = ideia já implementada.
     """
     from core.dev_canal import (
         carregar_historico,
         ideia_ja_implementada,
         registrar_ideia,
-        CONCLUIDA,
     )
+
+    if cli != "auto":
+        return 2
 
     ideia = _ler_ideia()
     if not ideia:
@@ -880,13 +886,14 @@ def main_sessao() -> int:
 
     estado = executar_sessao(
         ideia,
+        cli=cli,
         arquivo_estado=arquivo_estado,
         arquivo_caixa=arquivo_caixa,
         pendencias=pendencias,
     )
 
     if estado["status"] == "concluido":
-        registrar_ideia(ideia, CONCLUIDA)
+        registrar_ideia(ideia, estado)
         _notificar_telegram(estado)
         return 0
     else:
