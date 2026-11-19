@@ -6444,5 +6444,14 @@
     "sem_bump": "1.46.0+2083; sem restart do od-core (timer independente).",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§6)",
     "updated_at": "2026-11-19T16:25:00-03:00"
+  },
+  "falha_controlada_restore_2026_11_19": {
+    "pedido": "Dono (19/11): 'Force uma falha controlada num dump de teste para ver o aviso de falha chegar no Telegram de verdade'.",
+    "implementacao": "runner ganhou --dump (dump especifico, producao segue no mais recente) e carrega o .env em execucao manual (sem EnvironmentFile do systemd ele ficava sem canal — medido com WARNING); verificador recusa dump ilegivel ANTES de subir o cluster, com 'FALHA: dump ilegivel' em vez de traceback, validando o gzip em streaming.",
+    "prova_real": "dump corrompido de teste em /tmp com --dump: exit=1, ok=false, falhas incrementado, ultimo_aviso_em gravado e mensagem ENTREGUE no Telegram (envio sem excecao). Depois execucao normal sem --dump: silencio, ok=true, 'RESTORE OK em 0,14 s · 14 tabelas'. Estado final verde, timer intacto (NEXT Sun 2026-11-22 03:30), dump de teste removido e 0 diretorios /tmp/od-restore-*.",
+    "testes": "+2 (dump corrompido recusado; --dump repassado ao verificador) -> 12 passed nos dois arquivos de teste.",
+    "limite": "O dump corrompido e um arquivo de teste em /tmp (ja removido), nao veio do pipeline; nenhum dump real foi tocado. Sem bump, sem restart.",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§7)",
+    "updated_at": "2026-11-19T16:35:00-03:00"
   }
 }

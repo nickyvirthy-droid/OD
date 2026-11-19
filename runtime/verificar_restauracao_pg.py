@@ -55,10 +55,17 @@ def gravar_estado(caminho: Path, estado: dict) -> None:
     os.replace(temporario, caminho)
 
 
-def rodar_verificador() -> tuple[int, str]:
-    """Executa o verificador e devolve (código, saída combinada)."""
+def rodar_verificador(dump: str = "") -> tuple[int, str]:
+    """Executa o verificador e devolve (código, saída combinada).
+
+    `dump` vazio = o mais recente de `data/pg_dumps/` (produção). Um caminho
+    explícito serve para o teste de falha controlada (dump corrompido).
+    """
+    comando = [sys.executable, str(VERIFICADOR)]
+    if dump:
+        comando += ["--dump", dump]
     resultado = subprocess.run(
-        [sys.executable, str(VERIFICADOR)],
+        comando,
         cwd=RAIZ,
         capture_output=True,
         text=True,
@@ -112,12 +119,13 @@ def mensagem_falha(codigo: int, saida: str) -> str:
 def rodar(
     *,
     estado_path: Path = ESTADO_PADRAO,
-    verificador: Callable[[], tuple[int, str]] = rodar_verificador,
+    verificador: Callable[[], tuple[int, str]] | None = None,
     enviar: Callable[[str], None] | None = None,
     agora: float | None = None,
 ) -> int:
     """Uma rodada: verifica, registra o estado e avisa se falhar."""
     agora = time.time() if agora is None else agora
+    verificador = verificador or rodar_verificador
     estado = carregar_estado(estado_path)
     estado["ultima_execucao_em"] = agora
     estado["rodadas"] = int(estado.get("rodadas") or 0) + 1
@@ -155,10 +163,22 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--dry-run", action="store_true",
                     help="não envia Telegram (só verifica e registra)")
+    ap.add_argument("--dump", default="",
+                    help="dump específico (padrão: o mais recente)")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
+    # Execução manual (sem `EnvironmentFile` do systemd) precisa do .env para
+    # achar o canal; `load_dotenv` NÃO sobrescreve o que já está no ambiente.
+    if not (os.getenv("TELEGRAM_BOT_TOKEN") and os.getenv("OD_TELEGRAM_ADMINS")):
+        try:
+            from dotenv import load_dotenv
+
+            load_dotenv(RAIZ / ".env")
+        except Exception:
+            pass
     enviar = None if args.dry_run else montar_enviar()
-    return rodar(enviar=enviar)
+    verificador = (lambda: rodar_verificador(args.dump)) if args.dump else None
+    return rodar(enviar=enviar, verificador=verificador)
 
 
 if __name__ == "__main__":

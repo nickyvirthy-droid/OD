@@ -9,6 +9,34 @@
 
 ---
 
+## 19/11/2026 — Falha controlada do restore: aviso real no Telegram
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:30, ordem do dono.
+
+### Modificados
+
+- `runtime/verificar_restauracao_pg.py` — `--dump` (dump específico) e `.env`
+  em execução manual (o systemd já entrega o ambiente; `python -m` puro ficava
+  sem canal).
+- `tools/testar_restauracao_pg.py` — recusa dump ilegível **antes** de subir o
+  cluster, com mensagem clara; gzip validado em streaming.
+- `tests/test_restauracao_pg.py` — +2 testes (dump corrompido, repasse do
+  `--dump`).
+- `docs/CHANGELOG.md`, `iniciar/session.json` e transcrição (§7).
+
+### Intenção e estado
+
+- **Intenção:** exercitar de verdade o caminho de falha do verificador semanal
+  (antes só coberto por teste injetado).
+- **Estado:** **provado.** Dump corrompido de teste → `exit=1`, estado
+  `ok=false` e **mensagem entregue no Telegram**; execução normal em seguida
+  voltou ao verde em silêncio (`RESTORE OK · 14 tabelas`). Teste em `/tmp`
+  removido, nenhum dump real tocado, timer intacto.
+- **Pela metade:** nada em aberto aqui; o offsite físico do dump continua sendo
+  outra perna da entrega.
+
+---
+
 ## 19/11/2026 — Verificação semanal do restore com aviso no Telegram
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:20, ordem do dono.

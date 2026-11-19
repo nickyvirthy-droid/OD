@@ -340,3 +340,40 @@ timer semanal com aviso no Telegram quando falhar"*.
   (não se manda alarme falso ao dono); o caminho está coberto por teste com
   verificador e canal injetados.
 - **Sem bump** e sem restart do `od-core` (timer independente).
+
+---
+
+## §7 — Falha controlada do restore: o aviso chegou no Telegram (pedido do dono)
+
+**Pedido (verbatim):** *"Force uma falha controlada num dump de teste para ver o
+aviso de falha chegar no Telegram de verdade"*.
+
+### 1. O que precisou existir
+
+- `--dump` no runner: aponta um dump específico para o teste (produção segue
+  usando o mais recente).
+- `.env` em execução manual: o systemd entrega o ambiente; o `python -m` puro
+  ficava sem canal (medido: `WARNING sem canal de Telegram configurado`).
+- Recusa de dump ilegível **antes** de subir o cluster, com mensagem clara
+  (`FALHA: dump ilegível…`) em vez de traceback; gzip validado em streaming.
+- +2 testes (dump corrompido; repasse do `--dump`) → **12 passed** nos dois
+  arquivos.
+
+### 2. Prova real
+
+| Passo | Resultado |
+|---|---|
+| dump corrompido em `/tmp` + `--dump` | `exit=1`, `ok=false`, `falhas` incrementado, `ultimo_aviso_em` gravado e **mensagem entregue no Telegram** (envio sem exceção) |
+| execução normal (sem `--dump`) | **silêncio** (como desenhado), `ok=true`, `RESTORE OK em 0,14 s · 14 tabelas` |
+| estado final | verde; timer intacto (`NEXT Sun 2026-11-22 03:30`) |
+| resíduos | dump de teste removido, 0 diretórios `/tmp/od-restore-*` |
+
+### 3. Atribuição e limites
+
+- **Autor:** Freebuff (Buffy), 19/11. Arquivos: `runtime/verificar_restauracao_pg.py`,
+  `tools/testar_restauracao_pg.py`, `tests/test_restauracao_pg.py`,
+  `docs/CHANGELOG.md`, `iniciar/` (este §, `session.json`, `ATRIBUICOES.md`).
+- **Limite:** a mensagem de falha foi real, mas o dump corrompido **não** veio do
+  pipeline — é um arquivo de teste em `/tmp`, já removido. Nada do acervo de
+  dumps reais foi tocado.
+- **Sem bump** e sem restart (timer independente).

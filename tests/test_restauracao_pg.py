@@ -73,3 +73,38 @@ def test_dump_real_conta_todas_as_tabelas(nome: str) -> None:
     contagem = contar_linhas_do_dump(caminho)
     assert len(contagem) == 14
     assert contagem["llm_cache"] > 0
+
+
+def test_dump_corrompido_e_recusado_com_mensagem_clara(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Gzip inválido não pode virar traceback: o aviso diz o que houve."""
+    ruins = tmp_path / "od-corrompido.sql.gz"
+    ruins.write_bytes(b"isto nao e um gzip")
+    from tools.testar_restauracao_pg import main
+
+    assert main(["--dump", str(ruins)]) == 1
+    saida = capsys.readouterr().out
+    assert "FALHA: dump ilegível" in saida
+    assert str(ruins) in saida
+
+
+def test_rodar_verificador_repassa_o_dump(monkeypatch, tmp_path: Path) -> None:
+    """`--dump` do runner chega ao verificador (teste de falha controlada)."""
+    from runtime import verificar_restauracao_pg as v
+
+    capturado: dict = {}
+
+    class Resultado:
+        returncode = 0
+        stdout = "ok"
+        stderr = ""
+
+    def falso_run(comando, **kwargs):
+        capturado["comando"] = comando
+        return Resultado()
+
+    monkeypatch.setattr(v.subprocess, "run", falso_run)
+    codigo, saida = v.rodar_verificador(str(tmp_path / "x.sql.gz"))
+    assert codigo == 0 and saida == "ok"
+    assert capturado["comando"][-2:] == ["--dump", str(tmp_path / "x.sql.gz")]

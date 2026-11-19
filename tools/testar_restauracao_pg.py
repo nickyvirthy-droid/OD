@@ -93,6 +93,17 @@ def contar_linhas_do_dump(caminho: Path) -> dict[str, int]:
     return contagem
 
 
+def _gzip_valido(caminho: Path) -> bool:
+    """Confere o gzip SEM descompactar tudo (leitura streaming)."""
+    try:
+        with gzip.open(caminho, "rb") as fh:
+            for _ in iter(lambda: fh.read(65536), b""):
+                pass
+    except (OSError, EOFError):
+        return False
+    return True
+
+
 def comparar(prod: list[str], temp: list[str], env: dict[str, str]) -> tuple[list[str], list[str]]:
     """Lista de tabelas e divergências de contagem (produção × restaurada)."""
     def q(cmd: list[str], sql: str) -> str:
@@ -125,6 +136,12 @@ def main(argv: list[str] | None = None) -> int:
     dump = Path(args.dump) if args.dump else Path(dumps[-1])
     if not dump.is_file():
         print(f"FALHA: dump não existe: {dump}")
+        return 1
+    # Dump ilegível (gzip corrompido/arquivo trocado) não pode virar traceback:
+    # o aviso ao dono precisa dizer o que aconteceu e com qual arquivo.
+    # Checado ANTES de criar o cluster temporário (sem diretório a limpar).
+    if not _gzip_valido(dump):
+        print(f"FALHA: dump ilegível (não é gzip válido): {dump}")
         return 1
 
     from dotenv import load_dotenv  # import tardio: só o verificador precisa

@@ -12,6 +12,30 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Falha controlada do restore: aviso de verdade chegou no Telegram (2026-11-19, sem bump)
+
+**Contexto (ordem do dono):** *"Force uma falha controlada num dump de teste
+para ver o aviso de falha chegar no Telegram de verdade"* — o caminho de falha
+estava coberto só por teste injetado.
+
+**O que entrou:**
+
+- `runtime/verificar_restauracao_pg.py`: `--dump` (aponta um dump específico,
+  usado no teste) e carregamento do `.env` em execução manual — o systemd já
+  entrega o ambiente, mas o `python -m` sem `EnvironmentFile` ficava sem canal
+  (medido: `sem canal de Telegram configurado`).
+- `tools/testar_restauracao_pg.py`: dump ilegível agora é recusado **antes** de
+  subir o cluster, com mensagem clara (`FALHA: dump ilegível…`) em vez de
+  traceback; o gzip é validado em streaming.
+- Testes: +2 (dump corrompido recusado com mensagem; `--dump` repassado ao
+  verificador) — **12 passed** nos dois arquivos.
+
+**Prova real:** dump corrompido em `/tmp` (`--dump`) → runner `exit=1`,
+`ok=false`, `ultimo_aviso_em` gravado e **mensagem entregue ao Telegram do
+dono** (o envio não levantou erro). Em seguida, execução normal sem `--dump`:
+**silêncio**, `ok=true`, `RESTORE OK em 0,14 s · 14 tabelas`. Estado final verde
+e timer intacto (`NEXT Sun 2026-11-22 03:30`).
+
 ## Verificação semanal da restauração do Postgres com aviso no Telegram (2026-11-19, sem bump)
 
 **Contexto (ordem do dono):** *"Coloque o verificador de restauração do
