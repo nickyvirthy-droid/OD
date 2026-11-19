@@ -895,3 +895,137 @@ class TestVigiaEmProcesso:
         monkeypatch.setattr(
             vw, "ciclo", lambda seed=False: visto.update(seed=seed) or {})
         assert vw.main(["--seed"]) == 0 and visto["seed"] is True
+
+
+# ---------------------------------------------------------------------------
+# Projeção rica + reemissão do estado (19/11/2026 — reclamação do dono:
+# "o alerta só traz MAC + IP e não diz se o dispositivo ainda está na rede")
+# ---------------------------------------------------------------------------
+
+
+class TestEstadoRico:
+    """`pendentes_ricos` alimenta a linha `tipo=estado` que o notifier lê."""
+
+    PEN = [{
+        "mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.9",
+        "fabricante": "desconhecido", "desde": "2026-11-16T18:09:50-03:00",
+    }]
+
+    def test_carrega_nome_e_ultima_vez_do_inventario(self) -> None:
+        dispositivos = {"AA:BB:CC:DD:EE:FF": {
+            "nome": "Celular do Alex",
+            "ultima_vez": "2026-11-19T10:33:50-03:00",
+        }}
+        ricos = vw.pendentes_ricos(
+            self.PEN, dispositivos, set(), "2026-11-19T13:00:00-03:00")
+        assert ricos[0]["nome"] == "Celular do Alex"
+        assert ricos[0]["ultima_vez"] == "2026-11-19T10:33:50-03:00"
+        assert ricos[0]["conectado"] is False
+        # os campos originais continuam intactos (contrato da sonda)
+        assert ricos[0]["desde"] == "2026-11-16T18:09:50-03:00"
+        assert ricos[0]["ip"] == "192.168.0.9"
+
+    def test_conectado_quando_o_mac_esta_presente(self) -> None:
+        ricos = vw.pendentes_ricos(
+            self.PEN, {}, {"AA:BB:CC:DD:EE:FF"}, "2026-11-19T13:00:00-03:00")
+        assert ricos[0]["conectado"] is True
+        # sem registro no inventário a última vista cai para o `desde`
+        assert ricos[0]["ultima_vez"] == "2026-11-16T18:09:50-03:00"
+        assert ricos[0]["nome"] == ""
+
+    def test_pendente_huerfeno_nao_quebra(self) -> None:
+        """MAC pendente sumiu do inventário (estado corrompido/parcial):
+        a projeção devolve o pendente com o que tem, sem levantar."""
+        ricos = vw.pendentes_ricos(
+            [{"mac": "11:22:33:44:55:66"}], {}, set(),
+            "2026-11-19T13:00:00-03:00")
+        assert ricos[0]["mac"] == "11:22:33:44:55:66"
+        assert ricos[0]["ultima_vez"] == "2026-11-19T13:00:00-03:00"
+        assert ricos[0]["conectado"] is False
+
+
+class TestLinhaDeEstadoRica:
+    """A linha `tipo=estado` do ciclo carrega a projeção (contrato da sonda)."""
+
+    def test_ciclo_escreve_nome_status_e_ultima_vez(self, tmp_path: Path) -> None:
+        proc = _roda_sandbox(
+            tmp_path, OD_VIGIA_VIZINHOS_JSON=(
+                '{"94:3A:91:53:E2:8E": "192.168.0.202"}'))
+        assert proc.returncode == 0, proc.stderr
+        linhas = [
+            json.loads(l)
+            for l in (tmp_path / "network_watchdog.log")
+            .read_text("utf-8").splitlines()
+        ]
+        estado = [l for l in linhas if l["tipo"] == "estado"][-1]
+        pendente = estado["pendentes_novos"][0]
+        assert pendente["mac"] == "94:3A:91:53:E2:8E"
+        assert pendente["nome"] == ""
+        assert pendente["ultima_vez"]          # última vista presente
+        assert pendente["conectado"] is True    # estava no sweep injetado
+        # o inventário persistido continua ENXUTO (a projeção é só do log)
+        salvo = json.loads(
+            (tmp_path / "network_watchdog_estado.json").read_text("utf-8"))
+        assert "conectado" not in salvo["pendentes_novos"][0]
+
+
+class TestReemiteEstado:
+    """Resolver sem esperar o ciclo de 5 min do timer (19/11/2026)."""
+
+    def test_conhecer_reemite_sem_pendentes(self, tmp_path: Path) -> None:
+        _roda_sandbox(
+            tmp_path, OD_VIGIA_VIZINHOS_JSON=(
+                '{"94:3A:91:53:E2:8E": "192.168.0.202"}'))
+        proc = subprocess.run(
+            [sys.executable, str(SCRIPT), "--conhecer", "94:3A:91:53:E2:8E",
+             "Echo"],
+            capture_output=True, text=True, timeout=30,
+            env={"PATH": "/usr/bin:/bin", "OD_LOG_DIR": str(tmp_path),
+                 "HOME": str(tmp_path)},
+        )
+        assert proc.returncode == 0, proc.stderr
+        linhas = [
+            json.loads(l)
+            for l in (tmp_path / "network_watchdog.log")
+            .read_text("utf-8").splitlines()
+        ]
+        ultimo = linhas[-1]
+        assert ultimo["tipo"] == "estado"
+        # era esta linha que o notifier lia e repetia o alerta por 1 h
+        assert ultimo["pendentes_novos"] == []
+
+    def test_sem_log_devolve_false(self, tmp_path: Path, monkeypatch) -> None:
+        monkeypatch.setattr(vw, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vw, "LOG_FILE", tmp_path / "nada.log")
+        monkeypatch.setattr(vw, "ESTADO_FILE", tmp_path / "estado.json")
+        assert vw.reemite_estado() is False
+
+    def test_linha_de_estado_antiga_e_reaproveitada(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        """Reemitir NÃO inventa ativos/rich: reaproveita a última linha e
+        só troca o que a resolução mudou (pendentes + timestamp)."""
+        monkeypatch.setattr(vw, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vw, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vw, "ESTADO_FILE", tmp_path / "estado.json")
+        (tmp_path / "network_watchdog.log").write_text(
+            json.dumps({"ts": "t0", "tipo": "estado", "ativos": 19,
+                        "conhecidos_ativos": 18, "pendentes_novos": [
+                            {"mac": "AA:BB:CC:DD:EE:FF", "ip": "10.0.0.9",
+                             "fabricante": "X", "desde": "t1"}],
+                        "pendentes_seguranca": [], "rich": True}) + "\n",
+            encoding="utf-8")
+        vw.salvar_estado({
+            "dispositivos": {}, "pendentes_novos": [],
+            "pendentes_seguranca": [], "ciclos": 7,
+        })
+        monkeypatch.setattr(vw, "vizinhos_sem_ping", lambda rede=None: {})
+        assert vw.reemite_estado() is True
+        linhas = [json.loads(l) for l in
+                  (tmp_path / "network_watchdog.log").read_text("utf-8")
+                  .splitlines()]
+        assert len(linhas) == 2
+        novo = linhas[-1]
+        assert novo["ativos"] == 19 and novo["conhecidos_ativos"] == 18
+        assert novo["rich"] is True and novo["ts"] != "t0"
+        assert novo["pendentes_novos"] == []

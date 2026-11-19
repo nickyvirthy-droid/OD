@@ -1526,3 +1526,149 @@ class TestStatsDoNotifier:
         assert status == 200
         assert b"stats.notifier" in corpo_admin
         notif.stop()
+
+
+# ===========================================================================
+# formata_dispositivo + alerta com status de conexão (19/11/2026)
+# ===========================================================================
+
+
+class TestFormataDispositivo:
+    """O dono reclamou: o aviso só trazia MAC + IP (fabricante
+    'desconhecido') e não dizia se o aparelho ainda estava na rede."""
+
+    BASE = {
+        "mac": "A2:E5:1D:2D:4E:91", "ip": "192.168.0.186",
+        "fabricante": "desconhecido",
+        "desde": "2026-11-16T18:09:50-03:00",
+        "ultima_vez": "2026-11-19T10:33:50-03:00",
+    }
+
+    def test_conectado_agora(self) -> None:
+        from integrations.notifier import formata_dispositivo
+
+        linha = formata_dispositivo({**self.BASE, "conectado": True})
+        assert "A2:E5:1D:2D:4E:91" in linha
+        assert "192.168.0.186" in linha
+        assert "conectado agora" in linha
+        assert "pendente desde 16/11" in linha
+
+    def test_fora_da_rede_com_tempo_relativo(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from integrations.notifier import formata_dispositivo
+
+        visto = (datetime.now(timezone(timedelta(hours=-3)))
+                 - timedelta(minutes=42)).isoformat(timespec="seconds")
+        linha = formata_dispositivo(
+            {**self.BASE, "ultima_vez": visto, "conectado": False})
+        assert "fora da rede" in linha
+        assert "visto há 42 min" in linha     # relativo, não o ISO cru
+        assert "T10:33" not in linha
+
+    def test_nome_do_inventario_entra_no_rotulo(self) -> None:
+        from integrations.notifier import formata_dispositivo
+
+        linha = formata_dispositivo(
+            {**self.BASE, "nome": "Celular da Lu", "conectado": True})
+        assert "Celular da Lu" in linha
+
+    def test_linha_antiga_sem_status_nao_afirma_nada(self) -> None:
+        """Estado gravado antes desta versão não tem `conectado` — o
+        alerta não pode inventar 'fora da rede' sem dado."""
+        from integrations.notifier import formata_dispositivo
+
+        linha = formata_dispositivo(
+            {"mac": "AA:BB:CC:DD:EE:FF", "ip": "10.0.0.9",
+             "fabricante": "X", "desde": "2026-10-21T17:00:00-03:00"})
+        assert "conectado agora" not in linha
+        assert "fora da rede" not in linha
+        assert "pendente desde 21/10" in linha
+
+    def test_visto_quando_relativo(self) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from integrations.notifier import _visto_quando
+
+        fuso = timezone(timedelta(hours=-3))
+        agora = datetime.now(fuso)
+        assert _visto_quando((agora - timedelta(seconds=30)).isoformat(
+            timespec="seconds")) == "agora"
+        assert _visto_quando((agora - timedelta(minutes=7)).isoformat(
+            timespec="seconds")) == "há 7 min"
+        assert _visto_quando((agora - timedelta(hours=2)).isoformat(
+            timespec="seconds")).startswith("há 2 h")
+        assert _visto_quando((agora - timedelta(days=2)).isoformat(
+            timespec="seconds")) == "há 2 d"
+        # data ilegível (o vigia já gravou "t" em teste) e vazia: sem frase
+        assert _visto_quando("t") == ""
+        assert _visto_quando("") == ""
+        assert _visto_quando(None) == ""
+
+    def test_visto_quando_futuro_nao_vira_negativo(self) -> None:
+        from integrations.notifier import _visto_quando
+
+        assert _visto_quando("2099-01-01T00:00:00-03:00") == "agora"
+
+
+class TestAlertaComStatusEOndeResponder:
+    """O alerta diz conectado/fora da rede e ONDE responder (19/11)."""
+
+    @staticmethod
+    def _estado(tmp_path: Path, pendentes: str) -> None:
+        import os
+        (tmp_path / "network_watchdog.log").write_text(
+            '{"ts":"t","tipo":"estado","ativos":15,'
+            '"conhecidos_ativos":14,'
+            f'"pendentes_novos":[{pendentes}],'
+            '"pendentes_seguranca":[],"rich":true}\n',
+            encoding="utf-8")
+        os.environ["OD_LOG_DIR"] = str(tmp_path)
+
+    def test_diz_status_e_canal_de_resposta(self, tmp_path: Path) -> None:
+        from datetime import datetime, timedelta, timezone
+
+        from integrations.notifier import ONDE_RESPONDER, _check_network
+
+        visto = (datetime.now(timezone(timedelta(hours=-3)))
+                 - timedelta(hours=2)).isoformat(timespec="seconds")
+        self._estado(
+            tmp_path,
+            '{"mac":"A2:E5:1D:2D:4E:91","ip":"192.168.0.186",'
+            '"fabricante":"desconhecido",'
+            '"desde":"2026-11-16T18:09:50-03:00",'
+            f'"ultima_vez":"{visto}",'
+            '"conectado":false,"nome":""}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert result.ok is False
+            assert result.key == "net:dispositivo-novo"
+            assert "fora da rede" in result.detail
+            assert "visto há 2 h" in result.detail
+            # era "Responda quando reconhecer (ou 'bloqueia o X')" — sem
+            # canal nenhum; agora aponta painel + chat
+            assert ONDE_RESPONDER in result.detail
+            assert "/admin" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)
+
+    def test_conectado_agora_no_alerta(self, tmp_path: Path) -> None:
+        from integrations.notifier import _check_network
+
+        self._estado(
+            tmp_path,
+            '{"mac":"AC:A7:04:F0:8F:88","ip":"192.168.0.224",'
+            '"fabricante":"Espressif Inc.","desde":"2026-10-21T17:00:00-03:00",'
+            '"conectado":true,"nome":"Tuya da tomada"}',
+        )
+        notifier = make_notifier(orch(OnlineProvider()))
+        try:
+            result = _check_network(notifier)
+            assert "conectado agora" in result.detail
+            assert "Tuya da tomada" in result.detail
+        finally:
+            import os
+            os.environ.pop("OD_LOG_DIR", None)

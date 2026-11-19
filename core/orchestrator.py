@@ -108,6 +108,10 @@ _PAPEL_GATE_ACTIONS: frozenset[str] = frozenset({
     "google_drive_create", "google_drive_update", "google_drive_delete",
     "google_calendar_create", "google_calendar_delete",
     "google_gmail_send", "google_gmail_delete",
+    # Vigia da Rede (19/11): sem este gate a negação de papel caía em
+    # `None` e o LLM respondia no lugar — o dono via "reconhecido" sem a
+    # action ter rodado.
+    "network_conhecer", "network_bloquear",
 })
 
 DEFAULT_RATE_LIMIT_MAX = 10
@@ -139,6 +143,11 @@ ACOES_SENSIVEIS_PADRAO: frozenset[str] = frozenset({
     "google_gmail_send",
     "google_gmail_delete",
     "ha_device_control",
+    # Vigia da Rede (19/11): bloquear é ESCRITA FORA do sistema — mexe na
+    # lista de negação do roteador, igual às actions do Google/lar. O
+    # "reconhecer" fica de fora: é só o inventário local (JSON) parar de
+    # avisar, exatamente o que o dono pediu ao clicar/confirmar.
+    "network_bloquear",
 })
 
 
@@ -2840,6 +2849,9 @@ class Orchestrator:
             "ha_device_control": (
                 "ligar dispositivo do lar" if params.get("on", True)
                 else "desligar dispositivo do lar"
+            ),
+            "network_bloquear": (
+                "bloquear dispositivo na lista de negação do roteador"
             ),
         }
         alvo = str(

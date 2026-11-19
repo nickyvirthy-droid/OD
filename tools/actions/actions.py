@@ -2870,6 +2870,193 @@ def network_hosts() -> dict[str, Any]:
     return {"ok": True, "count": len(hosts), "hosts": hosts}
 
 
+# ---------------------------------------------------------------------------
+# Vigia da Rede — RESOLUÇÃO de pendência (ordem do dono, 19/11/2026)
+# ---------------------------------------------------------------------------
+# O alerta `net:dispositivo-novo` mandava "Responda quando reconhecer (ou
+# 'bloqueia o X')" e NÃO existia canal nenhum para isso: sem intent no
+# chat, sem rota na API, sem botão no painel. Estas duas actions fecham a
+# promessa — o chat e o painel /admin chamam as MESMAS funções, e a
+# resolução reemite a linha de estado do log (`reemite_estado`) para o
+# aviso sumir na hora em vez de esperar o próximo ciclo do timer.
+#
+# Papel: `network_conhecer`/`network_bloquear` NÃO estão nas listas de
+# leitura dos papéis comuns (user/família) — só o admin (`"*"`) executa,
+# e a negação vira resposta honesta via _PAPEL_GATE_ACTIONS.
+
+
+def resumo_pendentes(pendentes: list[dict]) -> list[dict]:
+    """Lista enxuta e NUMERÁVEL — o dono responde o número, nunca o MAC.
+
+    Campos da projeção rica do vigia (`nome`, `ultima_vez`, `conectado`);
+    ausentes em linha de estado antiga saem como None e o formatares
+    trata como "sem informação" (nunca inventa status).
+    """
+    return [
+        {
+            "n": i + 1,
+            "mac": p.get("mac"),
+            "ip": p.get("ip"),
+            "fabricante": p.get("fabricante"),
+            "nome": p.get("nome") or "",
+            "conectado": p.get("conectado"),
+            "ultima_vez": p.get("ultima_vez"),
+            "desde": p.get("desde"),
+        }
+        for i, p in enumerate(pendentes)
+    ]
+
+
+def _alvo_do_vigia(alvo: str) -> dict[str, Any]:
+    """Resolve QUAL pendente do Vigia a ação vai tocar.
+
+    Contrato de retorno:
+      * ``{"ok": True, "chave": <MAC>}`` → executar;
+      * ``{"ok": True, "sem_pendencias": True, ...}`` → nada a resolver;
+      * ``{"ok": False, ...}`` → devolver como está (erro ou listagem).
+
+    ``alvo`` aceita MAC, IP ou o NÚMERO da listagem (regra 14: o dono não
+    digita MAC). Sem ``alvo``: um pendente só = aquele; vários = listagem
+    numerada para ele escolher — **nunca** se escolhe por conta própria.
+    """
+    from tools.monitor import network_watchdog as vigia
+
+    if not vigia.ESTADO_FILE.exists():
+        return _unavailable(
+            "network",
+            "Vigia da Rede sem inventário (logs/network_watchdog_estado.json "
+            "ainda não existe) — não há dispositivo pendente para resolver.",
+        )
+    estado = vigia.carregar_estado()
+    pendentes = [
+        p for p in (estado.get("pendentes_novos") or []) if isinstance(p, dict)
+    ]
+    bruto = str(alvo or "").strip()
+    if not bruto:
+        if not pendentes:
+            return {
+                "ok": True, "sem_pendencias": True,
+                "mensagem": "Nenhum dispositivo desconhecido pendente — "
+                            "nada a reconhecer nem a bloquear.",
+            }
+        if len(pendentes) > 1:
+            return {
+                "ok": False, "escolher": True,
+                "pendentes": resumo_pendentes(pendentes),
+                "mensagem": (
+                    f"{len(pendentes)} dispositivos desconhecidos pendentes."
+                ),
+            }
+        chave = str(pendentes[0].get("mac") or "")
+    elif bruto.isdigit():
+        indice = int(bruto)
+        if not 1 <= indice <= len(pendentes):
+            return {
+                "ok": False,
+                "error": (f"Não existe pendente nº {indice} — a listagem tem "
+                          f"{len(pendentes)}."),
+                "pendentes": resumo_pendentes(pendentes),
+            }
+        chave = str(pendentes[indice - 1].get("mac") or "")
+    elif "." in bruto:
+        achou = next(
+            (p for p in pendentes if str(p.get("ip") or "") == bruto), None
+        )
+        if achou is None:
+            return {
+                "ok": False, "error": f"Nenhum pendente com IP {bruto}.",
+                "pendentes": resumo_pendentes(pendentes),
+            }
+        chave = str(achou.get("mac") or "")
+    else:
+        chave = vigia.normaliza_mac(bruto)
+        if chave not in (estado.get("dispositivos") or {}):
+            return {
+                "ok": False,
+                "error": f"MAC {chave} não está no inventário do Vigia.",
+                "pendentes": resumo_pendentes(pendentes),
+            }
+    pendentes_mac = {str(p.get("mac") or "") for p in pendentes}
+    if chave not in pendentes_mac:
+        return {
+            "ok": False,
+            "error": f"{chave} não está pendente (já resolvido, ou nunca "
+                     f"foi um dispositivo novo).",
+            "pendentes": resumo_pendentes(pendentes),
+        }
+    return {"ok": True, "chave": chave}
+
+
+def network_conhecer(alvo: str = "", nome: str = "") -> dict[str, Any]:
+    """Reconhece um dispositivo da rede e encerra o alerta do Vigia.
+
+    O MESMO caminho do CLI `network_watchdog.py --conhecer MAC [nome]`:
+    marca `conhecido=True`, guarda o nome (se vier) e tira o MAC de
+    `pendentes_novos`. A linha de estado é reemitida na hora — o aviso
+    `net:dispositivo-novo` some imediatamente em vez de repetir até o
+    próximo ciclo do timer (5 min).
+    """
+    alvo_resolvido = _alvo_do_vigia(alvo)
+    if not alvo_resolvido.get("ok"):
+        return alvo_resolvido
+    if alvo_resolvido.get("sem_pendencias"):
+        return alvo_resolvido
+    from tools.monitor import network_watchdog as vigia
+
+    chave = str(alvo_resolvido.get("chave") or "")
+    nome_limpo = str(nome or "").strip()[:40]
+    vigia.conhecer(chave, nome_limpo)
+    return {
+        "ok": True, "reconhecido": True, "mac": chave, "nome": nome_limpo,
+        "mensagem": (
+            f"{chave} reconhecido" + (f" como {nome_limpo}" if nome_limpo
+                                      else "")
+            + " — avisos de dispositivo desconhecido encerrados."
+        ),
+    }
+
+
+def network_bloquear(alvo: str = "") -> dict[str, Any]:
+    """OPERADOR: põe o MAC pendente na lista de negação do roteador.
+
+    Modo de operador do Vigia (`network_watchdog.py --bloquear`): abre a UI
+    real do roteador (Controlo de Acesso) e devolve o que ele respondeu —
+    pode levar até ~2 min. Bloqueio confirmado encerra a pendência (não
+    é "reconhecido", é "negado": o registro fica com a nota do bloqueio).
+
+    Exige `ROUTER_ADMIN_PASSWORD` + venv com chromium; sem eles a resposta
+    é degradação honesta (nunca finge que bloqueou).
+    """
+    alvo_resolvido = _alvo_do_vigia(alvo)
+    if not alvo_resolvido.get("ok"):
+        return alvo_resolvido
+    if alvo_resolvido.get("sem_pendencias"):
+        return alvo_resolvido
+    from tools.monitor import network_watchdog as vigia
+
+    chave = str(alvo_resolvido.get("chave") or "")
+    codigo = vigia.bloquear(chave)
+    if codigo == 0:
+        return {
+            "ok": True, "bloqueado": True, "mac": chave,
+            "mensagem": (
+                f"{chave} adicionado à lista de negação do roteador — "
+                f"pendência encerrada."
+            ),
+        }
+    if codigo == 2:
+        return _unavailable(
+            "network",
+            "Bloqueio não executado: sem ROUTER_ADMIN_PASSWORD ou sem o "
+            "venv do chromium (camada rica desligada).",
+        )
+    return {
+        "ok": False, "tool": "network",
+        "error": f"Bloqueio falhou (exit {codigo}) — confira o painel do "
+                 f"roteador antes de repetir.",
+    }
+
+
 def system_user() -> dict[str, Any]:
     """Usuário atual (uid/gid/nome/home)."""
     try:
@@ -4464,8 +4651,18 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["host"], "properties": {"host": S, "port": {**I, "default": 443}, "timeout": {**F, "default": 1.0}}}),
     _spec("system_user", "system", "Usuário atual", system_user),
     _spec("system_groups", "system", "Grupos do usuário atual", system_groups),
-    # --- Rede (1, complementar OD) ---
+    # --- Rede (3, complementar OD) ---
     _spec("network_hosts", "system", "Dispositivos na rede local (ARP)", network_hosts),
+    _spec("network_conhecer", "system",
+          "Reconhece um dispositivo da rede e encerra o alerta do Vigia "
+          "(alvo = MAC, IP ou nº da listagem; vazio = o único pendente)",
+          network_conhecer,
+          {"alvo": {**S, "default": ""}, "nome": {**S, "default": ""}}),
+    _spec("network_bloquear", "system",
+          "OPERADOR: põe o MAC pendente na lista de negação do roteador "
+          "(alvo = MAC, IP ou nº da listagem; vazio = o único pendente)",
+          network_bloquear,
+          {"alvo": {**S, "default": ""}}),
     # --- Processos (4) ---
     _spec("process_list", "process", "Lista processos", process_list),
     _spec("process_info", "process", "Detalhes de um processo", process_info,

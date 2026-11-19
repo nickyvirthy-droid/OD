@@ -43,6 +43,7 @@ import threading
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, Protocol, Union
 
@@ -503,6 +504,89 @@ def _check_router(notifier: "ProactiveNotifier") -> CheckResult:
         )
 
 
+def _visto_quando(iso: Optional[str]) -> str:
+    """Instante ISO → frase curta de distância ('há 2 h 14 min', 'agora').
+
+    Devolve '' quando o valor é vazio/ilegível — o alerta nunca quebra por
+    causa de data ruim (o vigia já gravou 't' em teste e sem fuso em outro).
+    """
+    if not iso:
+        return ""
+    try:
+        momento = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return ""
+    try:
+        if momento.tzinfo is None:
+            delta = datetime.now() - momento
+        else:
+            delta = datetime.now(momento.tzinfo) - momento
+    except Exception:
+        return ""
+    total = int(delta.total_seconds())
+    if total < 60:
+        return "agora"
+    minutos = total // 60
+    if minutos < 60:
+        return f"há {minutos} min"
+    horas, resto = divmod(minutos, 60)
+    if horas < 24:
+        return f"há {horas} h {resto} min" if resto else f"há {horas} h"
+    return f"há {horas // 24} d"
+
+
+def _desde_curto(iso: Optional[str]) -> str:
+    """'2026-11-16T18:09:50-03:00' → '16/11' (ou '' se ilegível)."""
+    if not iso:
+        return ""
+    try:
+        momento = datetime.fromisoformat(str(iso))
+    except ValueError:
+        return ""
+    return f"{momento.day:02d}/{momento.month:02d}"
+
+
+def formata_dispositivo(pendente: dict) -> str:
+    """Uma linha de pendente para o alerta do dono (função pura, testada).
+
+    O texto antigo era só ``MAC (fabricante, ip)`` — o dono não sabia se o
+    aparelho ainda estava na rede nem quando foi visto por último (ordem
+    dele, 19/11: "não diz se o dispositivo ainda está conectado").
+
+    Sem o campo ``conectado`` (linha de estado gravada pelo vigia antes
+    desta versão) a função NÃO afirma status nenhum — manda o dado que
+    existe em vez de chutar.
+    """
+    mac = str(pendente.get("mac") or "?")
+    fab = pendente.get("fabricante") or "?"
+    ip = pendente.get("ip") or "?"
+    nome = str(pendente.get("nome") or "").strip()
+    rotulo = f"{mac} ({fab}, {ip})"
+    if nome:
+        rotulo = f"{mac} — {nome} ({fab}, {ip})"
+    partes = [rotulo]
+    conectado = pendente.get("conectado")
+    if conectado is True:
+        partes.append("conectado agora")
+    elif conectado is False:
+        visto = _visto_quando(pendente.get("ultima_vez"))
+        partes.append(f"fora da rede · visto {visto}" if visto
+                      else "fora da rede")
+    desde = _desde_curto(pendente.get("desde"))
+    if desde:
+        partes.append(f"pendente desde {desde}")
+    return " · ".join(partes)
+
+
+# Onde responder: hoje existem exatamente estes dois caminhos (o alerta
+# prometia 'Responda quando reconhecer' sem dizer onde — lacuna apontada
+# pelo dono em 19/11 e fechada com o painel /admin + o intent do chat).
+ONDE_RESPONDER = (
+    "Responda no painel /admin → seção Vigia da Rede (botões Reconhecer/"
+    "Bloquear) ou digite no chat: 'reconhece o dispositivo'."
+)
+
+
 def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
     """Vigia da Rede (tools/monitor/network_watchdog.py) — dispositivo novo
     e eventos de segurança na LAN.
@@ -515,7 +599,11 @@ def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
 
     - ``pendentes_novos`` (MAC fora do inventário) → ``net:dispositivo-novo``
       (WARN; repete a cada cooldown enquanto o dono não reconhecer — é o
-      lembrete pedido: "avise se alguém tentar invadir");
+      lembrete pedido: "avise se alguém tentar invadir"). Cada pendente é
+      formatado por ``formata_dispositivo`` com **status de conexão**,
+      **última vista** e **desde quando** pendente (projeção rica do vigia)
+      e o texto aponta **onde responder** (painel /admin ou o chat) — o
+      "Responda quando reconhecer" antigo não tinha canal nenhum;
     - ``pendentes_seguranca`` (login errado/DoS/bloqueio no roteador,
       Failed password/Invalid user no sshd) → ``net:seguranca``;
     - sem pendências → ok com o resumo de dispositivos ativos.
@@ -562,11 +650,9 @@ def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
 
         pendentes_novos = estado.get("pendentes_novos") or []
         if pendentes_novos:
-            resumos = []
-            for p in pendentes_novos[:3]:
-                fab = p.get("fabricante") or "?"
-                ip = p.get("ip") or "?"
-                resumos.append(f"{p.get('mac', '?')} ({fab}, {ip})")
+            resumos = [
+                formata_dispositivo(p) for p in pendentes_novos[:3]
+            ]
             extra = (
                 f" +{len(pendentes_novos) - 3} outro(s)"
                 if len(pendentes_novos) > 3 else ""
@@ -578,8 +664,7 @@ def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
                 key="net:dispositivo-novo",
                 detail=(
                     f"Dispositivo(s) desconhecido(s) na rede: "
-                    f"{', '.join(resumos)}{extra}. Responda quando "
-                    f"reconhecer (ou 'bloqueia o X')."
+                    f"{'; '.join(resumos)}{extra}. {ONDE_RESPONDER}"
                 ),
             )
 

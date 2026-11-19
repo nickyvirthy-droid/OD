@@ -157,8 +157,9 @@ class TestAPIRoutes:
         Task Queue R1 (create/list/events/detail/retry/delete, 13/11) +
         curadoria do acervo da rádio (excluir música, bloqueadas e
         exceções de cantores, 17/11) + /api/radio/pro/traducao (lista
-        paralela da letra, 17/11)."""
-        assert len(ROUTES) == 139
+        paralela da letra, 17/11) + Vigia da Rede no painel
+        (GET/POST /admin/vigia*, 19/11)."""
+        assert len(ROUTES) == 142
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -287,6 +288,10 @@ class TestAPIRoutes:
             ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
             ("DELETE", "/admin/ideias"),
             ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
+            # Vigia da Rede (19/11) — responder ao alerta pelo painel
+            ("GET", "/admin/vigia"),
+            ("POST", "/admin/vigia/conhecer"),
+            ("POST", "/admin/vigia/bloquear"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/anon/message"),
@@ -386,6 +391,10 @@ class TestAPIRoutes:
             ("GET", "/admin/ideias"), ("PUT", "/admin/ideias"),
             ("DELETE", "/admin/ideias"),
             ("GET", "/admin/limitacoes"), ("DELETE", "/admin/limitacoes"),
+            # Vigia da Rede (19/11) — responder ao alerta pelo painel
+            ("GET", "/admin/vigia"),
+            ("POST", "/admin/vigia/conhecer"),
+            ("POST", "/admin/vigia/bloquear"),
             ("GET", "/dashboard/stats"), ("GET", "/llms"),
             ("GET", "/capabilities"), ("GET", "/actions"),
             ("POST", "/message"), ("POST", "/executa"),
@@ -4931,6 +4940,169 @@ class TestAdminLimitacoes:
         limpar_limitacoes()  # higiene entre testes
 
 
+class TestAdminVigia:
+    """GET/POST /admin/vigia* (19/11) — o alerta "dispositivo desconhecido
+    na rede" mandava responder sem dizer ONDE; o painel virou o canal.
+
+    O inventário do vigia é isolado em tmp_path (o arquivo real de
+    produção nunca é tocado por estes testes)."""
+
+    @staticmethod
+    def _isolado(tmp_path: Path, monkeypatch, pendentes: str = "[]"):
+        from tools.monitor import network_watchdog as vigia
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(
+            vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(
+            vigia, "ESTADO_FILE", tmp_path / "network_watchdog_estado.json")
+        (tmp_path / "network_watchdog_estado.json").write_text(json.dumps({
+            "dispositivos": {"AA:BB:CC:DD:EE:FF": {
+                "ip": "192.168.0.9", "nome": "Celular da Lu",
+                "conhecido": False, "primeira_vez": "2026-11-16T18:09:50",
+                "ultima_vez": "2026-11-19T10:33:50", "fabricante": "X",
+                "nota": "",
+            }},
+            "pendentes_novos": json.loads(pendentes),
+            "pendentes_seguranca": [], "ciclos": 12,
+            "ultima_varredura": {"ts": "2026-11-19T14:00:00"},
+        }), encoding="utf-8")
+
+    def test_sem_inventario_devolve_existe_falso(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.monitor import network_watchdog as vigia
+        monkeypatch.setattr(
+            vigia, "ESTADO_FILE", tmp_path / "nao-existe.json")
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/vigia")
+        data = _json_response((status, body, _h))
+        assert status == 200
+        assert data["ok"] is True and data["existe"] is False
+        assert data["pendentes"] == []
+
+    def test_pendente_sai_numerado_com_status(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        self._isolado(
+            tmp_path, monkeypatch,
+            '[{"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.9",'
+            ' "fabricante": "X", "desde": "2026-11-16T18:09:50"}]',
+        )
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin/vigia")
+        data = _json_response((status, body, _h))
+        assert data["existe"] is True and data["total"] == 1
+        p = data["pendentes"][0]
+        assert p["n"] == 1                      # o dono responde o número
+        assert p["mac"] == "AA:BB:CC:DD:EE:FF"
+        assert p["nome"] == "Celular da Lu"     # projeção rica do vigia
+        assert p["ultima_vez"] == "2026-11-19T10:33:50"
+        assert p["conectado"] is False          # fora da rede agora
+        assert data["ciclos"] == 12
+
+    def test_conhecer_pelo_painel_encerra_a_pendencia(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.monitor import network_watchdog as vigia
+        self._isolado(
+            tmp_path, monkeypatch,
+            '[{"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.9",'
+            ' "fabricante": "X", "desde": "2026-11-16T18:09:50"}]',
+        )
+        monkeypatch.setattr(vigia, "vizinhos_sem_ping", lambda rede=None: {})
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/vigia/conhecer",
+            body={"alvo": "AA:BB:CC:DD:EE:FF", "nome": "Celular da Lu"},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["ok"] is True
+        assert data["reconhecido"] is True
+        salvo = json.loads(
+            (tmp_path / "network_watchdog_estado.json").read_text("utf-8"))
+        assert salvo["pendentes_novos"] == []          # pendência encerrada
+        assert salvo["dispositivos"]["AA:BB:CC:DD:EE:FF"]["conhecido"] is True
+
+    def test_conhecer_sem_alvo_com_um_pendente_funciona(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        """Botão do painel sem alvo = o único pendente (regra 14)."""
+        from tools.monitor import network_watchdog as vigia
+        self._isolado(
+            tmp_path, monkeypatch,
+            '[{"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.9",'
+            ' "fabricante": "X", "desde": "2026-11-16T18:09:50"}]',
+        )
+        monkeypatch.setattr(vigia, "vizinhos_sem_ping", lambda rede=None: {})
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/vigia/conhecer", body={})
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["ok"] is True
+        assert data["mac"] == "AA:BB:CC:DD:EE:FF"
+
+    def test_bloquear_sem_chrome_e_degradacao_honesta(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        """Sem senha do roteador o handler devolve o rc=2 como está —
+        nunca 200 fingindo que bloqueou."""
+        from tools.monitor import network_watchdog as vigia
+        self._isolado(
+            tmp_path, monkeypatch,
+            '[{"mac": "AA:BB:CC:DD:EE:FF", "ip": "192.168.0.9",'
+            ' "fabricante": "X", "desde": "2026-11-16T18:09:50"}]',
+        )
+        monkeypatch.setattr(vigia, "bloquear", lambda mac: 2)
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/vigia/bloquear",
+            body={"alvo": "AA:BB:CC:DD:EE:FF"},
+        )
+        data = _json_response((status, body, _h))
+        assert status == 200 and data["ok"] is False
+        assert "ROUTER_ADMIN_PASSWORD" in str(data.get("error", ""))
+        # a pendência NÃO foi encerrada por um bloqueio que não ocorreu
+        salvo = json.loads(
+            (tmp_path / "network_watchdog_estado.json").read_text("utf-8"))
+        assert len(salvo["pendentes_novos"]) == 1
+
+    def test_body_grande_e_400(self, serve, tmp_path: Path,
+                               monkeypatch) -> None:
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(
+            srv.bound_port, "POST", "/admin/vigia/conhecer",
+            body={"alvo": "x" * 65},
+        )
+        assert status == 400
+
+    def test_sem_admin_401(self, serve, tmp_path: Path) -> None:
+        cfg = APIConfig(port=0, api_key="segredo123", rate_limit_max=0)
+        srv = serve(make_orch(tmp_path), config=cfg)
+        for metodo, rota in (("GET", "/admin/vigia"),
+                             ("POST", "/admin/vigia/conhecer"),
+                             ("POST", "/admin/vigia/bloquear")):
+            status, _, _h = _request(srv.bound_port, metodo, rota,
+                                     api_key="errada")
+            assert status == 401, rota
+
+    def test_secao_no_painel_com_botao_e_endpoints(
+        self, tmp_path: Path,
+    ) -> None:
+        from integrations.api.server import _ADMIN_PAGE_HTML
+        html = _ADMIN_PAGE_HTML
+        assert "Vigia da Rede (dispositivo desconhecido)" in html
+        for ident in ("vigia-lista", "vigia-resumo", "vigia-msg",
+                      "vigia-refresh"):
+            assert f'id="{ident}"' in html, ident
+        js = html[html.index("--- Vigia da Rede"):]
+        assert 'fetch("/admin/vigia"' in js
+        assert '"/admin/vigia/" + acao' in js      # conhecer | bloquear
+        assert 'vigiaAcao("conhecer"' not in js    # dispatch por data-acao
+        assert 'data-acao="conhecer"' in js
+        assert 'data-acao="bloquear"' in js
+        assert "vigiaLoad()" in html            # entra no carregarTudo
+
+
 class TestAdminCantoresIndesejados:
     """Fila A2 (09/11): a lista de cantores indesejados, que até então só
     existia em arquivo + API, ganhou o atalho no painel /admin.
@@ -4969,7 +5141,7 @@ class TestAdminCantoresIndesejados:
         assert '"/admin/cantores"' not in html      # nenhuma rota inventada
 
         # entra no carregamento geral do painel
-        assert "limLoad(); cantoresLoad();" in html
+        assert "limLoad(); vigiaLoad(); cantoresLoad();" in html
 
     def test_nome_do_cantor_nao_vai_para_atributo_html(self) -> None:
         js = self._js_da_secao()

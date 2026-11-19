@@ -70,9 +70,13 @@ FRASES_REAIS: list[tuple[str, str, str, dict]] = [
 #: Conversa comum — o fast path NÃO pode sequestrar (devolver None).
 FRASES_CONVERSA: list[tuple[str, str]] = [
     ("bom dia", "iniciar/2026-11-14_conversa_omegadrakon.md"),
-    # Pergunta de acompanhamento do próprio dono (txt.txt, 18/11): é
-    # conversa/estado interno, não uma ação do catálogo.
-    ("onde foi parar a lista de musicas do raul seixas", "txt.txt"),
+    # Pergunta de acompanhamento do próprio dono (18/11): é
+    # conversa/estado interno, não uma ação do catálogo. A origem aponta
+    # para a TRANSCRIÇÃO, não para o `txt.txt` de onde ela veio: o canal é
+    # efêmero (regra 20) e foi zerado em 19/11 — o teste não pode depender
+    # de um arquivo que o dono apaga (gate vermelho real em 19/11).
+    ("onde foi parar a lista de musicas do raul seixas",
+     "iniciar/2026-11-17_conversa_omegadrakon.md"),
 ]
 
 

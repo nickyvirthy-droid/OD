@@ -47,6 +47,10 @@ Saída (JSON-lines, <OD_LOG_DIR>/network_watchdog.log):
    {ts, tipo:"seguranca", origem, msg, ts_evento}                  # alerta
    {ts, tipo:"estado", ativos, pendentes_novos[], pendentes_seguranca[], rich}
                                        # ÚLTIMA linha = contrato da sonda
+     cada pendente: {mac, ip, fabricante, desde, nome, ultima_vez,
+                     conectado}        # nome/ultima_vez/conectado = projeção
+                                       # rica (pendentes_ricos) — o alerta
+                                       # diz se o aparelho está na rede agora
 
 Configuração (env, todas opcionais):
    OD_LOG_DIR            diretório de logs/estado     (padrão <repo>/logs)
@@ -88,7 +92,7 @@ import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 
 # -- Configuração -------------------------------------------------------------
 
@@ -301,13 +305,9 @@ def varre_lan(rede: str, alcance: Optional[list[str]] = None) -> dict[str, str]:
 
     with ThreadPoolExecutor(max_workers=32) as pool:
         list(pool.map(pinga, ips))
-    try:
-        texto = subprocess.run(
-            ["ip", "neigh"], capture_output=True, text=True, timeout=10
-        ).stdout
-    except Exception:
-        texto = ""
-    return vizinhos_lan(texto, rede)
+    # mesma leitura do `vizinhos_sem_ping` — o ping só serviu para FORÇAR a
+    # resolução ARP de quem estava dormindo na tabela do kernel.
+    return vizinhos_sem_ping(rede)
 
 
 def journal_sshd(desde: str) -> str:
@@ -320,6 +320,24 @@ def journal_sshd(desde: str) -> str:
         ).stdout
     except Exception:
         return ""
+
+
+def vizinhos_sem_ping(rede: str = REDE) -> dict[str, str]:
+    """`ip neigh` da tabela do kernel, SEM forçar resolução (sem ping).
+
+    Barato o bastante para rodar dentro de uma action do chat ou de uma
+    rota do painel — usado por ``reemite_estado`` para dizer se o pendente
+    está conectado AGORA logo depois de uma resolução. Quem só aparece na
+    UI do roteador (celular dormindo) fica como "fora da rede" aqui; a
+    camada rica do próximo ciclo corrige em até 5 min.
+    """
+    try:
+        texto = subprocess.run(
+            ["ip", "neigh"], capture_output=True, text=True, timeout=10
+        ).stdout
+    except Exception:
+        return {}
+    return vizinhos_lan(texto, rede)
 
 
 def rodar_rich(senha: str, timeout: int = 150) -> Optional[dict]:
@@ -375,6 +393,36 @@ def registrar(linhas: list[dict]) -> None:
 # -- Ciclo principal ----------------------------------------------------------
 
 
+def pendentes_ricos(
+    pendentes: list[dict],
+    dispositivos: dict[str, dict],
+    presentes: Any,
+    ts: str,
+) -> list[dict]:
+    """Cópia dos pendentes com nome, última vista e status de conexão.
+
+    O alerta do notifier (`net:dispositivo-novo`) saía com só MAC +
+    fabricante + IP — o dono não conseguia dizer se o aparelho ainda está
+    na rede (ordem dele, 19/11). Os três dados já vivem no inventário:
+    `nome` (camada rica do roteador), `ultima_vez` (toda varredura ARP que
+    o enxerga) e quem está `presentes` no ciclo (ARP **ou** UI do
+    roteador — celular dormindo não responde ping mas aparece lá).
+
+    Pura (sem I/O) de propósito: o estado persistido continua enxuto — a
+    projeção só entra na linha `tipo=estado`, que é o contrato da sonda.
+    """
+    ricos: list[dict] = []
+    for p in pendentes:
+        reg = dispositivos.get(p.get("mac", ""), {}) or {}
+        ricos.append({
+            **p,
+            "nome": reg.get("nome") or "",
+            "ultima_vez": reg.get("ultima_vez") or p.get("desde") or ts,
+            "conectado": bool(p.get("mac")) and p.get("mac") in presentes,
+        })
+    return ricos
+
+
 def ciclo(*, seed: bool = False) -> dict:
     """Um ciclo do vigia. `seed` reconhece tudo que está na rede agora."""
     estado = carregar_estado()
@@ -395,6 +443,11 @@ def ciclo(*, seed: bool = False) -> dict:
 
     novos, vistos = classificar_novos(vizinhos, dispositivos)
     ts = agora_iso()
+    # Quem está na rede AGORA: varredura ARP + (depois) quem a UI do
+    # roteador mostra — celular dormindo some do `ip neigh` e continua
+    # conectado lá. `pendentes_ricos` usa este conjunto para o "conectado
+    # agora / fora da rede" do alerta.
+    presentes: set[str] = set(vizinhos)
     for mac, ip in vizinhos.items():
         if mac in dispositivos:
             dispositivos[mac]["ip"] = ip
@@ -432,9 +485,16 @@ def ciclo(*, seed: bool = False) -> dict:
             #     não responderam ao ping (ex.: celular dormindo acorda na UI)
             for cliente in dados.get("clientes", []):
                 mac, nome = cliente.get("mac", ""), cliente.get("nome", "")
+                mac = normaliza_mac(mac) if mac else ""
                 if mac in dispositivos:
                     if nome:
                         dispositivos[mac]["nome"] = nome
+                    # A UI do roteador está vendo o aparelho AGORA — atualiza
+                    # a última vista (o ping/ARP sozinho perde celular
+                    # dormindo e o alerta passava a dizer "fora da rede"
+                    # enquanto ele estava conectado).
+                    dispositivos[mac]["ultima_vez"] = ts
+                    presentes.add(mac)
                 elif mac:
                     fabricante = fabricante_de(
                         mac, estado["vendor_cache"], _consulta_oui()
@@ -494,6 +554,13 @@ def ciclo(*, seed: bool = False) -> dict:
             registro["conhecido"] = True
         estado["pendentes_novos"] = []
         estado["pendentes_seguranca"] = []
+    # Projeção rica dos pendentes para a linha de estado: o alerta do
+    # notifier passa a dizer se o aparelho AINDA está na rede e quando foi
+    # visto da última vez (pedido do dono 19/11 — só MAC + IP não dizia
+    # nada). Os dados já existiam no inventário; faltava sair daqui.
+    pendentes = pendentes_ricos(
+        estado["pendentes_novos"], dispositivos, presentes, ts
+    )
     ativos = len(dispositivos)
     estado["ciclos"] = int(estado["ciclos"]) + 1
     estado["ultima_varredura"] = {
@@ -508,7 +575,7 @@ def ciclo(*, seed: bool = False) -> dict:
         "conhecidos_ativos": sum(
             1 for m in vizinhos if dispositivos.get(m, {}).get("conhecido")
         ),
-        "pendentes_novos": estado["pendentes_novos"],
+        "pendentes_novos": pendentes,
         "pendentes_seguranca": estado["pendentes_seguranca"][-5:],
         "rich": rico,
     })
@@ -536,6 +603,10 @@ def conhecer(mac: str, nome: str = "") -> None:
         p for p in estado["pendentes_novos"] if p["mac"] != chave
     ]
     salvar_estado(estado)
+    # A linha de estado do log é o que o notifier lê — reemitir aqui faz o
+    # alerta `net:dispositivo-novo` sumir NA HORA em vez de esperar o
+    # próximo ciclo do timer (até 5 min) (19/11).
+    reemite_estado()
     print(f"{chave} reconhecido" + (f" como {nome}" if nome else "") + ".")
 
 
@@ -544,7 +615,55 @@ def ack_seguranca() -> None:
     n = len(estado["pendentes_seguranca"])
     estado["pendentes_seguranca"] = []
     salvar_estado(estado)
+    reemite_estado()
     print(f"{n} evento(s) de segurança reconhecido(s).")
+
+
+def reemite_estado() -> bool:
+    """Regrava a linha `tipo=estado` do log DEPOIS de uma resolução.
+
+    O notifier lê a **última** linha do log (contrato do vigia). Sem este
+    passo, `--conhecer`/`--bloquear` limpam o inventário mas o alerta
+    `net:dispositivo-novo` só morreria no próximo ciclo do timer (até
+    5 min) — o dono clicaria "Reconhecer" no painel e continuaria
+    recebendo aviso de hora em hora, que é exatamente o que ele reclamou.
+
+    Devolve False quando não há linha de estado para reemitir (log vazio/
+    ausente — não é erro, o próximo ciclo cria).
+    """
+    if not LOG_FILE.exists():
+        return False
+    ultima: dict = {}
+    try:
+        with open(LOG_FILE, "rb") as fh:
+            fh.seek(0, 2)
+            size = fh.tell()
+            fh.seek(max(0, size - 8192))
+            chunk = fh.read().decode("utf-8", errors="replace")
+    except OSError:
+        return False
+    for linha in reversed(chunk.strip().split("\n")):
+        try:
+            dados = json.loads(linha)
+        except Exception:
+            continue
+        if dados.get("tipo") == "estado":
+            ultima = dados
+            break
+    if not ultima:
+        return False
+    estado = carregar_estado()
+    pendentes = estado.get("pendentes_novos") or []
+    dispositivos = estado.get("dispositivos") or {}
+    ultima["ts"] = agora_iso()
+    ultima["pendentes_novos"] = pendentes_ricos(
+        pendentes, dispositivos, vizinhos_sem_ping(), agora_iso()
+    )
+    ultima["pendentes_seguranca"] = (
+        estado.get("pendentes_seguranca") or []
+    )[-5:]
+    registrar([ultima])
+    return True
 
 
 def bloquear(mac: str) -> int:
@@ -559,7 +678,36 @@ def bloquear(mac: str) -> int:
         env={**os.environ, "ROUTER_PASS": senha},
     )
     print((proc.stdout or proc.stderr or "sem saída").strip())
+    if proc.returncode == 0:
+        _resolve_apos_bloqueio(mac)
     return proc.returncode
+
+
+def _resolve_apos_bloqueio(mac: str) -> None:
+    """Bloqueio confirmado = pendência resolvida (não é 'conhecido').
+
+    Sem isto o dono bloqueava o aparelho pelo painel e o alerta
+    `net:dispositivo-novo` continuava de hora em hora — o roteador já não
+    deixa o MAC entrar, não há mais nada a decidir. O registro fica no
+    inventário com a nota do bloqueio (`conhecido=False` de propósito:
+    ele não foi reconhecido, foi negado).
+    """
+    try:
+        estado = carregar_estado()
+    except Exception:
+        return
+    chave = normaliza_mac(mac)
+    alvo = estado["dispositivos"].get(chave)
+    if isinstance(alvo, dict):
+        alvo["nota"] = f"bloqueado no roteador em {agora_iso()}"
+    antes = len(estado.get("pendentes_novos") or [])
+    estado["pendentes_novos"] = [
+        p for p in estado.get("pendentes_novos") or []
+        if p.get("mac") != chave
+    ]
+    if len(estado["pendentes_novos"]) != antes or alvo is not None:
+        salvar_estado(estado)
+        reemite_estado()
 
 
 def reservar(mac: str, ip: str, nome: str = "") -> int:

@@ -1208,3 +1208,109 @@ class TestPapeisOD:
         assert data["contas"] == ["user", "familia"]
         nomes = {p["name"] for p in data["roles"]}
         assert nomes == {"admin", "user", "familia", "agent", "router"}
+
+
+# ---------------------------------------------------------------------------
+# Vigia da Rede — RESOLUÇÃO de pendência pelo chat (19/11/2026)
+# ---------------------------------------------------------------------------
+
+
+class TestVigiaResposta:
+    """O alerta `net:dispositivo-novo` mandava "Responda quando reconhecer
+    (ou 'bloqueia o X')" e NÃO existia canal: sem intent, sem rota, sem
+    botão. Agora a frase vira `network_conhecer`/`network_bloquear`."""
+
+    @pytest.mark.parametrize("text,alvo", [
+        ("reconhece o dispositivo", ""),
+        ("reconhece o aparelho novo da rede", ""),
+        ("reconheceu o dispositivo que apareceu ontem", ""),
+        ("reconhece o 2", "2"),
+        ("reconhece o dispositivo 2", "2"),
+        ("reconhece o A2:E5:1D:2D:4E:91", "A2:E5:1D:2D:4E:91"),
+        ("reconhece o 192.168.0.186", "192.168.0.186"),
+    ])
+    def test_reconhecer(self, text: str, alvo: str) -> None:
+        intent = detect_action_intent(text)
+        assert intent is not None
+        assert intent[0] == "network_conhecer"
+        assert intent[1] == {"alvo": alvo}
+
+    @pytest.mark.parametrize("text,alvo", [
+        ("bloqueia o dispositivo", ""),
+        ("bloqueia o aparelho desconhecido", ""),
+        ("bloqueia o 2", "2"),
+        ("bloqueia o A2:E5:1D:2D:4E:91", "A2:E5:1D:2D:4E:91"),
+    ])
+    def test_bloquear(self, text: str, alvo: str) -> None:
+        intent = detect_action_intent(text)
+        assert intent is not None
+        assert intent[0] == "network_bloquear"
+        assert intent[1] == {"alvo": alvo}
+
+    @pytest.mark.parametrize("text", [
+        # "reconhecer" genérico: NÃO pode marcar dispositivo nenhum
+        "quero reconhecer meu erro",
+        "reconhece que você errou",
+        # sem verbo de resolução nenhum: segue a leitura de sempre
+        "quantas pessoas estão conectadas na rede?",
+        "me conta uma piada sobre redes",
+    ])
+    def test_nao_confunde(self, text: str) -> None:
+        intent = detect_action_intent(text)
+        if intent is not None:
+            assert intent[0] not in ("network_conhecer", "network_bloquear")
+
+    def test_listagem_de_pendentes_vai_para_o_dono(self) -> None:
+        """Vários pendentes sem alvo → listagem numerada, nunca escolha
+        silenciosa (o dono responde o número)."""
+        data = {
+            "ok": False, "escolher": True,
+            "mensagem": "2 dispositivos desconhecidos pendentes.",
+            "pendentes": [
+                {"n": 1, "mac": "AA:BB:CC:DD:EE:01", "ip": "192.168.0.10",
+                 "fabricante": "X", "nome": "", "conectado": True,
+                 "ultima_vez": "", "desde": "2026-11-16"},
+                {"n": 2, "mac": "AA:BB:CC:DD:EE:02", "ip": "192.168.0.11",
+                 "fabricante": "Y", "nome": "Celular", "conectado": False,
+                 "ultima_vez": "", "desde": "2026-11-17"},
+            ],
+        }
+        text = format_intent_result("network_conhecer", data)
+        assert text is not None
+        assert "2 dispositivos desconhecidos pendentes" in text
+        assert "1. AA:BB:CC:DD:EE:01" in text
+        assert "conectado agora" in text
+        assert "fora da rede" in text
+        assert "2. AA:BB:CC:DD:EE:02" in text
+        assert "'reconhece o 2'" in text       # dica de como escolher
+
+    def test_erro_e_degradacao_nunca_caem_no_llm(self) -> None:
+        """ok=False é RESPOSTA, não falha de formatação — se voltasse None
+        o LLM respondaria no lugar da action (lição da rádio, 11/11)."""
+        texto = format_intent_result("network_conhecer", {
+            "ok": False, "error": "MAC 11:22 não está no inventário do Vigia.",
+            "pendentes": [],
+        })
+        assert texto is not None
+        assert "não está no inventário" in texto
+        assert format_intent_result("network_bloquear", {
+            "ok": True, "sem_pendencias": True,
+            "mensagem": "Nenhum dispositivo desconhecido pendente.",
+        }) == ("✅ Nenhum dispositivo desconhecido pendente.")
+
+    def test_permissao_negada_vira_texto_honesto(self) -> None:
+        texto = format_intent_result("network_conhecer", {
+            "ok": False, "error": "permissao_negada",
+        })
+        assert texto is not None
+        assert "só o admin" in texto
+        assert "permissao_negada" not in texto
+
+    def test_sucesso_declarado_pela_action(self) -> None:
+        assert format_intent_result("network_conhecer", {
+            "ok": True, "reconhecido": True,
+            "mensagem": "AA reconhecido — avisos encerrados.",
+        }) == "✅ AA reconhecido — avisos encerrados."
+        assert format_intent_result("network_bloquear", {
+            "ok": True, "bloqueado": True, "mensagem": "AA bloqueado.",
+        }) == "🛑 AA bloqueado."

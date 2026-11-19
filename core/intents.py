@@ -13,8 +13,12 @@ Descrição: FAST PATH de intenções determinísticas (v0.27.5) — responde
            local em CPU.
 
            Segurança por construção:
-             - Só actions de LEITURA (allowlist FASTPATH_ACTIONS) — nenhuma
-               action de escrita/destrutiva é executável pelo fast path;
+             - As actions de LEITURA entram pela allowlist
+               FASTPATH_ACTIONS; as ÚNICAS escritas que este caminho
+               dispara são as resoluções do Vigia da Rede
+               (`network_conhecer`/`network_bloquear`, 19/11) — sempre em
+               papel admin (Permission Engine) e com o bloqueio passando
+               pelo human-in-the-loop (`ACOES_SENSIVEIS_PADRAO`);
              - Matemática avaliada apenas com nós de expressão numérica
                (BinOp/UnaryOp/Constant numérica) — nada de chamadas,
                atributos, strings ou builtins;
@@ -89,6 +93,73 @@ def _detect_network(text: str) -> Optional[str]:
     if any(subject in low for subject in _NETWORK_SUBJECTS):
         return "network_hosts"
     return None
+
+
+# ---------------------------------------------------------------------------
+# Vigia da Rede — RESOLUÇÃO de pendência (ordem do dono, 19/11/2026)
+# ---------------------------------------------------------------------------
+# O alerta `net:dispositivo-novo` mandava "Responda quando reconhecer (ou
+# 'bloqueia o X')" e NÃO existia canal: sem intent, sem rota, sem botão.
+# Estas frases viram `network_conhecer`/`network_bloquear` (admin-gated).
+#
+# Entram ANTES de `_detect_network`: "reconhece os dispositivos da rede"
+# casa nos dois padrões e a resposta certa é RESOLVER, não listar.
+_VIGIA_RESOLVE = re.compile(
+    r"\b(?:reconhe[cç](?:a|eu|e|ou|emos)|conhe[cç](?:a|eu|e|ou)|aceit[ae])\b",
+    re.IGNORECASE,
+)
+_VIGIA_BLOQUEIA = re.compile(
+    r"\b(?:bloque(?:ar|ia|ie|ou|ado)|negu[ei]|banir|bani)\b",
+    re.IGNORECASE,
+)
+# Contexto de rede obrigatório quando não há alvo explícito: sem ele,
+# "reconhecer" genérico ("quero reconhecer meu erro") NUNCA pode virar
+# ação de rede — a frase segue para o LLM como sempre.
+_VIGIA_CONTEXTO = (
+    "dispositivo", "aparelho", "vigia", "pendente", "desconhecido",
+    "mac", "celular", "host", "equipamento", "conectad", "aparecid",
+)
+_VIGIA_MAC_RE = re.compile(r"\b([0-9A-Fa-f]{2}(?:[:\-][0-9A-Fa-f]{2}){5})\b")
+_VIGIA_IP_RE = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})\b")
+# Número da LISTAGEM: "reconhece o 2", "nº 2", "dispositivo 2". Só nestas
+# formas — um "15" solto em "às 15 horas" não pode virar alvo.
+_VIGIA_NUM_RE = re.compile(
+    r"\b(?:n[°º]\s*|o\s+|numero\s+|n[uú]mero\s+|dispositivo\s+|aparelho\s+)"
+    r"(\d{1,2})\b",
+    re.IGNORECASE,
+)
+
+
+def _detect_vigia(text: str) -> Optional[tuple[str, dict[str, Any]]]:
+    """'reconhece o dispositivo' / 'bloqueia o 2' → action do Vigia.
+
+    Alvo (MAC, IP ou número da listagem) sai da frase quando existir; sem
+    alvo a ACTION resolve sozinha (um pendente = aquele; vários = listagem
+    numerada para o dono escolher — nunca se escolhe por conta própria).
+    """
+    if not text or not text.strip():
+        return None
+    acao = None
+    if _VIGIA_BLOQUEIA.search(text):
+        acao = "network_bloquear"
+    elif _VIGIA_RESOLVE.search(text):
+        acao = "network_conhecer"
+    if acao is None:
+        return None
+    alvo_match = (
+        _VIGIA_MAC_RE.search(text)
+        or _VIGIA_IP_RE.search(text)
+        or _VIGIA_NUM_RE.search(text)
+    )
+    baixo = text.lower()
+    if alvo_match is None and not any(
+        termo in baixo for termo in _VIGIA_CONTEXTO
+    ):
+        return None
+    alvo = ""
+    if alvo_match is not None:
+        alvo = next((g for g in alvo_match.groups() if g), "")
+    return acao, {"alvo": alvo}
 
 
 def detect_infra_intent(text: str) -> bool:
@@ -1051,7 +1122,8 @@ def detect_action_intent(text: str) -> Optional[tuple[str, dict[str, Any]]]:
     if not text or not text.strip():
         return None
     action = (
-        _detect_network(text)
+        _detect_vigia(text)
+        or _detect_network(text)
         or _detect_operational(text)
         or _detect_saude(text)
         or _detect_google_write(text)
@@ -1661,6 +1733,53 @@ def _formata_radio(action: str, data: dict[str, Any]) -> Optional[str]:
     return None
 
 
+def _linha_pendente(pendente: dict) -> str:
+    """Linha numerada de um pendente — reaproveita o formatador do notifier."""
+    from integrations.notifier import formata_dispositivo
+
+    linha = formata_dispositivo(pendente)
+    numero = pendente.get("n")
+    return f"  {numero}. {linha}" if numero else f"  • {linha}"
+
+
+_VIGIA_LISTA_DICA = "  Responda o número: 'reconhece o 2' ou 'bloqueia o 2'."
+
+
+def _formata_vigia(action: str, data: dict[str, Any]) -> Optional[str]:
+    """Resposta do Vigia a partir do retorno REAL da action (sem inventar).
+
+    Listagem, erro e sucesso são TEXTO — nunca caem no LLM, que alucinaria
+    "dispositivo reconhecido" sem nada ter executado (mesma lição da rádio
+    e da busca web, 11/11).
+    """
+    if data.get("sem_pendencias"):
+        return "✅ " + str(
+            data.get("mensagem")
+            or "Nenhum dispositivo desconhecido pendente."
+        )
+    if data.get("escolher"):
+        linhas = ["⚠️ " + str(data.get("mensagem") or "Vários pendentes:")]
+        linhas += [_linha_pendente(p) for p in data.get("pendentes") or []]
+        linhas.append(_VIGIA_LISTA_DICA)
+        return "\n".join(linhas)
+    if data.get("ok") is not True:
+        motivo = data.get("error") or data.get("message") or "falha"
+        if motivo == "permissao_negada":
+            motivo = ("só o admin reconhece ou bloqueia dispositivos "
+                      "da rede.")
+        linhas = [f"⛔ {motivo}"]
+        pendentes = data.get("pendentes") or []
+        if pendentes:
+            linhas += [_linha_pendente(p) for p in pendentes]
+            linhas.append(_VIGIA_LISTA_DICA)
+        return "\n".join(linhas)
+    if action == "network_conhecer":
+        return "✅ " + str(
+            data.get("mensagem") or "Dispositivo reconhecido."
+        )
+    return "🛑 " + str(data.get("mensagem") or "Bloqueio executado.")
+
+
 def format_intent_result(action: str, data: Any) -> Optional[str]:
     """Converte o retorno da action em uma resposta PT-BR curta.
 
@@ -1681,6 +1800,10 @@ def format_intent_result(action: str, data: Any) -> Optional[str]:
     # exatamente onde ele inventava resultado de busca.
     if action == "web_search":
         return _formata_web_search(data)
+    # VIGIA DA REDE: sucesso, listagem e erro são a resposta certa — nunca
+    # caem no LLM (que diria "reconhecido" sem a action ter rodado).
+    if action in ("network_conhecer", "network_bloquear"):
+        return _formata_vigia(action, data)
     if (
         ok is not True
         and action != "ha_device_control"

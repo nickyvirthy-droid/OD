@@ -475,6 +475,13 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("DELETE", "/admin/ideias", "admin_ideias_clear", True),
     ("GET", "/admin/limitacoes", "admin_limitacoes_status", True),
     ("DELETE", "/admin/limitacoes", "admin_limitacoes_clear", True),
+    # Vigia da Rede (ordem do dono, 19/11): o alerta "dispositivo
+    # desconhecido na rede" mandava responder sem dizer ONDE. O painel
+    # ganha os botões — as MESMAS funções do chat (`network_conhecer`/
+    # `network_bloquear`), com `_require_admin` no handler.
+    ("GET", "/admin/vigia", "admin_vigia_status", True),
+    ("POST", "/admin/vigia/conhecer", "admin_vigia_conhecer", True),
+    ("POST", "/admin/vigia/bloquear", "admin_vigia_bloquear", True),
     # Registro Mestre de peças (item 2 da pauta, 2026-10-09) — escrita só
     # do dono; a consulta pública é GET /registry/{codigo}.
     ("POST", "/admin/registry", "admin_registry_create", True),
@@ -1871,6 +1878,38 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       ferramentas novas e avisa conflito antes de gastar o LLM.
     </p>
   </section>
+
+  <section>
+    <h2>Vigia da Rede (dispositivo desconhecido)</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      O aviso <b>"Dispositivo(s) desconhecido(s) na rede"</b> chega no
+      Telegram e no app — e é <b>aqui</b> que se responde. Cada linha mostra
+      se o aparelho está <b>conectado agora</b>, quando foi visto pela
+      última vez e desde quando está pendente. <b>Reconhecer</b> é da casa
+      (os avisos param na hora); <b>Bloquear</b> é modo de operador — põe o
+      MAC na lista de negação do roteador pela UI real (leva até ~2 min e
+      pede confirmação). No chat do OD vale a mesma coisa: digite
+      <i>"reconhece o dispositivo"</i> ou <i>"bloqueia o 2"</i>.
+    </p>
+    <div class="row">
+      <span class="muted" id="vigia-resumo" style="font-size:0.8rem">carregando…</span>
+      <span style="flex:1"></span>
+      <button id="vigia-refresh">↻ Carregar</button>
+      <span class="muted msg" id="vigia-msg"></span>
+    </div>
+    <table style="margin-top:10px">
+      <thead><tr>
+        <th>#</th><th>MAC</th><th>Nome</th><th>Fabricante</th><th>IP</th>
+        <th>Status</th><th>Última vez</th><th>Pendente desde</th><th>Ações</th>
+      </tr></thead>
+      <tbody id="vigia-lista"><tr><td colspan="9" class="muted">Carregando…</td></tr></tbody>
+    </table>
+    <p class="muted" style="font-size:0.75rem;margin-top:6px">
+      Inventário em <code>logs/network_watchdog_estado.json</code> (Vigia da
+      Rede, ciclo de 5 min via <code>network-watchdog.timer</code>). Sem
+      pendências a tabela fica vazia e o aviso para de repetir.
+    </p>
+  </section>
 </main>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
@@ -2340,6 +2379,99 @@ async function limClear() {
 }
 document.getElementById("lim-load").onclick = limLoad;
 document.getElementById("lim-clear").onclick = limClear;
+
+// --- Vigia da Rede (dispositivo desconhecido) — ordem do dono, 19/11/2026 ---
+// O aviso "Dispositivo(s) desconhecido(s) na rede" mandava responder sem
+// dizer ONDE; estes botões são a metade "painel" da resposta (a outra é o
+// intent do chat). Ambas chamam as MESMAS actions do catálogo.
+function vigiaSetMsg(t, cls) {
+  const el = document.getElementById("vigia-msg");
+  el.textContent = t;
+  el.className = "muted msg " + (cls || "");
+}
+function vigiaEsc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, c => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ));
+}
+function vigiaQuando(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return vigiaEsc(iso);
+  const s = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (s < 60) return "agora";
+  if (s < 3600) return "há " + Math.round(s / 60) + " min";
+  if (s < 86400) return "há " + Math.floor(s / 3600) + " h";
+  return "há " + Math.floor(s / 86400) + " d";
+}
+function vigiaStatus(p) {
+  if (p.conectado === true) return "✅ conectado agora";
+  if (p.conectado === false) return "⏸ fora da rede";
+  return '<span class="muted">—</span>';  // linha de estado antiga
+}
+async function vigiaLoad() {
+  try {
+    const resp = await fetch("/admin/vigia", { headers: authHeaders() });
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok) { vigiaSetMsg(data.error || "Erro HTTP " + resp.status, "err"); return; }
+    const linhas = data.pendentes || [];
+    document.getElementById("vigia-resumo").textContent =
+      data.existe === false
+        ? "vigia ainda sem inventário"
+        : (linhas.length
+            ? linhas.length + " pendente(s) · ciclo " + (data.ciclos || 0) +
+              (data.ultima_varredura && data.ultima_varredura.ts
+                ? " · última varredura " + vigiaQuando(data.ultima_varredura.ts)
+                : "")
+            : "nenhuma pendência — sem aviso novo");
+    const tbody = document.getElementById("vigia-lista");
+    if (!linhas.length) {
+      tbody.innerHTML = '<tr><td colspan="9" class="muted">— nenhum dispositivo desconhecido pendente —</td></tr>';
+      return;   // não toca em vigiaMsg: a confirmação da última ação fica
+    }
+    tbody.innerHTML = linhas.map(p =>
+      "<tr>" +
+        "<td>" + vigiaEsc(p.n) + "</td>" +
+        '<td><code>' + vigiaEsc(p.mac) + "</code></td>" +
+        "<td>" + (p.nome ? vigiaEsc(p.nome) : '<span class="muted">—</span>') + "</td>" +
+        "<td>" + vigiaEsc(p.fabricante || "?") + "</td>" +
+        "<td>" + vigiaEsc(p.ip || "?") + "</td>" +
+        "<td>" + vigiaStatus(p) + "</td>" +
+        "<td>" + vigiaQuando(p.ultima_vez) + "</td>" +
+        "<td>" + vigiaEsc(String(p.desde || "—").slice(0, 16).replace("T", " ")) + "</td>" +
+        "<td>" +
+          '<button data-acao="conhecer" data-alvo="' + vigiaEsc(p.mac) + '">✅ Reconhecer</button> ' +
+          '<button data-acao="bloquear" data-alvo="' + vigiaEsc(p.mac) + '" class="danger">🛑 Bloquear</button>' +
+        "</td>" +
+      "</tr>"
+    ).join("");
+  } catch (e) { vigiaSetMsg("Falha ao carregar: " + e.message, "err"); }
+}
+async function vigiaAcao(acao, alvo) {
+  const rotulo = acao === "conhecer" ? "Reconhecer" : "Bloquear";
+  const aviso = acao === "conhecer"
+    ? "Reconhecer " + alvo + " como dispositivo da casa? Os avisos param na hora."
+    : "Bloquear " + alvo + " na lista de negação do roteador? (pode levar até ~2 min)";
+  if (!window.confirm(aviso)) return;
+  vigiaSetMsg(rotulo + " " + alvo + " — processando" +
+    (acao === "bloquear" ? " (até ~2 min, a UI do roteador abre sozinha)" : "") + "…", "");
+  try {
+    const resp = await fetch("/admin/vigia/" + acao, {
+      method: "POST", headers: authHeaders(),
+      body: JSON.stringify({ alvo: alvo }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    if (data.ok === true) vigiaSetMsg("✅ " + (data.mensagem || rotulo + " feito."), "ok");
+    else vigiaSetMsg("⛔ " + (data.error || data.mensagem || ("Erro HTTP " + resp.status)), "err");
+  } catch (e) { vigiaSetMsg("Falha: " + e.message, "err"); }
+  vigiaLoad();
+}
+document.getElementById("vigia-refresh").onclick = vigiaLoad;
+document.getElementById("vigia-lista").addEventListener("click", e => {
+  const b = e.target.closest ? e.target.closest("button[data-acao]") : null;
+  if (!b) return;
+  vigiaAcao(b.dataset.acao, b.dataset.alvo);
+});
 
 // --- Registro Mestre (peças) — cadastro do dono (item 2, 2026-10-09) ------
 function regSetMsg(t, cls) {
@@ -3849,7 +3981,7 @@ async function iaLoad() {
   } catch (e) { resumo.textContent = "falha: " + e.message; }
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); vigiaLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -9559,6 +9691,103 @@ class APIHandler(BaseHTTPRequestHandler):
         self._require_admin()
         from core.limitacoes import limpar_limitacoes
         self._json(200, limpar_limitacoes())
+
+    # -- Vigia da Rede (ordem do dono, 19/11/2026) ------------------------
+    def _vigia_body(self) -> tuple[str, str]:
+        """Body ``{alvo?, nome?}`` validado → (alvo, nome).
+
+        `alvo` aceita MAC, IP ou o NÚMERO da listagem (regra 14: o dono
+        não digita MAC); vazio = o único pendente quando há um só.
+        """
+        data = self._read_json()
+        if not isinstance(data, dict):
+            raise APIError(400, "body_invalido")
+        alvo = str(data.get("alvo") or "").strip()
+        nome = str(data.get("nome") or "").strip()
+        if len(alvo) > 64 or len(nome) > 40:
+            raise APIError(400, "parametro_invalido")
+        return alvo, nome
+
+    def admin_vigia_status(self) -> None:
+        """GET /admin/vigia — pendentes do Vigia + status de conexão.
+
+        O inventário já traz `nome`/`ultima_vez`; o "conectado agora" é
+        medido na hora pela tabela ARP (a linha do log só a cada 5 min).
+        Contrato: {ok, existe, pendentes: [{n, mac, ip, fabricante, nome,
+        conectado, ultima_vez, desde}], total, ciclos, ultima_varredura}.
+        """
+        self._require_admin()
+        from tools.actions.actions import resumo_pendentes
+        from tools.monitor import network_watchdog as vigia
+
+        if not vigia.ESTADO_FILE.exists():
+            self._json(200, {
+                "ok": True, "existe": False, "pendentes": [], "total": 0,
+                "ciclos": 0, "ultima_varredura": None,
+            })
+            return
+        estado = vigia.carregar_estado()
+        pendentes = [
+            p for p in (estado.get("pendentes_novos") or [])
+            if isinstance(p, dict)
+        ]
+        ricos = vigia.pendentes_ricos(
+            pendentes,
+            estado.get("dispositivos") or {},
+            set(vigia.vizinhos_sem_ping()),
+            vigia.agora_iso(),
+        )
+        self._json(200, {
+            "ok": True,
+            "existe": True,
+            "pendentes": resumo_pendentes(ricos),
+            "total": len(ricos),
+            "ciclos": int(estado.get("ciclos") or 0),
+            "ultima_varredura": estado.get("ultima_varredura"),
+        })
+
+    def admin_vigia_conhecer(self) -> None:
+        """POST /admin/vigia/conhecer — botão "Reconhecer" do painel.
+
+        Chama a MESMA action do chat (`network_conhecer`) — um caminho só
+        de resolução, com reemissão imediata da linha de estado (o aviso
+        some na hora, sem esperar o ciclo de 5 min do vigia).
+        """
+        self._require_admin()
+        alvo, nome = self._vigia_body()
+        from tools.actions.actions import network_conhecer
+
+        resultado = network_conhecer(alvo, nome)
+        log.info(
+            "vigia: reconhecido pelo painel",
+            alvo=alvo or "(único pendente)",
+            ok=bool(resultado.get("ok")),
+        )
+        self._json(200, resultado)
+
+    def admin_vigia_bloquear(self) -> None:
+        """POST /admin/vigia/bloquear — botão "Bloquear" (modo operador).
+
+        Pode levar até ~2 min: a action abre a UI real do roteador
+        (Controlo de Acesso) e devolve o que ele respondeu. Cada request
+        tem a sua thread no ThreadingHTTPServer — a espera não congela o
+        resto do painel.
+        """
+        self._require_admin()
+        alvo, _nome = self._vigia_body()
+        from tools.actions.actions import network_bloquear
+
+        log.info(
+            "vigia: bloquear pelo painel iniciado",
+            alvo=alvo or "(único pendente)",
+        )
+        resultado = network_bloquear(alvo)
+        log.info(
+            "vigia: bloquear pelo painel terminou",
+            ok=bool(resultado.get("ok")),
+            erro=str(resultado.get("error") or "")[:120],
+        )
+        self._json(200, resultado)
 
     def history_delete_message(self, user_id: str, message_id: str) -> None:
         """DELETE /history/{user_id}/messages/{message_id} — apaga UMA mensagem.
