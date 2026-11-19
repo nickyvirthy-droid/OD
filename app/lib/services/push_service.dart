@@ -65,12 +65,20 @@ class PushService {
     await _safe(() => _refreshToken(messaging));
 
     await _safe(() async {
+      // Só o FOREGROUND precisa de notificação local: em background/terminado
+      // o próprio Android já exibe a mensagem do FCM.
       FirebaseMessaging.onMessage.listen(show);
       FirebaseMessaging.onBackgroundMessage(odOnBackgroundMessage);
-      FirebaseMessaging.onMessageOpenedApp.listen(show);
 
-      final initial = await messaging.getInitialMessage();
-      if (initial != null) await show(initial);
+      // NÃO reexibir em onMessageOpenedApp/getInitialMessage (achado 19/11):
+      // tocar numa notificação antiga (ex.: "Decisão de 24 h" de prazo já
+      // vencido) republicava a MESMA notificação local, e cada abertura do
+      // app fazia isso de novo — o aviso nunca morria, mesmo com o servidor
+      // sem reenviar nada. A notificação tocada já está na bandeja: o toque
+      // é evento de navegação, não de exibição.
+      FirebaseMessaging.onMessageOpenedApp.listen((_) {});
+
+      await messaging.getInitialMessage();   // consome, sem reexibir
     });
   }
 
