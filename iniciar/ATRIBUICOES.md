@@ -9,6 +9,35 @@
 
 ---
 
+## 19/11/2026 — Backup do Postgres: restauração real provada (P1 nº 7)
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:00, pedido `continue`.
+
+### Criados
+
+- `tools/testar_restauracao_pg.py` — sobe cluster PostgreSQL temporário em
+  `/tmp`, restaura o dump mais recente e compara as linhas com os blocos
+  `COPY` do próprio dump (sem tocar no banco `od`, sem superusuário).
+- `tests/test_restauracao_pg.py` — 4 testes da contagem de linhas do dump.
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P1 nº 7 com a metade da
+  restauração provada), `iniciar/session.json` e transcrição de 19/11 (§5).
+
+### Intenção e estado
+
+- **Intenção:** o dump diário existe desde 13/11 e nunca tinha sido restaurado;
+  fechar o DoD "restauração testada" com evidência medida.
+- **Estado:** **provado.** Dump de 19/11 02:50 (37.084 B): restore OK em
+  **0,17 s**, **14 tabelas**, **589 linhas** iguais às do dump. Defeitos pegos
+  no caminho: stdin do `psql` recebendo o descritor comprimido do gzip e
+  stderr em latin-1.
+- **Pela metade:** o **offsite físico** (cópia fora da máquina) continua
+  pendente; e o verificador ainda é manual (sugerido timer semanal).
+
+---
+
 ## 19/11/2026 — Cascata de IAs reordenada por medição (Freebuff, Kilo, Agy, resto)
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~15:35, ordem do dono sobre a

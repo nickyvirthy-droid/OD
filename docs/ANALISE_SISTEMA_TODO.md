@@ -103,7 +103,7 @@ registro):
 |---|---------|---------------|---------|
 | 5 | ~~**Ligar o I2 (Hybrid Search) no RAG com medição antes/depois**~~ **ENTREGUE 18/11 — e o número reprovou o default** — fiação pronta (`OD_RAG_HIBRIDO`, BM25 junto ao denso, piso intacto) + medidor `tools/medir_rag_hibrido.py`. No corpus real (3815 chunks): relevantes 8/8 → 8/8, paráfrases 6/6 → 6/6, **irrelevantes 0/8 → 2/8 passaram** (overlap IDF satura com termo raro: "basquete" existe num chunk de release). Fica **OFF por padrão**; ligar exige recalibrar o piso com evidência. | Médio |
 | 6 | **Modo colapso declarado** | Hoje, sem nuvem, a resposta cai no 3B **em silêncio**. Trocar para a cadeia local e avisar no chat/UI é barato e é a diferença entre degradar e parecer quebrado. | Médio |
-| 7 | **Backup fora da máquina + teste de restauração real** | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
+| 7 | **Backup fora da máquina + teste de restauração real** — **restauração PROVADA 19/11** (`tools/testar_restauracao_pg.py`: 14 tabelas/589 linhas, 0,17 s, em cluster temporário). Offsite físico segue pendente. | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
 | 8 | **Comparador de modelos lado a lado + monitor de hardware** | Ideia do GSN Offline (17/11) e o dono já pediu para "usar a melhor IA": hoje a escolha é por log, não por comparação ao vivo. | Médio |
 
 #### P2 — depende de decisão ou compra do dono
@@ -1095,6 +1095,12 @@ esperar o timeout.
       por fail-fast. Freebuff segue fora **por modo** (só `login`/`doctor`;
       TUI no stdin) e entra em 1º assim que tiver headless. Também corrigidos
       o conflito de flags do Codex e o `--skip-trust` do Gemini.
+- [x] **Provar a restauração do backup do Postgres** — **FEITO 19/11:**
+      `tools/testar_restauracao_pg.py` sobe um cluster temporário (sem
+      superusuário, sem tocar no `od`), restaura o dump de 19/11 02:50 e compara
+      as linhas com os blocos `COPY` do próprio dump: **14 tabelas, 589 linhas,
+      0,17 s**; `tests/test_restauracao_pg.py` 4 passed. O offsite físico
+      continua pendente (é outra perna da entrega).
 - [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
       Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
       não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à

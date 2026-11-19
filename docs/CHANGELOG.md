@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Backup do Postgres: restauração real provada (2026-11-19, sem bump)
+
+**Contexto:** o dump diário do banco `od` existe desde 13/11 e **nunca tinha
+sido restaurado** — backup não testado não é backup. A tarefa P1 nº 7 pedia
+"teste de restauração real".
+
+**Método (`tools/testar_restauracao_pg.py`, novo):** `initdb` num cluster
+temporário em `/tmp`, papel `od` + banco `od_restore`, restaura o dump mais
+recente com `ON_ERROR_STOP=1`, confere as tabelas e as contagens de linha e
+destrói o cluster no `finally`. Não usa superusuário, não toca no banco de
+produção e não precisa de `CREATEDB` no papel da aplicação (foi o primeiro
+bloqueio medido: `permission denied to create database`).
+
+**Régua de fidelidade:** as linhas são contadas no **próprio dump** (blocos
+`COPY`), não no banco vivo — o banco avança depois das 02:50 e comparar com
+ele acusaria uma "diferença" que é só o tempo passar. O banco vivo entra como
+informação (“N tabelas avançaram desde o dump”).
+
+**Medição (dump `od-2026-11-19_0250.sql.gz`, 37.084 B):** restore OK em
+**0,17 s**, **14 tabelas**, **589 linhas batendo com o dump**; 2 tabelas
+avançaram no banco vivo desde o dump (`conversation_messages`, `llm_cache`) —
+esperado, não é falha. Verificação automatizada: `tests/test_restauracao_pg.py`
+**4 passed**.
+
+**Limite:** o offsite físico (cópia fora da máquina) continua pendente; o que
+ficou provado é que o dump **é restaurável**.
+
 ## Cascata de CLIs reordenada por medição real (2026-11-19, sem bump)
 
 **Contexto (ordem do dono):** *"a mais confiável no momento é freebuff, acho que

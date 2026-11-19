@@ -257,3 +257,51 @@ HTML — escondia 11 CLIs e ignorava a ordem. As opções passaram a ser geradas
 - **Limite:** a medição afere disponibilidade/latência, não a qualidade do
   código gerado; a ordem das falhas é fail-fast, não mérito.
 - **Sem bump** (1.46.0+2083).
+
+---
+
+## §5 — P1 nº 7: restauração real do backup do Postgres (provada)
+
+**Pedido:** `continue` — seguindo o P1 aberto sem dependência de decisão do dono.
+
+### 1. Dois bloqueios medidos antes do método certo
+
+- `CREATE DATABASE` como papel `od` → **`permission denied to create
+  database`** (sem `CREATEDB`); `sudo -u postgres` também não (senha).
+- Restaurar por cima do `od` não era opção: o teste não pode tocar no banco de
+  produção.
+
+### 2. Método (`tools/testar_restauracao_pg.py`, novo)
+
+Cluster PostgreSQL **temporário** em `/tmp` (`initdb`/`pg_ctl`, porta livre,
+`socket` em `/tmp`), papel `od` + banco `od_restore`, restore do dump mais
+recente com `ON_ERROR_STOP=1`, comparação e `finally` que derruba o cluster e
+apaga o diretório.
+
+**Régua:** as linhas são contadas nos **blocos `COPY` do próprio dump**, não no
+banco vivo (que avança desde as 02:50). O banco vivo aparece como informação.
+
+### 3. Medição (dump `od-2026-11-19_0250.sql.gz`, 37.084 B)
+
+- Restore **OK em 0,17 s**, **14 tabelas**, **589 linhas batendo com o dump**.
+- `INFO`: 2 tabelas avançaram no banco vivo desde o dump
+  (`conversation_messages` 250→254, `llm_cache` 145→146) — esperado.
+- `tests/test_restauracao_pg.py` (novo): **4 passed**.
+
+### 4. Defeitos pegos durante a implementação
+
+- `psql` recebia o **descritor comprimido** do `GzipFile` (stdin por arquivo) e
+  respondia `invalid command \6`; agora o texto vai por `input=`.
+- `stderr` do `psql` vinha em latin-1 e matava o verificador com
+  `UnicodeDecodeError`; `errors="replace"` no `subprocess`.
+
+### 5. Atribuição e limites
+
+- **Autor:** Freebuff (Buffy), 19/11. Arquivos: `tools/testar_restauracao_pg.py`,
+  `tests/test_restauracao_pg.py`, `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (este §, `session.json`,
+  `ATRIBUICOES.md`).
+- **Limite:** provado que o dump **é restaurável**; o **offsite físico** (cópia
+  fora da máquina) continua pendente. Sugestão: rodar o verificador semanalmente
+  (hoje é manual).
+- **Sem bump** e sem restart (ferramenta de verificação, servidor intocado).

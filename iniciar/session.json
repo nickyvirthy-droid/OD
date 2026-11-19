@@ -6424,5 +6424,15 @@
     "limite": "Mede disponibilidade/latencia, nao qualidade do codigo gerado; ordem das falhas e fail-fast, nao merito. Sem bump (1.46.0+2083).",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§4)",
     "updated_at": "2026-11-19T15:50:00-03:00"
+  },
+  "restauracao_pg_provada_2026_11_19": {
+    "pedido": "Dono (19/11): 'continue' — seguido pelo P1 no 7 (backup) sem depender de decisao dele.",
+    "bloqueios": "CREATE DATABASE com o papel od -> permission denied to create database (sem CREATEDB); sudo -u postgres exige senha. Restaurar sobre o od nao e opcao.",
+    "metodo": "tools/testar_restauracao_pg.py (NOVO): cluster PostgreSQL temporario em /tmp (initdb/pg_ctl, porta livre, socket em /tmp), papel od + banco od_restore, restore com ON_ERROR_STOP=1 e finally que derruba e apaga. Regua de fidelidade: linhas contadas nos blocos COPY do PROPRIO dump (o banco vivo avanca desde 02:50 e entra so como informacao).",
+    "medicao": "dump od-2026-11-19_0250.sql.gz (37084 B): restore OK em 0,17 s, 14 tabelas, 589 linhas batendo com o dump; 2 tabelas avancaram no banco vivo desde o dump (conversation_messages 250->254, llm_cache 145->146). tests/test_restauracao_pg.py 4 passed.",
+    "defeitos_pegos": "(1) psql recebia o descritor COMPRIMIDO do GzipFile por stdin -> 'invalid command \\6'; agora texto via input=. (2) stderr do psql em latin-1 matava com UnicodeDecodeError; errors=replace no subprocess.",
+    "limite": "Offsite fisico (copia fora da maquina) continua pendente; rodar o verificador hoje e manual. Sem bump, sem restart (ferramenta de verificacao).",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-19T16:15:00-03:00"
   }
 }
