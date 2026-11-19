@@ -1,0 +1,22 @@
+[Unit]
+Description=Omega Drakon - verificação semanal da restauração do pg_dump
+Documentation=https://github.com/OmegaDrakon
+After=od-pg-dump.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+# Sobe um PostgreSQL TEMPORÁRIO (PrivateTmp) e restaura o dump mais recente.
+# Sucesso é silêncio; falha vai para o Telegram do dono (OD_TELEGRAM_ADMINS).
+# Roda manual: .venv/bin/python -m runtime.verificar_restauracao_pg
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m runtime.verificar_restauracao_pg
+EnvironmentFile=/home/alex/OmegaDrakon/.env
+TimeoutStartSec=420
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-pg-restore
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ReadWritePaths=/home/alex/OmegaDrakon/data

@@ -9,6 +9,37 @@
 
 ---
 
+## 19/11/2026 — Verificação semanal do restore com aviso no Telegram
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:20, ordem do dono.
+
+### Criados
+
+- `runtime/verificar_restauracao_pg.py` — runner semanal: restaura em cluster
+  temporário, grava `data/pg_restore_verificacao.json` e avisa no Telegram
+  **só quando falha** (`--dry-run` para teste).
+- `systemd/od-pg-restore.service` e `systemd/od-pg-restore.timer` — domingo
+  03:30, `Persistent=true`, `PrivateTmp`, escrita restrita a `data/`.
+- `tests/test_verificar_restauracao_pg.py` — 6 testes.
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`
+  e transcrição de 19/11 (§6).
+
+### Intenção e estado
+
+- **Intenção:** transformar a prova manual da restauração em vigilância
+  semanal; falha de backup não pode ser silêncio.
+- **Estado:** **pronto e no ar.** Timer ativo (`NEXT Sun 2026-11-22 03:30`);
+  execução real da unit **success/0** em 3,5 s, 14 tabelas/589 linhas, estado
+  `ok=true`, zero resíduo em `/tmp`, sem mensagem no sucesso.
+- **Pela metade:** o disparo real do Telegram em falha não foi exercido (não
+  se manda alarme falso); o caminho está coberto por teste injetado. Offsite
+  físico do dump segue pendente.
+
+---
+
 ## 19/11/2026 — Backup do Postgres: restauração real provada (P1 nº 7)
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:00, pedido `continue`.

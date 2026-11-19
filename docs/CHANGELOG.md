@@ -12,6 +12,30 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Verificação semanal da restauração do Postgres com aviso no Telegram (2026-11-19, sem bump)
+
+**Contexto (ordem do dono):** *"Coloque o verificador de restauração do
+Postgres num timer semanal com aviso no Telegram quando falhar"*.
+
+**O que entrou:**
+
+| Arquivo | Mudança |
+|---|---|
+| `runtime/verificar_restauracao_pg.py` (novo) | roda o verificador, grava `data/pg_restore_verificacao.json` (última execução, código, saída, contadores) e **só avisa quando falha** — com a saída do restore no corpo; `--dry-run` para testar sem Telegram |
+| `systemd/od-pg-restore.service` (novo) | `Type=oneshot`, `PrivateTmp` (o cluster temporário vive no `/tmp` privado da unit), `ProtectSystem=strict` com escrita só em `data/`, timeout 420 s |
+| `systemd/od-pg-restore.timer` (novo) | **domingo 03:30** (depois do dump 02:50 e do tar 03:00), `Persistent=true` — máquina desligada no horário roda na próxima subida |
+| `tests/test_verificar_restauracao_pg.py` (novo) | **6 testes**: sucesso é silêncio, falha avisa com código+saída, exceção vira aviso, sem canal não levanta, Telegram fora não esconde a falha |
+
+**Prova viva:** timer instalado e ativo (`NEXT Sun 2026-11-22 03:30`);
+`systemctl --user start od-pg-restore.service` → **success/0** em 3,5 s, journal
+`INFO restore do Postgres OK`, estado `ok=true`, **14 tabelas / 589 linhas**, e
+**0 diretórios temporários** sobrando. Sucesso não gerou mensagem, como
+desenhado.
+
+**Limites:** o aviso real de falha não foi disparado (não se manda alarme falso
+para o dono); o caminho está coberto pelos testes com verificador e canal
+injetados. O **offsite físico** do dump continua pendente.
+
 ## Backup do Postgres: restauração real provada (2026-11-19, sem bump)
 
 **Contexto:** o dump diário do banco `od` existe desde 13/11 e **nunca tinha

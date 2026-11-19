@@ -6434,5 +6434,15 @@
     "limite": "Offsite fisico (copia fora da maquina) continua pendente; rodar o verificador hoje e manual. Sem bump, sem restart (ferramenta de verificacao).",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§5)",
     "updated_at": "2026-11-19T16:15:00-03:00"
+  },
+  "timer_restore_semanal_2026_11_19": {
+    "pedido": "Dono (19/11): 'Coloque o verificador de restauração do Postgres num timer semanal com aviso no Telegram quando falhar'.",
+    "implementacao": "runtime/verificar_restauracao_pg.py (roda o verificador, grava data/pg_restore_verificacao.json com ultima_execucao/ok/contadores e avisa SO na falha com a saida no corpo; --dry-run); systemd/od-pg-restore.service (oneshot, PrivateTmp, ProtectSystem=strict, ReadWritePaths=data, timeout 420 s) + .timer (domingo 03:30, Persistent=true, depois do dump 02:50 e do tar 03:00).",
+    "testes": "tests/test_verificar_restauracao_pg.py (NOVO, 6): sucesso silencioso, falha com codigo+saida, excecao vira aviso, sem canal nao levanta, falha do Telegram nao esconde a falha do restore, texto da mensagem.",
+    "prova_viva": "timer enable --now ativo: NEXT Sun 2026-11-22 03:30; systemctl --user start od-pg-restore.service -> success/0 em 3,5 s, journal 'INFO restore do Postgres OK', estado ok=true com 14 tabelas/589 linhas, 0 diretorios /tmp residuais; sucesso nao enviou Telegram.",
+    "limite": "Disparo REAL de Telegram em falha nao executado (nao se manda alarme falso ao dono); coberto por teste com verificador e canal injetados. Offsite fisico do dump segue pendente.",
+    "sem_bump": "1.46.0+2083; sem restart do od-core (timer independente).",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§6)",
+    "updated_at": "2026-11-19T16:25:00-03:00"
   }
 }

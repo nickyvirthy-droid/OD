@@ -1099,8 +1099,14 @@ esperar o timeout.
       `tools/testar_restauracao_pg.py` sobe um cluster temporário (sem
       superusuário, sem tocar no `od`), restaura o dump de 19/11 02:50 e compara
       as linhas com os blocos `COPY` do próprio dump: **14 tabelas, 589 linhas,
-      0,17 s**; `tests/test_restauracao_pg.py` 4 passed. O offsite físico
+      0,17 s**;      `tests/test_restauracao_pg.py` 4 passed. O offsite físico
       continua pendente (é outra perna da entrega).
+- [x] **Verificação semanal da restauração com aviso no Telegram** — **FEITO
+      19/11:** `runtime/verificar_restauracao_pg.py` + `systemd/od-pg-restore.
+      {service,timer}` (domingo 03:30, `Persistent`), silêncio no sucesso e
+      aviso com a saída do restore na falha; estado em
+      `data/pg_restore_verificacao.json`. Prova viva: unit **success/0** em
+      3,5 s, 14 tabelas/589 linhas, 0 temporário residual; 6 testes novos.
 - [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
       Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
       não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à

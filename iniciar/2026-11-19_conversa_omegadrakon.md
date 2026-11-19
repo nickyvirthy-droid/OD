@@ -305,3 +305,38 @@ banco vivo (que avança desde as 02:50). O banco vivo aparece como informação.
   fora da máquina) continua pendente. Sugestão: rodar o verificador semanalmente
   (hoje é manual).
 - **Sem bump** e sem restart (ferramenta de verificação, servidor intocado).
+
+---
+
+## §6 — Verificação semanal do restore com aviso no Telegram (pedido do dono)
+
+**Pedido (verbatim):** *"Coloque o verificador de restauração do Postgres num
+timer semanal com aviso no Telegram quando falhar"*.
+
+### 1. O que entrou
+
+| Arquivo | Papel |
+|---|---|
+| `runtime/verificar_restauracao_pg.py` | roda o verificador, grava `data/pg_restore_verificacao.json` e **avisa só na falha** (saída do restore no corpo); `--dry-run` |
+| `systemd/od-pg-restore.service` | oneshot, `PrivateTmp` (cluster no `/tmp` privado), `ProtectSystem=strict`, escrita só em `data/`, timeout 420 s |
+| `systemd/od-pg-restore.timer` | domingo **03:30** (depois do dump 02:50 e do tar 03:00), `Persistent=true` |
+| `tests/test_verificar_restauracao_pg.py` | 6 testes: silêncio no sucesso, aviso com código+saída, exceção vira aviso, sem canal não levanta, Telegram fora não esconde a falha |
+
+### 2. Prova viva
+
+- Timer: `enable --now` → **NEXT Sun 2026-11-22 03:30** (unit ativa).
+- Execução real: `systemctl --user start od-pg-restore.service` →
+  **success/0** em **3,5 s** de unit; journal `INFO restore do Postgres OK`.
+- Estado: `ok=true`, `rodadas=2`, saída com **14 tabelas / 589 linhas**.
+- **0 diretórios temporários** em `/tmp` depois da unit (limpeza no `finally`).
+- Sucesso **não** gerou mensagem no Telegram, como desenhado.
+
+### 3. Atribuição e limites
+
+- **Autor:** Freebuff (Buffy), 19/11. Arquivos: os 4 acima + `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (este §, `session.json`,
+  `ATRIBUICOES.md`).
+- **Limite declarado:** o disparo real de Telegram em falha não foi executado
+  (não se manda alarme falso ao dono); o caminho está coberto por teste com
+  verificador e canal injetados.
+- **Sem bump** e sem restart do `od-core` (timer independente).

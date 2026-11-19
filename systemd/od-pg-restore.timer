@@ -1,0 +1,14 @@
+[Unit]
+Description=Timer semanal da verificação de restauração do pg_dump
+Requires=od-pg-restore.service
+
+[Timer]
+# Domingo 03:30 — depois do dump (02:50) e do tar (03:00), com folga.
+# Persistent: máquina desligada no horário -> roda na próxima subida.
+OnCalendar=Sun *-*-* 03:30
+AccuracySec=10min
+Persistent=true
+Unit=od-pg-restore.service
+
+[Install]
+WantedBy=timers.target
