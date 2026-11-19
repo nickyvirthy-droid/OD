@@ -22,10 +22,14 @@ todas e colocar em ordem de melhor resultado para o pior"*.
 as CLIs de `orquestrador.CLIS`, em temp, com timeout — resultado em
 `logs/medicao_cascata_ias.json` e tabela em `docs/IAS_DISPONIVEIS.md` §2.1.
 
-**Freebuff:** medido de novo e **impossível de automatizar** — o wrapper 0.2.36
-só aceita `login`/`doctor`, e prompt por stdin sobe a TUI (timeout em 20 s).
-Entra como **primeira** assim que expuser modo não-interativo; hoje a ordem
-começa em Kilo.
+**Freebuff:** medido de novo e **impossível de automatizar**, por **dois**
+motivos: (a) o wrapper 0.2.36 só aceita `login`/`doctor` e prompt por stdin sobe
+a TUI (timeout em 20 s); (b) a CLI permite **uma sessão** entre CLI e Desktop —
+com outra instância viva, a TUI pede *"take over"* e assumiria a sessão,
+matando o trabalho em andamento (`freebuff-live-<pid>.json`). Um wrapper por
+PTY chegou a enviar o prompt e parou nesse aviso. Entra como **primeira**
+quando houver modo headless **e** sessões paralelas; hoje a ordem começa em
+Kilo.
 
 **Ordem aplicada** (`ORDEM_CLIS_2026_11_19`, fonte única, espelhada em
 `CLI_SESSAO_OPCOES` e `SESSAO_CLIS`): Kilo, Agy, OpenClaude, Cline, Codex,

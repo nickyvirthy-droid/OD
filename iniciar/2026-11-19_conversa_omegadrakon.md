@@ -199,8 +199,15 @@ poderia verificar todas e colocar em ordem de melhor resultado para o pior"*.
 argumentos; prompt por stdin sobe a TUI e **pendura** (timeout em 20 s),
 confirmando a medição de 18/11. Num subprocesso desanexado não há canal para a
 resposta, então pô-lo em 1º só faria toda sessão esperar o timeout antes de
-cair para a próxima. Fica registrado: **é a primeira assim que expuser modo
-não-interativo**.
+cair para a próxima.
+
+Tentei também a rota do wrapper por PTY (pexpect, binário real em
+`~/.config/manicode/freebuff`): o prompt **entra** e a sessão começa, mas a TUI
+responde *"Limited access without a subscription allows one session across CLI
+and Desktop… Enter: take over"* — ou seja, a CLI tem **sessão única** e assumir
+para uso automatizado derrubaria a sessão interativa em andamento
+(`freebuff-live-1648928.json`, PID vivo). Esse é o bloqueio definitivo. Fica
+registrado: **é a primeira quando houver modo headless e sessões paralelas**.
 
 ### 2. Medição das 13 CLIs (`tools/medir_cascata_ias.py`, novo)
 

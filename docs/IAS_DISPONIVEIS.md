@@ -112,7 +112,7 @@ medida em §2).
 
 | # | CLI | Resultado | Tempo | Observação |
 |---|---|---|---|---|
-| — | **Freebuff** | timeout | 20 s | **não pode ser automatizado**: 0.2.36 só aceita `login`/`doctor`; prompt por stdin sobe a TUI. Primeira escolha do dono para trabalho assistido — entra na frente assim que houver modo headless |
+| — | **Freebuff** | timeout | 20 s | **não pode ser automatizado (dois bloqueios medidos em 19/11):** (a) 0.2.36 só aceita `login`/`doctor` e prompt por stdin sobe a TUI; (b) sessão única — com outra instância viva a TUI responde *"Limited access without a subscription allows one session across CLI and Desktop… Enter: take over"*: automatizar **tomaria a sessão interativa** e derrubaria o trabalho em andamento (`~/.config/manicode/freebuff-live-<pid>.json`). Primeira escolha do dono para trabalho assistido — entra na frente no dia em que houver modo headless **e** sessões paralelas |
 | 1 | Kilo | **ok** | 11,6 s | modelo corrigido: `kilo/nvidia/nemotron-3-super-120b-a12b:free` saiu do catálogo → `kilo/kilo-auto/free` |
 | 2 | Agy | **ok** | 10,65 s | — |
 | 3 | OpenClaude | **ok** | 3,3 s | NIM `nemotron-3-ultra-550b` (free) |
@@ -193,6 +193,7 @@ que a nuvem sempre responde) é o que sustenta o chat.
 
 | Data | O que mudou |
 |---|---|
+| 2026-11-19 (2ª medição) | **Freebuff: bloqueio duplo provado** — além de não ter modo não-interativo, a CLI permite **uma sessão** entre CLI e Desktop (mensagem "take over" na TUI com outra instância viva). Um wrapper headless por PTY chegou a enviar o prompt, mas pararia na sessão única: não entra na cascata. |
 | 2026-11-19 | **Cascata reordenada por medição real** (`tools/medir_cascata_ias.py`, 13 CLIs): Kilo (modelo novo `kilo-auto/free`) e Agy no topo por ordem do dono, depois OpenClaude, Cline e as falhas por fail-fast. Freebuff segue **fora por modo** — e é a primeira assim que tiver headless. |
 | 2026-11-18 (tarde, 2ª leva) | **Cascata 10 → 13 CLIs — cota deixa de ser motivo de exclusão** (régua do dono: "cota nunca é motivo de exclusão, a cota sempre acaba"). Cline (`cline PROMPT` posicional = one-shot), OpenClaude (engine headless via `tools/openclaude_headless.sh`, `-p --yolo` — **provado criando arquivo real**; modelo do app `deepseek-v3.1-terminus` está EOL no NIM → `nvidia/nemotron-3-ultra-550b`, 3,5s) e Interpreter (`--stdin -y -pl`, campo novo `prompt_via_stdin` no `CliSpec`) entraram no `CLIS` + `CLI_SESSAO_OPCOES` + `SESSAO_CLIS`. Só o **freebuff** continua fora (único sem modo não-interativo). |
 | 2026-11-18 (tarde) | **Cascata do orquestrador: 2 → 10 CLIs** (ordem do dono — "utilização de todas as 14 IAs"). `--help` medido um a um (só help): 10 com modo não-interativo entraram no `orquestrador.CLIS` (+ `CLI_SESSAO_OPCOES` e `SESSAO_CLIS` do painel); 4 fora — **corrigido na 2ª leva logo acima**: cline/openclaude/interpreter TINHAM one-shot e entraram; freebuff continua por modo. Modelo do OpenCode `nemotron-3-ultra-free` confirmado **fora do catálogo** e trocado por `deepseek-v4.1-flash-free` (provado, exit=0). |
