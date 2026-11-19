@@ -9,6 +9,33 @@
 
 ---
 
+## 19/11/2026 — Vigia da Rede no app: Reconhecer e Bloquear na tela do alerta
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:50, ordem do dono.
+
+### Modificados
+
+- `app/lib/services/od_api.dart` — `listVigiaPendentes`, `conhecerDispositivo`,
+  `bloquearDispositivo` (mesmas rotas `/admin/vigia*` do painel/chat) e o
+  modelo `OdDispositivoPendente` (rótulo, estado, "visto há…", "desde").
+- `app/lib/screens/dashboard_screen.dart` — card do Vigia no Painel
+  (admin-only, best-effort), Reconhecer direto e Bloquear com confirmação;
+  recarrega o card após a ação.
+- `app/test/vigia_rede_test.dart` (novo) — 7 testes (REST + tela).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/session.json` e transcrição (§8).
+
+### Intenção e estado
+
+- **Intenção:** o aviso de dispositivo desconhecido chegava no app sem os
+  botões do lado; o dono tinha de trocar de tela. A ação agora fica onde o
+  alerta aparece, com confirmação no bloqueio (operação de roteador).
+- **Estado:** `flutter analyze` 0 issues; `flutter test` **264 passed /
+  2 skipped**; gate Python **5523 passed / 19 skipped / 0 falha**. Sem bump e
+  sem restart (mudança só no app). **APK pendente de ordem explícita do dono.**
+
+---
+
 ## 19/11/2026 — Falha controlada do restore: aviso real no Telegram
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:30, ordem do dono.

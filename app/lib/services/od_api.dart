@@ -1551,6 +1551,69 @@ class OdApi {
   }
 
   // ---------------------------------------------------------------------//
+  // Vigia da Rede (ordem do dono, 19/11): o aviso de dispositivo novo no   //
+  // Telegram/app mandava "responda quando reconhecer" sem botão na tela.    //
+  // Estas três rotas são as MESMAS actions do chat e do painel /admin.     //
+  // ---------------------------------------------------------------------//
+
+  /// GET /admin/vigia — dispositivos desconhecidos pendentes, com nome,
+  /// última vista e se estão conectados AGORA.
+  Future<List<OdDispositivoPendente>> listVigiaPendentes() async {
+    final response = await _send('GET', Uri.parse('$baseUrl/admin/vigia'));
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200) {
+      return ((data?['pendentes'] as List?) ?? const [])
+          .whereType<Map<String, dynamic>>()
+          .map(OdDispositivoPendente.fromJson)
+          .toList();
+    }
+    throw OdApiError(
+      response.statusCode == 403 || response.statusCode == 401
+          ? 'Só o dono vê os dispositivos pendentes da rede.'
+          : 'Vigia da Rede indisponível: '
+              '${data?['error'] ?? response.statusCode}',
+      statusCode: response.statusCode,
+    );
+  }
+
+  /// POST /admin/vigia/conhecer — reconhece o aparelho (os avisos param).
+  Future<String> conhecerDispositivo(String mac, {String nome = ''}) async {
+    return _responderVigia('conhecer', {'alvo': mac, 'nome': nome});
+  }
+
+  /// POST /admin/vigia/bloquear — põe o MAC na lista de negação do roteador
+  /// (modo de operador; pode levar até ~2 min).
+  Future<String> bloquearDispositivo(String mac) async {
+    return _responderVigia('bloquear', {'alvo': mac});
+  }
+
+  Future<String> _responderVigia(
+    String acao,
+    Map<String, dynamic> corpo,
+  ) async {
+    final response = await _send(
+      'POST',
+      Uri.parse('$baseUrl/admin/vigia/$acao'),
+      body: jsonEncode(corpo),
+    );
+    final data = _tryJson(response.body);
+    if (response.statusCode == 200 && data?['ok'] == true) {
+      return (data?['mensagem'] as String?) ??
+          (acao == 'conhecer'
+              ? 'Dispositivo reconhecido.'
+              : 'Bloqueio executado.');
+    }
+    throw OdApiError(
+      response.statusCode == 403 || response.statusCode == 401
+          ? 'Só o dono reconhece ou bloqueia dispositivos da rede.'
+          : (data?['error'] as String?) ??
+              'Não deu para concluir agora '
+                  '(${data?['error'] ?? response.statusCode}).',
+      statusCode: response.statusCode,
+    );
+  }
+
+  // ---------------------------------------------------------------------//
   // Curadoria do acervo (pedido do dono, 17/11): excluir música que não     //
   // gosta, impedir que ela volte e liberar músicas escolhidas de cantores //
   // bloqueados. Só o dono (papel admin) — o servidor recusa 403.         //
@@ -2093,6 +2156,84 @@ class OdDecisaoRadio {
     final quem = usuario.isEmpty ? '' : ' · pedido de @$usuario';
     return '$motivoLabel$quem · $prazoLabel';
   }
+}
+
+/// Dispositivo desconhecido pendente no Vigia da Rede
+/// (GET /admin/vigia → campo `pendentes`).
+class OdDispositivoPendente {
+  final int numero;
+  final String mac;
+  final String ip;
+  final String fabricante;
+  final String nome;
+
+  /// `true` conectado agora, `false` fora da rede, `null` sem informação
+  /// (linha de estado antiga) — nunca inventa status.
+  final bool? conectado;
+  final String ultimaVez;
+  final String desde;
+
+  const OdDispositivoPendente({
+    required this.numero,
+    required this.mac,
+    required this.ip,
+    required this.fabricante,
+    required this.nome,
+    required this.conectado,
+    required this.ultimaVez,
+    required this.desde,
+  });
+
+  factory OdDispositivoPendente.fromJson(Map<String, dynamic> json) =>
+      OdDispositivoPendente(
+        numero: (json['n'] as num?)?.toInt() ?? 0,
+        mac: (json['mac'] as String?) ?? '?',
+        ip: (json['ip'] as String?) ?? '?',
+        fabricante: (json['fabricante'] as String?) ?? '?',
+        nome: (json['nome'] as String?) ?? '',
+        conectado: json['conectado'] as bool?,
+        ultimaVez: (json['ultima_vez'] as String?) ?? '',
+        desde: (json['desde'] as String?) ?? '',
+      );
+
+  /// "A2:E5:… — Galaxy S23 (samsung, 192.168.0.186)"
+  String get rotulo {
+    final quem = nome.isEmpty ? mac : '$mac — $nome';
+    return '$quem ($fabricante, $ip)';
+  }
+
+  String get statusLabel {
+    if (conectado == true) return 'conectado agora';
+    if (conectado == false) return 'fora da rede';
+    return 'sem informação de conexão';
+  }
+
+  /// "visto há 1 min" a partir do ISO do servidor ('' se ilegível).
+  String get ultimaVezLabel {
+    final quando = DateTime.tryParse(ultimaVez);
+    if (quando == null) return '';
+    final seg = DateTime.now().difference(quando).inSeconds;
+    if (seg < 0) return 'agora';
+    if (seg < 60) return 'visto agora';
+    if (seg < 3600) return 'visto há ${seg ~/ 60} min';
+    if (seg < 86400) return 'visto há ${seg ~/ 3600} h';
+    return 'visto há ${seg ~/ 86400} d';
+  }
+
+  /// "pendente desde 16/11" ('' quando não há data).
+  String get desdeLabel {
+    final quando = DateTime.tryParse(desde);
+    if (quando == null) return '';
+    final dia = quando.day.toString().padLeft(2, '0');
+    final mes = quando.month.toString().padLeft(2, '0');
+    return 'pendente desde $dia/$mes';
+  }
+
+  String get detalhe => [
+        statusLabel,
+        ultimaVezLabel,
+        desdeLabel,
+      ].where((p) => p.isNotEmpty).join(' · ');
 }
 
 /// Resumo da fila (GET /admin/downloads → campo `resumo`).

@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Vigia da Rede na tela do alerta: Reconhecer e Bloquear no app (2026-11-19, sem bump)
+
+**Pedido do dono:** *"Leve o Vigia da Rede para o app, com os botões
+Reconhecer e Bloquear na tela do alerta"* — o aviso de dispositivo
+conhecido chegava no app e no Telegram sem botão do lado; as ações só
+existiam em `/admin` e no chat.
+
+**O que entrou:**
+
+- `app/lib/services/od_api.dart`: `listVigiaPendentes()` (GET `/admin/vigia`),
+  `conhecerDispositivo(mac, nome)` e `bloquearDispositivo(mac)` (POST
+  `/admin/vigia/conhecer|bloquear` — **as mesmas rotas** do painel e do chat,
+  com `_require_admin`) e o modelo `OdDispositivoPendente` (rótulo, status
+  conectado/fora/sem informação, "visto há…" e "pendente desde dd/mm").
+- `app/lib/screens/dashboard_screen.dart`: card do **Vigia da Rede** no Painel,
+  logo abaixo das decisões da rádio — carregado só para admin e best-effort
+  (falha não derruba o painel). Cada pendente mostra MAC/nome/fabricante/IP,
+  estado e origem; **Reconhecer** age direto, **Bloquear** pede confirmação
+  (ação de operador, lista de negação do roteador, até ~2 min). Depois da ação
+  o painel recarrega e o item some.
+- `app/test/vigia_rede_test.dart` (novo, 7): leitura dos campos e rótulos,
+  status nunca inventado, mensagem do servidor repassada, 403 com texto de
+  dono, card com os dois botões, confirmação do bloqueio (cancelar não age) e
+  conta comum que não chama nenhuma rota do Vigia.
+
+**Validado:** `flutter analyze` **0 issues**; `flutter test` **264 passed /
+2 skipped** (7 novos); gate Python **5523 passed / 19 skipped / 0 falha**.
+
+**Limite:** o APK/publicação continua pendente de ordem explícita do dono
+(regra 7.3). Sem bump e sem restart do `od-core` (mudança só no app).
+
 ## Falha controlada do restore: aviso de verdade chegou no Telegram (2026-11-19, sem bump)
 
 **Contexto (ordem do dono):** *"Force uma falha controlada num dump de teste

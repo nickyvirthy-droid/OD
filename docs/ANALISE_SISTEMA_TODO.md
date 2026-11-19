@@ -1107,10 +1107,15 @@ esperar o timeout.
       aviso com a saída do restore na falha; estado em
       `data/pg_restore_verificacao.json`. Prova viva: unit **success/0** em
       3,5 s, 14 tabelas/589 linhas, 0 temporário residual; 6 testes novos.
-- [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
-      Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
-      não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à
-      tela onde o alerta chega.
+- [x] **Vigia da Rede na aba do app (Flutter)** — **FEITO 19/11:** card do
+      Vigia no Painel (admin-only, best-effort) com os pendentes e os botões
+      **Reconhecer** e **Bloquear** na própria tela do alerta; usa as MESMAS
+      rotas `/admin/vigia*` do painel/chat (`_require_admin`), bloqueio com
+      diálogo de confirmação e recarga do card após a ação. Modelo mostra
+      estado (conectado/fora/sem informação), "visto há…" e desde quando está
+      pendente. `flutter analyze` 0 issues, `flutter test` **264 passed /
+      2 skipped** (7 novos em `app/test/vigia_rede_test.dart`), gate Python
+      **5523 passed**. Falta só o APK (aguarda ordem do dono).
 - [ ] **P1 nº 6 — modo colapso declarado** — único P1 aberto da revisão de
       17/11: declarar e medir o comportamento quando todas as fontes de LLM/
       ferramentas caem, para o OD responder em modo degradado explícito em vez

@@ -377,3 +377,52 @@ aviso de falha chegar no Telegram de verdade"*.
   pipeline — é um arquivo de teste em `/tmp`, já removido. Nada do acervo de
   dumps reais foi tocado.
 - **Sem bump** e sem restart (timer independente).
+
+## §8 — Vigia da Rede no app: Reconhecer e Bloquear na tela do alerta
+
+**Pedido:** *"Leve o Vigia da Rede para o app, com os botões Reconhecer e
+Bloquear na tela do alerta"* (dono, 19/11).
+
+O alerta de "dispositivo desconhecido na rede" chegava no app e no Telegram,
+mas os botões só existiam em `/admin` e no chat (`reconhece o 2` /
+`bloqueia o 2`). Quem recebia o aviso tinha de trocar de tela para agir.
+
+### 1. O que entrou
+
+- `app/lib/services/od_api.dart`:
+  - `listVigiaPendentes()` → GET `/admin/vigia` (`pendentes`);
+  - `conhecerDispositivo(mac, {nome})` → POST `/admin/vigia/conhecer`;
+  - `bloquearDispositivo(mac)` → POST `/admin/vigia/bloquear`;
+  - `OdDispositivoPendente` com `rotulo`, `statusLabel` (conectado agora /
+    fora da rede / sem informação — nunca inventa), `ultimaVezLabel`
+    ("visto há…"), `desdeLabel` ("pendente desde dd/mm") e `detalhe`.
+  - São as **mesmas rotas** do painel e do chat, atrás de `_require_admin`.
+- `app/lib/screens/dashboard_screen.dart`: card **Vigia da Rede** no Painel,
+  logo abaixo das decisões da rádio. Carga só para admin e best-effort (erro
+  aparece no subtítulo, não derruba o painel). Cada pendente mostra
+  MAC/nome/fabricante/IP + estado; **Reconhecer** age na hora; **Bloquear**
+  pede confirmação (ação de operador, lista de negação do roteador, até
+  ~2 min). Depois da ação o painel recarrega e o item some.
+- `app/test/vigia_rede_test.dart` (novo, 7 testes): REST (campos/rótulos,
+  status não inventado, mensagem do servidor, 403) e tela (card com os dois
+  botões, confirmação do bloqueio com "cancelar" sem ação, conta comum sem
+  nenhuma chamada ao Vigia).
+
+### 2. Validado
+
+| Check | Resultado |
+|---|---|
+| `flutter analyze` | **0 issues** |
+| `flutter test` | **264 passed / 2 skipped** (7 novos) |
+| `python3 -m pytest -q` | **5523 passed / 19 skipped / 0 falha** |
+| `git status` | só app + registros (e `logs/`, runtime normal) |
+
+### 3. Atribuição e limites
+
+- **Autor:** Freebuff (Buffy), 19/11. Arquivos: `app/lib/services/od_api.dart`,
+  `app/lib/screens/dashboard_screen.dart`, `app/test/vigia_rede_test.dart`,
+  `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (este §,
+  `session.json`, `ATRIBUICOES.md`).
+- **Limite:** o APK (com esta tela e o fix do push de `4970981`) continua
+  pendente de ordem explícita do dono (regra 7.3). Sem bump de versão e sem
+  restart do `od-core` — mudança só no app.

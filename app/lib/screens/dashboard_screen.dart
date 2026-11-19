@@ -40,6 +40,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, dynamic>> _limitacoes = const [];
   List<OdDecisaoRadio> _decisoesRadio = const [];
   String? _erroDecisoes;
+  List<OdDispositivoPendente> _vigiaPendentes = const [];
+  String? _erroVigia;
   final TextEditingController _ideiasController = TextEditingController();
   final TextEditingController _respostaController = TextEditingController();
   String _cli = 'auto';
@@ -100,6 +102,24 @@ class _DashboardScreenState extends State<DashboardScreen> {
             _erroDecisoes = e is OdApiError
                 ? e.message
                 : 'Não consegui carregar as decisões da rádio.';
+          });
+        }
+        // Vigia da Rede (19/11): o aviso "dispositivo desconhecido" chegava
+        // sem botão na tela. Best-effort — falha não derruba o painel.
+        try {
+          final pendentes = await widget.api.listVigiaPendentes();
+          if (!mounted) return;
+          setState(() {
+            _vigiaPendentes = pendentes;
+            _erroVigia = null;
+          });
+        } catch (e) {
+          if (!mounted) return;
+          setState(() {
+            _vigiaPendentes = const [];
+            _erroVigia = e is OdApiError
+                ? e.message
+                : 'Não consegui carregar o Vigia da Rede.';
           });
         }
         // Best-effort: falha aqui não derruba o painel do usuário.
@@ -473,6 +493,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
             Text('Admin', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             _buildRadioDecisoesCard(),
+            const SizedBox(height: 16),
+            _buildVigiaCard(),
             const SizedBox(height: 16),
             _buildCuradoriaCard(),
             const SizedBox(height: 16),
@@ -1047,6 +1069,138 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
+  }
+
+  // -- Vigia da Rede (ordem do dono, 19/11) --------------------------------
+  //
+  // O aviso de dispositivo desconhecido chega no Telegram e no app; até
+  // 19/11 não existia botão onde o aviso aparecia. Reconhecer encerra os
+  // avisos; bloquear é modo de operador (lista de negação do roteador, até
+  // ~2 min) e pede confirmação — mesma regra do painel /admin e do chat
+  // ("reconhece o 2" / "bloqueia o 2").
+  Widget _buildVigiaCard() {
+    final tema = Theme.of(context);
+    return Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.router_outlined),
+            title: Text(
+              _vigiaPendentes.isEmpty
+                  ? 'Vigia da Rede'
+                  : 'Vigia da Rede — ${_vigiaPendentes.length} '
+                      'dispositivo(s) desconhecido(s)',
+            ),
+            subtitle: Text(
+              _erroVigia ??
+                  (_vigiaPendentes.isEmpty
+                      ? 'Nenhum dispositivo desconhecido pendente.'
+                      : 'Reconhecer é da casa; bloquear põe o aparelho na '
+                          'lista de negação do roteador.'),
+            ),
+            trailing: IconButton(
+              tooltip: 'Atualizar o Vigia',
+              icon: const Icon(Icons.refresh),
+              onPressed: _refresh,
+            ),
+          ),
+          for (final p in _vigiaPendentes)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 8, 8),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(p.rotulo, style: tema.textTheme.bodyMedium),
+                  Text(
+                    p.detalhe,
+                    style: tema.textTheme.bodySmall?.copyWith(
+                      color: tema.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      FilledButton.tonalIcon(
+                        onPressed: () => _conhecerVigia(p),
+                        icon: const Icon(Icons.check, size: 18),
+                        label: const Text('Reconhecer'),
+                      ),
+                      TextButton.icon(
+                        onPressed: () => _bloquearVigia(p),
+                        icon: const Icon(Icons.block, size: 18),
+                        label: const Text('Bloquear'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _conhecerVigia(OdDispositivoPendente p) async {
+    try {
+      final mensagem = await widget.api.conhecerDispositivo(p.mac);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('✓ $mensagem')),
+      );
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is OdApiError
+              ? e.message
+              : 'Falha ao reconhecer: tente de novo.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _bloquearVigia(OdDispositivoPendente p) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Bloquear dispositivo?'),
+        content: Text(
+          '${p.rotulo}\n\nO MAC vai para a lista de negação do roteador '
+          'pela UI real — pode levar até ~2 minutos.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Bloquear'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      final mensagem = await widget.api.bloquearDispositivo(p.mac);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('🛑 $mensagem')),
+      );
+      await _refresh();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e is OdApiError
+              ? e.message
+              : 'Falha ao bloquear: tente de novo.'),
+        ),
+      );
+    }
   }
 
   Future<void> _decidirRadio(OdDecisaoRadio item, bool permitir) async {

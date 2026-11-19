@@ -6453,5 +6453,14 @@
     "limite": "O dump corrompido e um arquivo de teste em /tmp (ja removido), nao veio do pipeline; nenhum dump real foi tocado. Sem bump, sem restart.",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§7)",
     "updated_at": "2026-11-19T16:35:00-03:00"
+  },
+  "vigia_rede_app_2026_11_19": {
+    "pedido": "Dono (19/11): 'Leve o Vigia da Rede para o app, com os botoes Reconhecer e Bloquear na tela do alerta'.",
+    "implementacao": "od_api.dart ganhou listVigiaPendentes/conhecerDispositivo/bloquearDispositivo e o modelo OdDispositivoPendente (rotulo, status conectado/fora/sem informacao, 'visto ha...', 'pendente desde dd/mm'); dashboard_screen.dart ganhou o card do Vigia no Painel logo abaixo das decisoes da radio, admin-only e best-effort, com Reconhecer direto e Bloquear com dialogo de confirmacao, recarregando o card depois da acao. Usa as MESMAS rotas /admin/vigia* do painel e do chat (_require_admin).",
+    "testes": "app/test/vigia_rede_test.dart (NOVO, 7): leitura de campos/rotulos, status nunca inventado, mensagem do servidor repassada, 403 com texto de dono, card com os dois botoes, confirmacao do bloqueio (cancelar nao age) e conta comum sem chamadas ao Vigia.",
+    "validacao": "flutter analyze 0 issues; flutter test 264 passed / 2 skipped; gate Python 5523 passed / 19 skipped / 0 falha.",
+    "limite": "APK/publicacao pendente de ordem explicita do dono (regra 7.3). Sem bump e sem restart do od-core (mudanca so no app).",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§8)",
+    "updated_at": "2026-11-19T16:56:05-03:00"
   }
 }
