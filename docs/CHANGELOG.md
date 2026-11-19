@@ -12,6 +12,48 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Vigia da Rede: o alerta diz se o aparelho está conectado e tem onde responder (2026-11-19, sem bump)
+
+**Contexto:** o aviso `net:dispositivo-novo` mandava "Responda quando reconhecer
+(ou 'bloqueia o X')" — e **não existia canal nenhum**: sem intent no chat, sem
+rota na API e sem botão no painel. Pior: a linha trazia só `MAC (fabricante,
+ip)`, então o dono não sabia se o aparelho ainda estava na rede nem desde
+quando estava pendente (ordem dele, 19/11).
+
+**O que entrou:**
+
+| Arquivo | Mudança |
+|---|---|
+| `tools/monitor/network_watchdog.py` | `vizinhos_sem_ping()` (leitura barata do ARP, sem forçar ping) e `pendentes_ricos()`: a linha `tipo=estado` passa a carregar `nome`, `ultima_vez` e `conectado` (ARP **ou** UI do roteador — celular dormindo continua conectado); `conhecer()`/`ack_seguranca()`/`_resolve_apos_bloqueio()` reemitem a linha na hora (`reemite_estado`) e o bloqueio confirmado encerra a pendência |
+| `integrations/notifier.py` | `formata_dispositivo()` pura: `MAC — nome (fabricante, ip) · conectado agora` / `fora da rede · visto há 2 h 14 min · pendente desde 16/11`; **sem** o campo novo não afirma status; o aviso aponta onde responder |
+| `tools/actions/actions.py` | actions **`network_conhecer`** e **`network_bloquear`** (catálogo 126 → **128**): alvo = MAC, IP ou **número** da listagem; vazio = o único pendente; vários = listagem numerada, sem escolher sozinho |
+| `core/intents.py` | fast path "reconhece o 2" / "bloqueia o 2" → as duas actions, com **contexto de rede obrigatório** ("quero reconhecer meu erro" segue para o LLM); resposta formatada nunca cai no LLM (sucesso, listagem e erro são texto) |
+| `core/orchestrator.py` | gate de papel das duas actions (negação honesta em vez de LLM inventando) e `network_bloquear` como escrita sensível (human-in-the-loop) |
+| `integrations/api/server.py` | `GET /admin/vigia`, `POST /admin/vigia/conhecer` e `POST /admin/vigia/bloquear` (`_require_admin`) + seção "Vigia da Rede" no `/admin` com status, última vista e botões |
+
+**Papéis:** as duas actions **não** estão nas listas de `user`/`familia` — só
+o admin executa. `network_conhecer` não é escrita externa (só o inventário
+local para de avisar); `network_bloquear` é operador (lista de negação do
+roteador) e pede aprovação, degradando honestamente sem
+`ROUTER_ADMIN_PASSWORD`/chromium.
+
+**Origem e fechamento:** a implementação foi achada pronta na árvore em
+19/11 (13:39–14:14) **sem registro e sem commit — autor não identificado**
+(regra 23). O fechamento (revisão do diff, documentação, gate completo,
+commit e restart verde) foi feito por **Freebuff (Buffy)** na retomada de
+19/11.
+
+**Validado:** `pytest` dos 9 arquivos afetados **751 passed**; **gate completo
+5510 passed / 19 skipped / 0 falha** (228 s); prova viva registrada em
+`iniciar/2026-11-19_conversa_omegadrakon.md` (`/admin/vigia` 200, `/health`
+`ok=true` e fast path do chat sem LLM).
+
+**Correção de gate encontrada no fechamento:** `tests/test_corpus_frases_dono.py`
+apontava uma frase para o `txt.txt` (canal efêmero, regra 20) e o arquivo foi
+zerado pelo dono em 19/11 — o teste quebrou. A origem passou a ser
+a transcrição de 17/11, onde a frase está registrada literalmente (o assert
+de existência **não** foi afrouxado).
+
 ## Faixas do Raul em "Desconhecido": o artista era descartado no download (2026-11-18, sem bump)
 
 **Contexto:** relato do dono — "o sistema acha o nome da música mas não o

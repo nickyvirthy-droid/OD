@@ -6391,5 +6391,15 @@
     "sem_bump": "1.46.0+2083; nenhum codigo alterado neste turno (leitura + testes + registro).",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§1)",
     "updated_at": "2026-11-19T14:58:00-03:00"
+  },
+  "vigia_rede_fechado_2026_11_19": {
+    "pedido": "Dono (19/11): 'Assuma e feche o lote do Vigia da Rede: documente, rode o gate completo, commite e faça o restart verde com prova viva'.",
+    "revisao": "Diff lido inteiro: actions network_conhecer/network_bloquear fora das listas de user/familia (so admin, DEFAULT_ROLE_PERMISSIONS); network_bloquear em ACOES_SENSIVEIS_PADRAO (human-in-the-loop) e as duas em _PAPEL_GATE_ACTIONS (negacao honesta, sem LLM); rotas /admin/vigia* com _require_admin; formatadores puros (formata_dispositivo, _formata_vigia) sem inventar status; reemite_estado para o aviso sumir na hora; bloqueio confirmado encerra a pendencia.",
+    "gate": "PRIMEIRO RUN: 1 failed / 5509 passed / 19 skipped — tests/test_corpus_frases_dono.py apontava a frase 'onde foi parar a lista de musicas do raul seixas' para o txt.txt, que o dono zerou em 19/11 (canal efemero, regra 20). Causa corrigida: origem passou para iniciar/2026-11-17_conversa_omegadrakon.md, onde a frase esta literal (assert de existencia mantido). SEGUNDO RUN (final): 5510 passed / 19 skipped / 0 falha, exit 0 (228,43 s). test_corpus_frases_dono 32 passed.",
+    "documentacao": "docs/CHANGELOG.md (secao nova datada, sem bump), docs/ANALISE_SISTEMA_TODO.md (checkbox do lote fechado + correcao do numero do gate), iniciar/session.json, iniciar/2026-11-19_conversa_omegadrakon.md §2, iniciar/ATRIBUICOES.md (entrada reclassificada como FECHADA).",
+    "sem_bump": "1.46.0+2083 (servidor/painel; contrato do app e APK intactos).",
+    "prova_viva": "restart 15:15:05 MainPID 1677502 NRestarts=0; journal -p err 0 entradas; /health ok=true 30 checks sem falha; GET /admin/vigia 200 com 1 pendente real (conectado=false, ultima_vez 15:14:25, desde 16/11) e 401 sem credencial; fast path conferido no codigo vivo: 'reconhece o dispositivo' -> network_conhecer, 'bloqueia o 2' -> network_bloquear alvo=2, 'quero reconhecer meu erro' -> None; alerta formatado: 'A2:E5:... (desconhecido, 192.168.0.186) · fora da rede · visto há 1 min · pendente desde 16/11'.",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-19T15:25:00-03:00"
   }
 }

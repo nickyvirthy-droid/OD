@@ -79,3 +79,68 @@ TODO + gate completo + commit + restart verde, o que põe `/admin/vigia` e os
 botões no ar), ou (b) deixar como está até a próxima IA que o reivindicar. A
 opção (a) é a única que entrega o que o dono pediu no alerta ("diga se o
 aparelho ainda está conectado" e "onde responder").
+
+---
+
+## §2 — Ordem do dono: "assuma e feche o lote do Vigia da Rede" (19/11)
+
+**Pedido (verbatim):** *"Assuma e feche o lote do Vigia da Rede: documente, rode
+o gate completo, commite e faça o restart verde com prova viva"*.
+
+### 1. Revisão do diff (antes de assumir)
+
+Lido inteiro. O que sustenta a segurança:
+
+- `network_conhecer`/`network_bloquear` **não** estão nas listas de `user`/
+  `familia` (`core/security/permissions.py`) — só o admin (`"*"`) executa.
+- `network_bloquear` entrou em `ACOES_SENSIVEIS_PADRAO` (human-in-the-loop);
+  as duas entraram em `_PAPEL_GATE_ACTIONS` do orquestrador, então a negação
+  vira resposta honesta em vez de o LLM inventar "reconhecido".
+- Rotas `/admin/vigia*` com `_require_admin` (401 sem credencial, medido).
+- Formatadores puros: `formata_dispositivo()` e `_formata_vigia()` só afirmam
+  o que a fonte devolveu — sem o campo `conectado`, nada de status.
+- `reemite_estado()` faz o aviso sumir na hora (não espera o ciclo de 5 min);
+  bloqueio confirmado encerra a pendência com nota, sem marcar "conhecido".
+- Fast path exige **contexto de rede**: "quero reconhecer meu erro" → `None`.
+
+### 2. Gate: um vermelho real, corrigido na causa
+
+- **1º run:** `1 failed / 5509 passed / 19 skipped` —
+  `tests/test_corpus_frases_dono.py` cobrava a frase *"onde foi parar a lista
+  de musicas do raul seixas"* no `txt.txt`, que o dono **zerou hoje** (regra 20:
+  canal efêmero). O defeito era o corpus apontar para arquivo apagável.
+- **Correção:** origem passou para `iniciar/2026-11-17_conversa_omegadrakon.md`,
+  onde a frase está literal (o assert de existência **não** foi afrouxado).
+- **2º run (final): 5510 passed / 19 skipped / 0 falha**, exit 0 (228,43 s);
+  `test_corpus_frases_dono` 32 passed.
+
+### 3. Deploy verde com prova viva
+
+- `systemctl --user restart od-core` → **MainPID 1677502**, NRestarts=0, ativo
+  desde **15:15:05**; journal `-p err` **0 entradas**.
+- `/health` → `ok=true`, **30 checks**, nenhuma falha.
+- `GET /admin/vigia` → **200** com 1 pendente real: `A2:E5:1D:2D:4E:91`,
+  `conectado=false`, `ultima_vez=15:14:25`, `desde=16/11` (ciclos 8284); sem
+  credencial → **401**.
+- Fast path no código vivo: `reconhece o dispositivo` →
+  `('network_conhecer', {'alvo': ''})`; `bloqueia o 2` →
+  `('network_bloquear', {'alvo': '2'})`; `quero reconhecer meu erro` → `None`.
+- Alerta formatado: `A2:E5:1D:2D:4E:91 (desconhecido, 192.168.0.186) · fora da
+  rede · visto há 1 min · pendente desde 16/11`.
+
+### 4. Atribuição (regra 23)
+
+- **Implementação:** origem desconhecida (achada pronta na árvore, 13:39–14:14).
+- **Fechamento** (revisão, correção do corpus, documentação, gate, commit,
+  restart): **Freebuff (Buffy)**, 19/11.
+- **Modificados:** os 6 arquivos de código + 10 de teste do lote; no fechamento,
+  `tests/test_corpus_frases_dono.py`, `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`,
+  `iniciar/ATRIBUICOES.md` e esta transcrição.
+- **Sem bump** (1.46.0+2083): servidor/painel, contrato do app intacto.
+
+### 5. Limites
+
+- Nenhum aparelho real foi reconhecido/bloqueado no teste (a ação mexe no
+  inventário e, no bloqueio, no roteador): a prova do fast path é de detecção.
+- O pendente de 16/11 segue pendente — decisão do dono (reconhecer/bloquear).

@@ -9,12 +9,11 @@
 
 ---
 
-## 19/11/2026 — Vigia da Rede: resolução pelo chat/painel (LOTE NÃO REGISTRADO, origem desconhecida)
+## 19/11/2026 — Vigia da Rede: alerta com status de conexão e resolução pelo chat/painel
 
-**Autor:** **origem não identificada** — lote achado na árvore na retomada
-"leia iniciar" de 19/11 ~14:55 (mtimes 13:39–14:14). Nada em `iniciar/`,
-`docs/CHANGELOG.md` ou no TODO antes desta entrada. Registrado como
-encontrado (regra 23), sem reverter nem commitar.
+**Autor:** **implementação de origem não identificada** — lote achado na árvore
+na retomada "leia iniciar" de 19/11 ~14:55 (mtimes 13:39–14:14), sem registro.
+**Fechamento por Freebuff (Buffy)** na ordem "assuma e feche" (19/11 ~15:10).
 
 ### Modificados (não commitados)
 
@@ -39,12 +38,16 @@ encontrado (regra 23), sem reverter nem commitar.
 - **Intenção:** o alerta `net:dispositivo-novo` prometia "responda quando
   reconhecer (ou 'bloqueia o X')" sem canal nenhum (sem intent, rota ou
   botão) e sem dizer se o aparelho ainda está na rede.
-- **Estado:** implementação completa no diff e **751 passed** nos 9 arquivos
-  afetados (exit 0, 21,7 s); **pela metade** no processo de entrega — falta
-  CHANGELOG, checkbox no TODO, gate completo, commit e restart. O lote **não
-  está no ar** (`/admin/vigia` = 404 no `od-core`, que subiu em 18/11 20:03).
-- **Próximo passo exato:** assumir e fechar (documentação + gate + commit +
-  restart verde) ou aguardar a IA que o reivindicar.
+- **Estado: FECHADO e no ar (19/11 15:15).** Autorização do dono ("assuma e
+  feche"). Gate completo **5510 passed / 19 skipped / 0 falha** (228,43 s),
+  depois de corrigir na causa o vermelho do `test_corpus_frases_dono.py`
+  (apontava para o `txt.txt` efêmero, zerado hoje → origem passou para a
+  transcrição de 17/11, sem afrouxar o assert). Commit `7ae65d8`; restart
+  MainPID **1677502**, NRestarts=0, journal `-p err` 0, `/health` ok=true 30
+  checks, `GET /admin/vigia` 200 (1 pendente real, `conectado=false`) e 401 sem
+  credencial; fast path vivo: "reconhece o dispositivo" → `network_conhecer`,
+  "bloqueia o 2" → `network_bloquear`, "quero reconhecer meu erro" → `None`.
+- **Sem bump** (1.46.0+2083): servidor/painel, contrato do app intacto.
 
 ---
 

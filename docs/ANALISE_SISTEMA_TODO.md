@@ -1072,12 +1072,15 @@ esperar o timeout.
 > Turno de 19/11 14:55 (retomada "leia iniciar", lote do Vigia da Rede):
 > sugestões não escolhidas → as três abaixo (regra 21).
 
-- [ ] **Fechar o lote do Vigia da Rede que está na árvore** — o diff de 19/11
-      13:39–14:14 (actions `network_conhecer`/`network_bloquear`, rotas
-      `/admin/vigia`, seção no painel e fast path) já passa 751 testes no
-      recorte, mas não tem CHANGELOG/TODO/commit nem está no ar (`/admin/vigia`
-      = 404 no processo de 18/11). Fechar = documentar, gate completo, commit e
-      restart verde; resolve o alerta que prometia resposta sem canal.
+- [x] **Fechar o lote do Vigia da Rede que está na árvore** — **FEITO 19/11**
+      com a ordem do dono ("assuma e feche"): diff revisado (papéis, formatadores,
+      rotas com `_require_admin`, bloqueio como escrita sensível), CHANGELOG +
+      este TODO + `iniciar/`, **gate completo 5510 passed / 19 skipped / 0
+      falha**, commit e restart verde com prova viva (`/admin/vigia` 200,
+      `/health` ok=true, fast path "reconhece o dispositivo" sem LLM). O alerta
+      agora diz se o aparelho está conectado, quando foi visto e onde responder.
+      Implementação de origem desconhecida (achada pronta na árvore); fechamento
+      por Freebuff (Buffy).
 - [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
       Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
       não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à
