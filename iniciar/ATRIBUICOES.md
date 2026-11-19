@@ -9,6 +9,37 @@
 
 ---
 
+## 19/11/2026 — Release 1.46.1+2084: APK do Vigia da Rede (+ fix do push)
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~17:00, ordem do dono ("gere o apk").
+
+### Modificados
+
+- `app/pubspec.yaml` — `1.46.1+2084`; `.env` `OD_VERSION=1.46.1` (não
+  rastreado); `core/capabilities.py` (fallback); `integrations/api/server.py`
+  (`_APP_VERSION_CODE = 2084`).
+- `site/index.html` — badge/card em 1.46.1, tamanhos ~26/~70 MB, versionCode
+  2084 e contagem 79; `site/historico.html` — 79 lançamentos, Era 9 com 13
+  releases e a entrada de 19/11.
+- `docs/CHANGELOG.md`, `docs/README_VERSAO.md`, `iniciar/session.json`,
+  transcrição (§9).
+- `site/OmegaDrakon.apk` e `site/OmegaDrakon-arm64.apk` regerados
+  (`build_apk.sh`; `site/*.apk` é gitignored).
+
+### Intenção e estado
+
+- **Intenção:** entregar no celular o Vigia da Rede na tela do alerta junto
+  com o fix do push. O build anterior saía com code 2083 (o já instalado) e a
+  auto-atualização só instala code maior; daí o bump PATCH.
+- **Estado:** `aapt2` `2084/1.46.1`; `/app/version` anuncia 2084 com `size`
+  72.488.590 e sha `ac60b136…` igual ao arquivo; arm64 200 com 27.038.253 B;
+  `od-core` MainPID 1837735, `NRestarts=0`, `/health` ok=true. Gate Python
+  **5523 passed / 19 skipped / 0 falha**; `flutter test` **264 passed /
+  2 skipped**; `flutter analyze` 0 issues.
+- **Limite:** instalação no aparelho é manual e não foi feita nesta sessão.
+
+---
+
 ## 19/11/2026 — Vigia da Rede no app: Reconhecer e Bloquear na tela do alerta
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~16:50, ordem do dono.

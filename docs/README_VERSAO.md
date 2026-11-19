@@ -7,6 +7,43 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.46.1] — VIGIA DA REDE NO APP: RECONHECER OU BLOQUEAR NA TELA DO ALERTA 🜂 (2026-11-19)
+
+**Bump PATCH** (correção/entrega de app compatível), versionCode **2084**.
+
+### 1. Pedido
+
+*"Leve o Vigia da Rede para o app, com os botões Reconhecer e Bloquear na tela
+ do alerta"* — o aviso de dispositivo desconhecido chegava no app e no
+Telegram, mas as ações só existiam em `/admin` e no chat.
+
+### 2. O que entrou
+
+- `OdApi.listVigiaPendentes` / `conhecerDispositivo` / `bloquearDispositivo`
+  (mesmas rotas `/admin/vigia*` do painel e do chat, com `_require_admin`) e
+  o modelo `OdDispositivoPendente` (rótulo, conectado/fora/sem informação,
+  "visto há…", "pendente desde dd/mm").
+- Card **Vigia da Rede** no Painel (só admin, best-effort), logo abaixo das
+  decisões da rádio: **Reconhecer** age direto, **Bloquear** pede confirmação
+  (lista de negação do roteador, até ~2 min) e o card recarrega depois.
+- Também entra o fix do push de 19/11 (`4970981`): só o foreground exibe
+  notificação local, então a "Decisão de 24 h" vencida não é republicada ao
+  tocar/abrir o app.
+
+### 3. Testes
+
+- `app/test/vigia_rede_test.dart` — 7 testes (contrato REST + card e ações).
+- `flutter analyze` 0 issues; `flutter test` **264 passed / 2 skipped**;
+  gate Python **5523 passed / 19 skipped / 0 falha**.
+
+### 4. Versão
+
+- `.env` `OD_VERSION=1.46.1`; fallback em `core/capabilities.py`;
+  `app/pubspec.yaml` `1.46.1+2084`; `_APP_VERSION_CODE = 2084`;
+  `site/index.html` (badge, card, tamanhos e versionCode);
+  `site/historico.html` (79 lançamentos, Era 9 com 13 releases).
+- APKs publicados em `site/` (completo ~70 MB e arm64 ~27 MB).
+
 ## [1.46.0] — CURADORIA DO ACERVO NO APP: EXCLUIR, BLOQUEAR E LIBERAR PELO CELULAR 🜂 (2026-11-17)
 
 **Bump MINOR** (capacidade nova compatível), versionCode **2083**.

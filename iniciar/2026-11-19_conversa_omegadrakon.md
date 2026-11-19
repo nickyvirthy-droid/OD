@@ -426,3 +426,49 @@ mas os botões só existiam em `/admin` e no chat (`reconhece o 2` /
 - **Limite:** o APK (com esta tela e o fix do push de `4970981`) continua
   pendente de ordem explícita do dono (regra 7.3). Sem bump de versão e sem
   restart do `od-core` — mudança só no app.
+
+## §9 — Release 1.46.1+2084: APK com o Vigia da Rede e o fix do push
+
+**Pedido:** *"continue, gere o apk"* (dono, 19/11) — ordem explícita que a
+regra 7.3 exigia.
+
+### 1. Build e bump
+
+- O JDK 17 já estava na máquina em `/home/alex/jdk` (fora do `PATH`); o
+  primeiro build falhou só por isso (`JAVA_HOME is not set`).
+- O primeiro APK saiu como **1.46.0+2083** — o mesmo `versionCode` já
+  publicado. O `OdUpdater` só instala `version_code` **maior**, então esse
+  build nunca chegaria ao celular do dono pela auto-atualização. Bump PATCH:
+  **1.46.1+2084**.
+- Sincronizados: `app/pubspec.yaml`, `.env` (`OD_VERSION=1.46.1`), fallback
+  em `core/capabilities.py`, `_APP_VERSION_CODE = 2084`,
+  `site/index.html` (badge, card, tamanhos ~26/~70 MB, versionCode) e
+  `site/historico.html` (79 lançamentos, Era 9 com 13 releases, entrada de
+  19/11).
+- APKs reconstruídos com `build_apk.sh` e copiados para `site/`
+  (`OmegaDrakon.apk` e `OmegaDrakon-arm64.apk`; `site/*.apk` é gitignored).
+
+### 2. Prova viva
+
+| Check | Resultado |
+|---|---|
+| `aapt2 dump badging` (arm64) | `versionCode='2084' versionName='1.46.1'` |
+| `/app/version` | 1.46.1 · 2084 · size **72.488.590** · sha `ac60b136…` == `site/OmegaDrakon.apk` |
+| `/site/OmegaDrakon-arm64.apk` | **200**, 27.038.253 B |
+| `/health` | `ok=true`, orchestrator up |
+| `od-core` | MainPID **1837735**, `NRestarts=0`, `active` |
+
+### 3. Gate e limites
+
+- `flutter analyze` 0 issues; `flutter test` **264 passed / 2 skipped**;
+  gate Python **5523 passed / 19 skipped / 0 falha** (duas rodadas: a
+  primeira pegou a política de versão — CHANGELOG sem `## [1.46.1]` e as
+  contagens do site em 78 — corrigidas, sem afrouxar asserção).
+- **Autor:** Freebuff (Buffy), 19/11. Arquivos: `app/pubspec.yaml`,
+  `.env` (não rastreado), `core/capabilities.py`,
+  `integrations/api/server.py`, `site/index.html`, `site/historico.html`,
+  `docs/CHANGELOG.md`, `docs/README_VERSAO.md`, `iniciar/` (este §,
+  `session.json`, `ATRIBUICOES.md`).
+- **Limite:** a instalação no celular é manual (Android pede confirmação);
+  o APK não foi instalado nem executado num aparelho nesta sessão — a prova é
+  do artefato (badging, hash anunciado, download 200), não de UI em hardware.

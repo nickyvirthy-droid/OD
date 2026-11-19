@@ -12,7 +12,7 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
-## Vigia da Rede na tela do alerta: Reconhecer e Bloquear no app (2026-11-19, sem bump)
+## [1.46.1] — Vigia da Rede na tela do alerta: Reconhecer e Bloquear no app (2026-11-19)
 
 **Pedido do dono:** *"Leve o Vigia da Rede para o app, com os botões
 Reconhecer e Bloquear na tela do alerta"* — o aviso de dispositivo
@@ -40,8 +40,17 @@ existiam em `/admin` e no chat.
 **Validado:** `flutter analyze` **0 issues**; `flutter test` **264 passed /
 2 skipped** (7 novos); gate Python **5523 passed / 19 skipped / 0 falha**.
 
-**Limite:** o APK/publicação continua pendente de ordem explícita do dono
-(regra 7.3). Sem bump e sem restart do `od-core` (mudança só no app).
+**Release (bump PATCH 1.46.0 → 1.46.1, versionCode 2083 → 2084):** o dono
+pediu o APK; um build com o mesmo code não seria oferecido pela auto-atualização
+(o app só instala `version_code` maior). APKs reconstruídos com
+`build_apk.sh` e publicados em `site/` (completo 72.488.590 B; arm64
+27.038.253 B), `.env`/`core.capabilities`/`_APP_VERSION_CODE`/`pubspec`/
+`index.html`/`historico.html` sincronizados, e o `od-core` reiniciado.
+
+**Prova viva:** `aapt2 dump badging` → `versionCode='2084' versionName='1.46.1'`;
+`/app/version` → `version` 1.46.1, `version_code` 2084, `size` 72488590 e
+`sha256` `ac60b136…` batendo com o arquivo em `site/`;
+`/site/OmegaDrakon-arm64.apk` 200 (27.038.253 B); `/health` `ok=true`.
 
 ## Falha controlada do restore: aviso de verdade chegou no Telegram (2026-11-19, sem bump)
 
