@@ -1069,6 +1069,24 @@ esperar o timeout.
       FileBrowser funcionam com `/tmp` por padrão; política restritiva sob
       controle do caller.
 
+> Turno de 19/11 14:55 (retomada "leia iniciar", lote do Vigia da Rede):
+> sugestões não escolhidas → as três abaixo (regra 21).
+
+- [ ] **Fechar o lote do Vigia da Rede que está na árvore** — o diff de 19/11
+      13:39–14:14 (actions `network_conhecer`/`network_bloquear`, rotas
+      `/admin/vigia`, seção no painel e fast path) já passa 751 testes no
+      recorte, mas não tem CHANGELOG/TODO/commit nem está no ar (`/admin/vigia`
+      = 404 no processo de 18/11). Fechar = documentar, gate completo, commit e
+      restart verde; resolve o alerta que prometia resposta sem canal.
+- [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
+      Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
+      não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à
+      tela onde o alerta chega.
+- [ ] **P1 nº 6 — modo colapso declarado** — único P1 aberto da revisão de
+      17/11: declarar e medir o comportamento quando todas as fontes de LLM/
+      ferramentas caem, para o OD responder em modo degradado explícito em vez
+      de improvisar.
+
 ### Continuidade (plano de 12/11 — `docs/CONTINUIDADE.md`)
 
 > A `readiness_report` mediu **6/9**: reprovam energia, conhecimento e

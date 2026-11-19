@@ -9,6 +9,45 @@
 
 ---
 
+## 19/11/2026 — Vigia da Rede: resolução pelo chat/painel (LOTE NÃO REGISTRADO, origem desconhecida)
+
+**Autor:** **origem não identificada** — lote achado na árvore na retomada
+"leia iniciar" de 19/11 ~14:55 (mtimes 13:39–14:14). Nada em `iniciar/`,
+`docs/CHANGELOG.md` ou no TODO antes desta entrada. Registrado como
+encontrado (regra 23), sem reverter nem commitar.
+
+### Modificados (não commitados)
+
+- `tools/monitor/network_watchdog.py` — `vizinhos_sem_ping()` e
+  `pendentes_ricos()` (`nome`, `ultima_vez`, `conectado` na linha de estado).
+- `integrations/notifier.py` — `formata_dispositivo()` pura; sem o campo novo
+  não afirma status.
+- `tools/actions/actions.py` — actions `network_conhecer` / `network_bloquear`
+  (catálogo 126 → 128).
+- `core/intents.py` — fast path "reconhece o 2" / "bloqueia o 2" com contexto
+  de rede obrigatório.
+- `core/orchestrator.py` — gate de papel das duas actions; `network_bloquear`
+  como escrita sensível.
+- `integrations/api/server.py` — `GET /admin/vigia`,
+  `POST /admin/vigia/conhecer`, `POST /admin/vigia/bloquear` e seção no painel.
+- `tests/` — `test_network_watchdog`, `test_notifier`, `test_intents`,
+  `test_api`, `test_actions_catalog`, `test_capabilities`, `test_mcp_od`,
+  `test_orchestrator`, `test_orchestrator_action_registry`.
+
+### Intenção e estado
+
+- **Intenção:** o alerta `net:dispositivo-novo` prometia "responda quando
+  reconhecer (ou 'bloqueia o X')" sem canal nenhum (sem intent, rota ou
+  botão) e sem dizer se o aparelho ainda está na rede.
+- **Estado:** implementação completa no diff e **751 passed** nos 9 arquivos
+  afetados (exit 0, 21,7 s); **pela metade** no processo de entrega — falta
+  CHANGELOG, checkbox no TODO, gate completo, commit e restart. O lote **não
+  está no ar** (`/admin/vigia` = 404 no `od-core`, que subiu em 18/11 20:03).
+- **Próximo passo exato:** assumir e fechar (documentação + gate + commit +
+  restart verde) ou aguardar a IA que o reivindicar.
+
+---
+
 ## 18/11/2026 — Faixas do Raul em "Desconhecido": artista descartado no download
 
 **Autor:** Freebuff (Buffy) — sessão de 18/11 ~20:10, relato do dono ("o sistema

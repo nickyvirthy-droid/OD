@@ -6379,5 +6379,17 @@
     "publicacao": "Commit 70c5fd8 em origin/master; HEAD == origin/master; arvore limpa.",
     "telegram": "ok=true msg_id=4064 (regra 15).",
     "faixa_sem_titulo_telegram": "ok=true msg_id=4065 (regra 15)."
+  },
+  "retomada_leitura_iniciar_2026_11_19": {
+    "pedido": "Dono (19/11 ~14:55): 'leia iniciar' — recarregar o checkpoint antes de retomar. Checkpoint anterior vigente: espelho_llm_p0_4_2026_11_18 (18/11 18:55).",
+    "lido": "iniciar/README.md, RULES.md (24 regras), session.json (ultimas entradas de 18/11), transcricao de 18/11 (13-15), topo de ATRIBUICOES.md, txt.txt, git status/log, tools/brief_multi_ia.py, servico e /health.",
+    "estado_encontrado": "HEAD == origin/master == 3352c2f; versao 1.46.0+2083; od-core active MainPID 542567 NRestarts=0 desde 18/11 20:03:41; /health ok=true 30 checks sem falha; txt.txt vazio (19/11 04:50) — nenhum pedido novo do dono; P0 1-4 e P1 5 entregues em 18/11, P1 6 (modo colapso) aberto.",
+    "lote_orfao": "Arvore SUJA com 15 arquivos (+1400/-48), mtimes 19/11 13:39-14:14, SEM registro em iniciar/CHANGELOG/TODO: e o Vigia da Rede como canal de resposta — network_watchdog (vizinhos_sem_ping, pendentes_ricos com nome/ultima_vez/conectado), notifier (formata_dispositivo pura, nao inventa status sem o campo), actions network_conhecer/network_bloquear (126->128, alvo MAC/IP/numero, varios pendentes = listagem), intents (reconhece/bloqueia o N) com contexto de rede obrigatorio, orchestrator (gate de papel + bloquear como escrita sensivel), server (GET /admin/vigia + POST conhecer/bloquear com _require_admin + secao no painel) e 7 arquivos de teste. AUTOR: origem nao identificada (regra 23); NAO revertido nem commitado.",
+    "validacao_do_lote": "pytest dos 9 arquivos afetados (network_watchdog, notifier, intents, api, actions_catalog, capabilities, orchestrator, orchestrator_action_registry, mcp_od): 751 passed, exit 0 (21,7 s). Gate completo NAO rodado. Lote NAO esta no ar: od-core subiu 18/11 20:03 (antes das edicoes) e GET /admin/vigia = 404 no processo vivo.",
+    "nao_feito": "Sem restart (rota nova exige ordem, regra 7), sem commit do lote de terceiro, sem alteracao de codigo neste turno.",
+    "proximo_passo": "Decidir o destino do lote: assumir e fechar (CHANGELOG + TODO + gate completo + commit + restart verde -> /admin/vigia e botoes no ar) ou deixar para a proxima IA que o reivindicar.",
+    "sem_bump": "1.46.0+2083; nenhum codigo alterado neste turno (leitura + testes + registro).",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-19T14:58:00-03:00"
   }
 }
