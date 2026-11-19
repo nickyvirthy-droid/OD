@@ -4809,6 +4809,27 @@ class TestSessaoDesenvolvimento:
         ):
             assert f'id="{identificador}"' in html, identificador
 
+    def test_painel_lista_as_clis_na_ordem_medida(
+        self, serve, tmp_path: Path
+    ) -> None:
+        """19/11: o seletor de CLI mostra TODAS as CLIs, na ordem medida.
+
+        Antes só havia auto/OpenCode/Kilo no HTML, escondendo as outras 11 da
+        cascata e ignorando a reordenação (Kilo, Agy, …).
+        """
+        from integrations.api.server import APIHandler
+
+        srv = serve(make_orch(tmp_path))
+        status, body, _h = _request(srv.bound_port, "GET", "/admin")
+        assert status == 200
+        html = body.decode("utf-8")
+        escolhas = [
+            v for v in APIHandler.SESSAO_CLIS
+            if f'<option value="{v}">' in html
+        ]
+        assert escolhas == list(APIHandler.SESSAO_CLIS)
+        assert "__SESSAO_CLIS_OPCOES__" not in html
+
     def test_ordem_no_painel_canal_logo_abaixo_das_ideias(
         self, serve, tmp_path: Path
     ) -> None:

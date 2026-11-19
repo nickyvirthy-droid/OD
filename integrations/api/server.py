@@ -1297,6 +1297,28 @@ whoAmI().then(u => { if (u) { loadStats(); loadHistory(); } });
 """
 
 
+#: Rótulos do seletor de CLI do painel — a ORDEM vem de
+#: `APIHandler.SESSAO_CLIS` (fonte única, medida em 19/11). Antes as opções
+#: eram fixas no HTML e só listavam auto/OpenCode/Kilo, escondendo as outras
+#: 11 CLIs da cascata.
+_ROTULOS_CLI = {
+    "auto": "CLI: automática (cascata)",
+    "kilo": "Kilo", "agy": "Agy", "openclaude": "OpenClaude",
+    "cline": "Cline", "codex": "Codex", "qwen": "Qwen",
+    "gemini": "Gemini", "claude": "Claude", "opencode": "OpenCode",
+    "crush": "Crush", "openclaw": "OpenClaw",
+    "interpreter": "Interpreter", "aider": "Aider",
+}
+
+
+def _opcoes_sessao_html() -> str:
+    """Opções do seletor de CLI, na ordem real da cascata."""
+    return "".join(
+        f'<option value="{slug}">{_ROTULOS_CLI.get(slug, slug)}</option>'
+        for slug in APIHandler.SESSAO_CLIS
+    )
+
+
 _ADMIN_PAGE_HTML = """<!doctype html>
 <html lang="pt-BR">
 <head>
@@ -1493,11 +1515,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     <div class="row">
       <button id="sess-ativar" style="border-color:var(--accent);color:var(--accent)">▶ Ativar desenvolvimento</button>
       <button id="sess-parar" class="danger">⏹ Parar</button>
-      <select id="sess-cli" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.85rem">
-        <option value="auto">CLI: automática (cascata)</option>
-        <option value="opencode">OpenCode</option>
-        <option value="kilo">Kilo</option>
-      </select>
+      <select id="sess-cli" style="background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px;font-size:0.85rem">__SESSAO_CLIS_OPCOES__</select>
       <span class="pill" id="sess-estado">sessão: —</span>
       <span class="muted msg" id="sess-msg"></span>
     </div>
@@ -5940,7 +5958,10 @@ class APIHandler(BaseHTTPRequestHandler):
         """Painel do DONO (papel admin): contas, uso e saúde do sistema.
         O gate de dados é o _require_admin nos handlers /admin/users* — aqui
         é só o shell; sem papel admin a própria página se desliga."""
-        self._html(200, _com_tema(_ADMIN_PAGE_HTML))
+        pagina = _ADMIN_PAGE_HTML.replace(
+            "__SESSAO_CLIS_OPCOES__", _opcoes_sessao_html()
+        )
+        self._html(200, _com_tema(pagina))
 
     def chat_html(self) -> None:
         """Chat funcional: shell aberto + chave pedida UMA vez no navegador
