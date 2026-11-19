@@ -9381,10 +9381,12 @@ class APIHandler(BaseHTTPRequestHandler):
     #: não-interativo medido no `--help`; cota nunca é motivo de exclusão
     #: — régua do dono) — tem que casar com
     #: orquestrador.CLI_SESSAO_OPCOES (teste de contrato).
+    # Mesma ordem medida de `orquestrador.CLIS` (19/11): melhor resultado
+    # primeiro; o teste de contrato compara as duas tuplas.
     SESSAO_CLIS = (
-        "auto", "opencode", "kilo", "gemini", "qwen", "claude", "crush",
-        "agy", "openclaw", "codex", "aider", "cline", "openclaude",
-        "interpreter",
+        "auto", "kilo", "agy", "openclaude", "cline", "codex", "qwen",
+        "gemini", "claude", "opencode", "crush", "openclaw", "interpreter",
+        "aider",
     )
 
     def admin_dev_sessao(self) -> None:

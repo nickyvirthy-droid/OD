@@ -79,7 +79,11 @@ OPENCODE_MODELO: str = "opencode/deepseek-v4.1-flash-free"
 #: O `inclusionai/ling-3.0-flash-sante:free` foi REMOVIDO do catálogo do
 #: Kilo em 10/10 (sobrou só a variante sem ':free', que exige chave) —
 #: a sessão inteira morria com "Model not found". Este é free e provado.
-KILO_MODELO: str = "kilo/nvidia/nemotron-3-super-120b-a12b:free"
+#: 19/11: `kilo/nvidia/nemotron-3-super-120b-a12b:free` SAIU do catálogo
+#: ("Model not found" medido com prompt real). `kilo-auto/free` é o roteador
+#: free do provedor e respondeu "ok" em 11,6 s — mesma prova do ultra-550b
+#: (10,2 s); o roteador foi escolhido por não depender de um único modelo.
+KILO_MODELO: str = "kilo/kilo-auto/free"
 
 #: Logger do módulo (padrão do projeto: logging, journald do usuário captura).
 log = logging.getLogger("orquestrador")
@@ -311,7 +315,11 @@ CLIS: tuple[CliSpec, ...] = (
         nome="Gemini",
         binario="gemini",
         args_antes=("-p",),
-        args_depois=("-y",),
+        # --skip-trust (19/11): o repo não está na lista de workspaces
+        # confiáveis e o CLI rebaixava o -y para "default" e morria pedindo
+        # aprovação (exit 55). Com a flag, a falha que sobra é a real
+        # (GEMINI_API_KEY inválida, medida em 19/11).
+        args_depois=("-y", "--skip-trust"),
         caminho_candidato="~/.npm-global/bin/gemini",
     ),
     # Qwen Code (18/11): 'qwen PROMPT -y'. Prompt POSICIONAL = one-shot
@@ -372,7 +380,10 @@ CLIS: tuple[CliSpec, ...] = (
     CliSpec(
         nome="Codex",
         binario="codex",
-        args_antes=("exec", "-s", "workspace-write", "--approve-for-me"),
+        # --approve-for-me JÁ implica o sandbox workspace-write; combinar com
+        # `-s workspace-write` é erro de argumento (medido 19/11: exit=2).
+        # --skip-git-repo-check permite o prompt em diretório não-repo.
+        args_antes=("exec", "--approve-for-me", "--skip-git-repo-check"),
         caminho_candidato="~/.npm-global/bin/codex",
     ),
     # Aider (18/11): 'aider -m PROMPT --yes-always --no-auto-commit'.
@@ -433,6 +444,58 @@ CLIS: tuple[CliSpec, ...] = (
         prompt_via_stdin=True,
     ),
 )
+
+#: Ordem de execução MEDIDA em 19/11/2026 (ordem do dono: "a mais confiável é
+#: freebuff… seguida por Kilo e AGY, depois verifique todas e coloque em ordem
+#: de melhor resultado para o pior").
+#:
+#: Método: `tools/medir_cascata_ias.py` com o MESMO prompt curto em todas;
+#: resultado em `logs/medicao_cascata_ias.json`. Régua: quem respondeu "ok"
+#: vem antes de quem falhou, e entre os que funcionam vale o menor tempo; as
+#: falhas ficam depois, ordenadas por fail-fast (menor custo de espera).
+#:
+#: | # | CLI | resultado | s |
+#: |---|-----|-----------|---|
+#: | 1 | Kilo (modelo corrigido) | ok | 11,6 |
+#: | 2 | Agy | ok | 10,65 |
+#: | 3 | OpenClaude | ok | 3,3 |
+#: | 4 | Cline | ok | 6,6 |
+#: | 5 | Codex | falha sem auth | 0,29 |
+#: | 6 | Qwen | falha sem auth | 1,48 |
+#: | 7 | Gemini | chave inválida | 2,26 |
+#: | 8 | Claude | falha sem auth | 2,27 |
+#: | 9 | OpenCode | limite free | 3,42 |
+#: | 10 | Crush | sem crédito | 5,3 |
+#: | 11 | OpenClaw | sem sessão | 10,15 |
+#: | 12 | Interpreter | sem crédito | 10,29 |
+#: | 13 | Aider | timeout | 90,13 |
+#:
+#: **Freebuff não está na cascata e não pode ser "a primeira" hoje**: o
+#: wrapper 0.2.36 só aceita `login`/`doctor`; prompt por stdin sobe a TUI e
+#: pendura (medido de novo em 19/11: timeout em 20 s). Ele é a PRIMEIRA
+#: escolha do dono para trabalho assistido, mas num subprocesso desanexado
+#: não existe canal para a resposta. Assim que o Freebuff expuser um modo
+#: não-interativo, entra aqui na frente de todas (é a ordem pedida).
+ORDEM_CLIS_2026_11_19: tuple[str, ...] = (
+    "Kilo",
+    "Agy",
+    "OpenClaude",
+    "Cline",
+    "Codex",
+    "Qwen",
+    "Gemini",
+    "Claude",
+    "OpenCode",
+    "Crush",
+    "OpenClaw",
+    "Interpreter",
+    "Aider",
+)
+
+#: A ordem É a política: aplicada por nome, com erro alto se alguma CLI
+#: ficar de fora da tabela (`ValueError` no import — melhor que rodar numa
+#: ordem silenciosamente errada).
+CLIS = tuple(sorted(CLIS, key=lambda spec: ORDEM_CLIS_2026_11_19.index(spec.nome)))
 
 
 # ---------------------------------------------------------------------------
@@ -856,10 +919,12 @@ SESSAO_HEARTBEAT_S: float = 15.0
 #: Em 18/11 o seletor acompanhou a expansão da cascata (todas as CLIs com
 #: modo não-interativo medido no `--help`) — a lista tem que casar com
 #: `APIHandler.SESSAO_CLIS` (contrato do painel, ver tests).
+#: Mesma ordem de `CLIS` (19/11): o painel mostra "auto" + as CLIs na ordem
+#: medida, não na ordem histórica de definição.
 CLI_SESSAO_OPCOES: tuple[str, ...] = (
-    "auto", "opencode", "kilo", "gemini", "qwen", "claude", "crush",
-    "agy", "openclaw", "codex", "aider", "cline", "openclaude",
-    "interpreter",
+    "auto", "kilo", "agy", "openclaude", "cline", "codex", "qwen",
+    "gemini", "claude", "opencode", "crush", "openclaw", "interpreter",
+    "aider",
 )
 
 #: Instrução de sistema do modo sessão — código puro NÃO é o contrato aqui:

@@ -91,12 +91,16 @@ class TestCascataOficial:
           `test_expansao_18_11_cada_cli_com_modo_headless_medido`.
         """
         nomes = [spec.nome for spec in orch.CLIS]
+        # Ordem MEDIDA em 19/11 (ordem do dono: Kilo e Agy no topo, depois
+        # melhor resultado → pior). Freebuff fora: única sem modo
+        # não-interativo — nunca por cota.
         assert nomes == [
-            "OpenCode", "Kilo", "Gemini", "Qwen", "Claude", "Crush",
-            "Agy", "OpenClaw", "Codex", "Aider",
-            "Cline", "OpenClaude", "Interpreter",
-        ]  # Freebuff fora (única sem modo não-interativo — nunca por cota)
-        opencode, kilo, *novas = orch.CLIS
+            "Kilo", "Agy", "OpenClaude", "Cline", "Codex", "Qwen",
+            "Gemini", "Claude", "OpenCode", "Crush", "OpenClaw",
+            "Interpreter", "Aider",
+        ]
+        por_nome = {spec.nome: spec for spec in orch.CLIS}
+        opencode, kilo = por_nome["OpenCode"], por_nome["Kilo"]
         assert opencode.binario == "opencode"
         assert opencode.args_antes[0] == "run"
         assert "--standalone" in opencode.args_antes  # sem ele: exit=1 no meio
@@ -134,7 +138,7 @@ class TestCascataOficial:
         por_nome = {s.nome: s for s in orch.CLIS}
         # Gemini/Qwen: -p/--prompt = headless; -y = yolo (aprova tudo)
         assert por_nome["Gemini"].args_antes == ("-p",)
-        assert por_nome["Gemini"].args_depois == ("-y",)
+        assert por_nome["Gemini"].args_depois == ("-y", "--skip-trust")
         assert por_nome["Qwen"].args_depois == ("-y",)  # posicional = one-shot
         # Claude: -p = --print; auto-approve oficial de CI
         assert por_nome["Claude"].args_antes == ("-p",)
@@ -146,11 +150,14 @@ class TestCascataOficial:
         assert por_nome["Agy"].args_antes == ("-p",)
         # OpenClaw: um turno de agente via gateway
         assert por_nome["OpenClaw"].args_antes == ("agent", "-m")
-        # Codex: `exec` = "Run Codex non-interactively" + sandbox + auto
+        # Codex: `exec` = "Run Codex non-interactively" + auto-approve.
+        # 19/11: `--approve-for-me` JÁ implica workspace-write; combinar com
+        # `-s workspace-write` é erro de argumento (exit=2 medido).
         codex = por_nome["Codex"]
         assert codex.args_antes[0] == "exec"
-        assert "workspace-write" in codex.args_antes
         assert "--approve-for-me" in codex.args_antes
+        assert "workspace-write" not in codex.args_antes
+        assert "--skip-git-repo-check" in codex.args_antes
         # Aider: -m = --message (roda e sai); commit fica com a sessão
         aider = por_nome["Aider"]
         assert aider.args_antes == ("-m",)
@@ -240,7 +247,9 @@ class TestCascataOficial:
         "Model not found" depois que o OpenCode falhava.
         """
         assert orch.KILO_MODELO.startswith("kilo/")
-        assert orch.KILO_MODELO.endswith(":free")  # sem ':free' exige chave
+        # `:free` (modelo específico) ou `/free` (roteador kilo-auto): os
+        # dois são gratuitos; sem sufixo, exige chave.
+        assert orch.KILO_MODELO.endswith(":free") or orch.KILO_MODELO.endswith("/free")
 
     def test_comando_base_prefere_candidato_real_e_cai_para_path(self, monkeypatch) -> None:
         """O CANDIDATO vence o PATH (mudança de 10/10).
