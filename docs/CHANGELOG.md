@@ -39,8 +39,14 @@ Qwen, Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider.
 | Codex | `-s workspace-write` conflita com `--approve-for-me` (exit=2) | só `--approve-for-me` + `--skip-git-repo-check` |
 | Gemini | workspace não confiável rebaixava o `-y` (exit=55) | `--skip-trust`; a falha que resta é a real (chave inválida) |
 
-**Validado:** `tests/test_orquestrador.py` + `tests/test_api.py` (recorte da
-cascata/seletor) **79 passed**.
+**Painel:** o seletor de CLI do `/admin` tinha apenas `auto`/OpenCode/Kilo
+fixos no HTML (11 CLIs invisíveis, ordem antiga). As opções agora saem de
+`SESSAO_CLIS` (`_opcoes_sessao_html()`), com guarda na suíte
+(`test_painel_lista_as_clis_na_ordem_medida`).
+
+**Validado:** recorte cascata/seletor **79 passed**; **gate completo 5511
+passed / 19 skipped / 0 falha** (216,69 s). Prova viva: `/admin` listando na
+ordem medida, `/health` ok=true 30 checks, journal `-p err` sem entradas.
 
 **Limite:** a medição afere disponibilidade e latência, não qualidade do
 código gerado; a ordem das falhas é fail-fast, não mérito.

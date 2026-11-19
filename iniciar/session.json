@@ -6418,7 +6418,9 @@
     "medicao": "tools/medir_cascata_ias.py (novo) com o mesmo prompt em 13 CLIs, temp, timeout 90 s; logs/medicao_cascata_ias.json. ok: Kilo 11,6 s (modelo novo kilo/kilo-auto/free), Agy 10,65, OpenClaude 3,3, Cline 6,6. Falhas/timeout: Codex 0,29 (sem auth), Qwen 1,48 (sem auth-type), Gemini 2,26 (API_KEY_INVALID), Claude 2,27 (sem auth), OpenCode 3,42 (limite free), Crush 5,3 (sem credito), OpenClaw 10,15 (sem sessao), Interpreter 10,29 (sem credito), Aider 90 (timeout).",
     "correcoes_de_comando": "Kilo: modelo antigo saiu do catalogo -> kilo/kilo-auto/free; Codex: -s workspace-write conflita com --approve-for-me (exit=2) -> so --approve-for-me + --skip-git-repo-check; Gemini: --skip-trust (workspace nao confiavel rebaixava o -y, exit=55).",
     "ordem": "ORDEM_CLIS_2026_11_19 (fonte unica, aplicada por nome com erro alto): Kilo, Agy, OpenClaude, Cline, Codex, Qwen, Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider. Espelhada em CLI_SESSAO_OPCOES e APIHandler.SESSAO_CLIS.",
-    "validacao": "recorte cascata/seletor 79 passed; GATE COMPLETO 5510 passed / 19 skipped / 0 falha (230,49 s).",
+    "validacao": "recorte cascata/seletor 79 passed; GATE COMPLETO 5511 passed / 19 skipped / 0 falha (216,69 s) apos completar o seletor do painel.",
+    "painel": "O seletor de CLI do /admin tinha so auto/OpenCode/Kilo fixos no HTML (escondia 11 CLIs e ignorava a ordem). Agora as opcoes saem de SESSAO_CLIS via _opcoes_sessao_html(), com guarda test_painel_lista_as_clis_na_ordem_medida.",
+    "prova_viva": "restart 15:51:22 MainPID 1720925 NRestarts=0; journal -p err 0; /health ok=true 30 checks sem falha; /admin lista na ordem auto, kilo, agy, openclaude, cline, codex, qwen, gemini, claude, opencode, crush, openclaw, interpreter, aider.",
     "limite": "Mede disponibilidade/latencia, nao qualidade do codigo gerado; ordem das falhas e fail-fast, nao merito. Sem bump (1.46.0+2083).",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§4)",
     "updated_at": "2026-11-19T15:50:00-03:00"

@@ -233,10 +233,19 @@ com erro alto se faltar alguma): Kilo, Agy, OpenClaude, Cline, Codex, Qwen,
 Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider. Espelhada em
 `CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`.
 
+**Painel:** o seletor de CLI do `/admin` tinha só `auto`/OpenCode/Kilo fixos no
+HTML — escondia 11 CLIs e ignorava a ordem. As opções passaram a ser geradas de
+`SESSAO_CLIS` (`_opcoes_sessao_html()`), com o teste
+`test_painel_lista_as_clis_na_ordem_medida` contra drift.
+
 ### 5. Validação e atribuição
 
 - Recorte cascata/seletor: `test_orquestrador` + `test_api` **79 passed**;
-  **gate completo 5510 passed / 19 skipped / 0 falha** (230,49 s).
+  **gate completo 5511 passed / 19 skipped / 0 falha** (216,69 s).
+- Prova viva (restart 15:51:22, MainPID **1720925**, NRestarts=0, journal
+  `-p err` 0, `/health` ok=true 30 checks): `/admin` lista na ordem `auto,
+  kilo, agy, openclaude, cline, codex, qwen, gemini, claude, opencode, crush,
+  openclaw, interpreter, aider`.
 - **Autor:** Freebuff (Buffy), 19/11.
 - **Limite:** a medição afere disponibilidade/latência, não a qualidade do
   código gerado; a ordem das falhas é fail-fast, não mérito.

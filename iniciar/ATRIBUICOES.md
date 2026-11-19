@@ -25,7 +25,9 @@ ordem das IAs na cascata.
   catálogo); Codex sem o conflito `-s workspace-write` + `--approve-for-me`;
   Gemini com `--skip-trust`; novo `ORDEM_CLIS_2026_11_19` com a ordem medida
   aplicada sobre `CLIS`; `CLI_SESSAO_OPCOES` na mesma ordem.
-- `integrations/api/server.py` — `SESSAO_CLIS` espelhado.
+- `integrations/api/server.py` — `SESSAO_CLIS` espelhado e seletor de CLI do
+  `/admin` gerado dele (`_opcoes_sessao_html()`), em vez de 3 opções fixas no
+  HTML.
 - `tests/test_orquestrador.py` — ordem esperada e contratos de Codex/Gemini/Kilo.
 - `docs/IAS_DISPONIVEIS.md` (§2.1 + histórico), `docs/CHANGELOG.md`,
   `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json` e transcrição de 19/11.
@@ -35,10 +37,11 @@ ordem das IAs na cascata.
 - **Intenção:** a ordem da cascata era histórica, não medida; e o topo pedido
   pelo dono (Freebuff) não é automatizável hoje. Medir, corrigir as
   invocações quebradas e ordenar por resultado real.
-- **Estado:** **pronto e validado.** Kilo ok em 11,6 s (modelo novo), Agy ok em
-  10,65 s, OpenClaude 3,3 s e Cline 6,6 s; as demais falham por
-  autenticação/cota e ficaram por fail-fast. Gate completo **5510 passed /
-  19 skipped / 0 falha**.
+- **Estado:** **pronto, validado e no ar.** Kilo ok em 11,6 s (modelo novo),
+  Agy ok em 10,65 s, OpenClaude 3,3 s e Cline 6,6 s; as demais falham por
+  autenticação/cota e ficaram por fail-fast. Gate completo **5511 passed /
+  19 skipped / 0 falha**; restart 15:51:22 MainPID **1720925** com `/admin`
+  listando a ordem medida e `/health` ok=true 30 checks.
 - **Limite:** afere disponibilidade/latência, não a qualidade do código; o
   Freebuff entra em 1º no dia em que expuser prompt não-interativo.
 
