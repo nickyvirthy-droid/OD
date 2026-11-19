@@ -6401,5 +6401,26 @@
     "prova_viva": "restart 15:15:05 MainPID 1677502 NRestarts=0; journal -p err 0 entradas; /health ok=true 30 checks sem falha; GET /admin/vigia 200 com 1 pendente real (conectado=false, ultima_vez 15:14:25, desde 16/11) e 401 sem credencial; fast path conferido no codigo vivo: 'reconhece o dispositivo' -> network_conhecer, 'bloqueia o 2' -> network_bloquear alvo=2, 'quero reconhecer meu erro' -> None; alerta formatado: 'A2:E5:... (desconhecido, 192.168.0.186) · fora da rede · visto há 1 min · pendente desde 16/11'.",
     "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§2)",
     "updated_at": "2026-11-19T15:25:00-03:00"
+  },
+  "decisao_24h_app_repost_2026_11_19": {
+    "pedido": "Dono (19/11 ~15:30): 'Decisão de 24 h voltou a aparecer, já estava resolvido, regrediu porque?'.",
+    "servidor_limpo": "data/radio_apagar_depois.json vazio (2 B, mtime 17/11 06:36); /api/radio/musicas decisoes=[]; journal do usuario desde 18/11 sem NENHUM push com titulo 'Decisão de 24 h' (so os horarios 'OmegaDrakon'); fix 02a1a31 em HEAD e servico reiniciado depois dele — o servidor nao regrediu.",
+    "causa": "app/lib/services/push_service.dart: onMessageOpenedApp.listen(show) reexibia a notificacao local a CADA TOQUE, e getInitialMessage()+show a cada abertura disparada por notificacao. Quem exibiu foi o Android; o app republicava o aviso antigo (inclusive de prazo vencido).",
+    "correcao": "So o foreground (onMessage) exibe localmente; onMessageOpenedApp apenas consome o evento e getInitialMessage e consumido sem show.",
+    "validacao": "flutter analyze 0 issues; flutter test 257 passed / 2 skipped.",
+    "limite": "APK 1.46.0+2083 ainda tem o comportamento antigo; a correcao chega no proximo build (deploy do app exige ordem). Sem bump.",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-19T15:45:00-03:00"
+  },
+  "cascata_ordem_medida_2026_11_19": {
+    "pedido": "Dono (19/11 ~15:35): 'od chama a lista de IAs, a mais confiavel no momento é freebuff, acho que ela deveria ser a primeira. seguida por Kilo e AGY, depois poderia verificar todas e colocar em ordem de melhor resultado para o pior'.",
+    "freebuff": "NAO automatizavel: 0.2.36 so aceita login/doctor; 'freebuff ask ...' = erro de argumentos; prompt por stdin sobe a TUI e pendura (timeout 20 s medido de novo). Fica fora por MODO e entra em 1o assim que houver headless; por-lo em 1o hoje so faria cada sessao esperar o timeout.",
+    "medicao": "tools/medir_cascata_ias.py (novo) com o mesmo prompt em 13 CLIs, temp, timeout 90 s; logs/medicao_cascata_ias.json. ok: Kilo 11,6 s (modelo novo kilo/kilo-auto/free), Agy 10,65, OpenClaude 3,3, Cline 6,6. Falhas/timeout: Codex 0,29 (sem auth), Qwen 1,48 (sem auth-type), Gemini 2,26 (API_KEY_INVALID), Claude 2,27 (sem auth), OpenCode 3,42 (limite free), Crush 5,3 (sem credito), OpenClaw 10,15 (sem sessao), Interpreter 10,29 (sem credito), Aider 90 (timeout).",
+    "correcoes_de_comando": "Kilo: modelo antigo saiu do catalogo -> kilo/kilo-auto/free; Codex: -s workspace-write conflita com --approve-for-me (exit=2) -> so --approve-for-me + --skip-git-repo-check; Gemini: --skip-trust (workspace nao confiavel rebaixava o -y, exit=55).",
+    "ordem": "ORDEM_CLIS_2026_11_19 (fonte unica, aplicada por nome com erro alto): Kilo, Agy, OpenClaude, Cline, Codex, Qwen, Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider. Espelhada em CLI_SESSAO_OPCOES e APIHandler.SESSAO_CLIS.",
+    "validacao": "recorte cascata/seletor 79 passed; GATE COMPLETO 5510 passed / 19 skipped / 0 falha (230,49 s).",
+    "limite": "Mede disponibilidade/latencia, nao qualidade do codigo gerado; ordem das falhas e fail-fast, nao merito. Sem bump (1.46.0+2083).",
+    "transcricao": "iniciar/2026-11-19_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-19T15:50:00-03:00"
   }
 }

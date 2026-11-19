@@ -12,6 +12,74 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Cascata de CLIs reordenada por medição real (2026-11-19, sem bump)
+
+**Contexto (ordem do dono):** *"a mais confiável no momento é freebuff, acho que
+ela deveria ser a primeira. seguida por Kilo e AGY, depois poderia verificar
+todas e colocar em ordem de melhor resultado para o pior"*.
+
+**Medição:** `tools/medir_cascata_ias.py` (novo) roda o MESMO prompt em todas
+as CLIs de `orquestrador.CLIS`, em temp, com timeout — resultado em
+`logs/medicao_cascata_ias.json` e tabela em `docs/IAS_DISPONIVEIS.md` §2.1.
+
+**Freebuff:** medido de novo e **impossível de automatizar** — o wrapper 0.2.36
+só aceita `login`/`doctor`, e prompt por stdin sobe a TUI (timeout em 20 s).
+Entra como **primeira** assim que expuser modo não-interativo; hoje a ordem
+começa em Kilo.
+
+**Ordem aplicada** (`ORDEM_CLIS_2026_11_19`, fonte única, espelhada em
+`CLI_SESSAO_OPCOES` e `SESSAO_CLIS`): Kilo, Agy, OpenClaude, Cline, Codex,
+Qwen, Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider.
+
+**Correções de comando que a medição revelou:**
+
+| CLI | Defeito | Correção |
+|---|---|---|
+| Kilo | `kilo/nvidia/nemotron-3-super-120b-a12b:free` saiu do catálogo ("Model not found") | `kilo/kilo-auto/free` — ok em 11,6 s |
+| Codex | `-s workspace-write` conflita com `--approve-for-me` (exit=2) | só `--approve-for-me` + `--skip-git-repo-check` |
+| Gemini | workspace não confiável rebaixava o `-y` (exit=55) | `--skip-trust`; a falha que resta é a real (chave inválida) |
+
+**Validado:** `tests/test_orquestrador.py` + `tests/test_api.py` (recorte da
+cascata/seletor) **79 passed**.
+
+**Limite:** a medição afere disponibilidade e latência, não qualidade do
+código gerado; a ordem das falhas é fail-fast, não mérito.
+
+## "Decisão de 24 h" vencida que voltava a aparecer: quem reexibia era o APP (2026-11-19, sem bump)
+
+**Contexto:** relato do dono — *"Decisão de 24 h voltou a aparecer, já estava
+resolvido, regrediu porque?"*. A correção de 18/11 parou o **servidor** de
+reavisar quando a janela já estava aberta/vencida.
+
+**Medição (servidor limpo):** `data/radio_apagar_depois.json` **vazio** (mtime
+17/11 06:36), `decisoes: []` na API, e o journal do usuário desde 18/11 **não
+registra nenhum push** com título "Decisão de 24 h" (só os pushes horários de
+status, título "OmegaDrakon"). Ou seja: o servidor não reenviou nada — a
+mensagem que reaparecia era a **antiga**, republicada pelo próprio app.
+
+**Causa (`app/lib/services/push_service.dart`):**
+
+| Linha | O que fazia |
+|---|---|
+| `FirebaseMessaging.onMessageOpenedApp.listen(show)` | ao **tocar** numa notificação, o app a exibia de novo como notificação local |
+| `getInitialMessage()` + `show(initial)` | a cada abertura do app disparada por notificação, republicava a mesma notificação |
+
+Como a notificação tocada já está na bandeja (quem exibiu foi o Android), cada
+toque/abertura repostava o aviso — inclusive um de prazo já vencido e resolvido.
+O `show()` usa `message.messageId.hashCode` como id; mensagens sem `messageId`
+colidem, mas o efeito principal é o repost, não a colisão.
+
+**Correção:** só o **foreground** (`onMessage`) exibe localmente — em
+background/terminado o sistema já mostra. `onMessageOpenedApp` e
+`getInitialMessage` passam a **consumir** o evento sem reexibir (toque é
+evento de navegação, não de exibição).
+
+**Validado:** `flutter analyze` **0 issues**; `flutter test` **257 passed /
+2 skipped**.
+
+**Limite:** o APK publicado (1.46.0+2083) ainda tem o comportamento antigo; a
+correção chega ao celular no próximo build (deploy do app exige ordem do dono).
+
 ## Vigia da Rede: o alerta diz se o aparelho está conectado e tem onde responder (2026-11-19, sem bump)
 
 **Contexto:** o aviso `net:dispositivo-novo` mandava "Responda quando reconhecer

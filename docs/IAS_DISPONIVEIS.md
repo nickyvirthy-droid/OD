@@ -98,6 +98,40 @@ artista/gênero.
 | — | OpenAI `gpt-5.4*` (2 chaves) | — | — | — | sem créditos |
 | — | `opencode` / `kilo` (CLIs) | — | — | — | sem login/chave válida; pesados para lote |
 
+## 2.1 Cascata de CLIs de código — ordem medida em 19/11/2026
+
+Ordem do dono: *"a mais confiável no momento é freebuff, acho que ela deveria
+ser a primeira. seguida por Kilo e AGY, depois poderia verificar todas e
+colocar em ordem de melhor resultado para o pior"*.
+
+Método: `tools/medir_cascata_ias.py` com o MESMO prompt curto em todas
+("Responda apenas com a palavra: ok"), em diretório temporário, timeout 90 s;
+JSON em `logs/medicao_cascata_ias.json`. **Limite:** mede disponibilidade e
+latência de resposta, não qualidade de código (a escolha de modelo já foi
+medida em §2).
+
+| # | CLI | Resultado | Tempo | Observação |
+|---|---|---|---|---|
+| — | **Freebuff** | timeout | 20 s | **não pode ser automatizado**: 0.2.36 só aceita `login`/`doctor`; prompt por stdin sobe a TUI. Primeira escolha do dono para trabalho assistido — entra na frente assim que houver modo headless |
+| 1 | Kilo | **ok** | 11,6 s | modelo corrigido: `kilo/nvidia/nemotron-3-super-120b-a12b:free` saiu do catálogo → `kilo/kilo-auto/free` |
+| 2 | Agy | **ok** | 10,65 s | — |
+| 3 | OpenClaude | **ok** | 3,3 s | NIM `nemotron-3-ultra-550b` (free) |
+| 4 | Cline | **ok** | 6,6 s | one-shot posicional |
+| 5 | Codex | falha | 0,29 s | sem auth (401 OpenAI); comando corrigido (`--approve-for-me` conflitava com `-s workspace-write`) |
+| 6 | Qwen | falha | 1,48 s | sem `--auth-type` configurado |
+| 7 | Gemini | falha | 2,26 s | `API_KEY_INVALID` (chave do `.env` recusada); `--skip-trust` novo remove o falso bloqueio de workspace não confiável |
+| 8 | Claude | falha | 2,27 s | sem auth |
+| 9 | OpenCode | falha | 3,42 s | limite de uso free (`deepseek-v4.1-flash-free`) |
+| 10 | Crush | falha | 5,3 s | OpenAI sem crédito |
+| 11 | OpenClaw | falha | 10,15 s | sem sessão/agente configurado |
+| 12 | Interpreter | falha | 10,29 s | OpenAI sem crédito |
+| 13 | Aider | timeout | 90 s | não terminou (espera de provedor) |
+
+Regra da ordem: quem respondeu vem antes (menor tempo primeiro, exceto Kilo e
+Agy, que o dono fixou no topo); falhas depois, por fail-fast. Aplicada em
+`orquestrador.ORDEM_CLIS_2026_11_19` (fonte única) e espelhada em
+`CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`.
+
 ## 3. Como está no código
 
 `/home/alex/dados/musicas/musica.py` v1.10.0:
@@ -159,6 +193,7 @@ que a nuvem sempre responde) é o que sustenta o chat.
 
 | Data | O que mudou |
 |---|---|
+| 2026-11-19 | **Cascata reordenada por medição real** (`tools/medir_cascata_ias.py`, 13 CLIs): Kilo (modelo novo `kilo-auto/free`) e Agy no topo por ordem do dono, depois OpenClaude, Cline e as falhas por fail-fast. Freebuff segue **fora por modo** — e é a primeira assim que tiver headless. |
 | 2026-11-18 (tarde, 2ª leva) | **Cascata 10 → 13 CLIs — cota deixa de ser motivo de exclusão** (régua do dono: "cota nunca é motivo de exclusão, a cota sempre acaba"). Cline (`cline PROMPT` posicional = one-shot), OpenClaude (engine headless via `tools/openclaude_headless.sh`, `-p --yolo` — **provado criando arquivo real**; modelo do app `deepseek-v3.1-terminus` está EOL no NIM → `nvidia/nemotron-3-ultra-550b`, 3,5s) e Interpreter (`--stdin -y -pl`, campo novo `prompt_via_stdin` no `CliSpec`) entraram no `CLIS` + `CLI_SESSAO_OPCOES` + `SESSAO_CLIS`. Só o **freebuff** continua fora (único sem modo não-interativo). |
 | 2026-11-18 (tarde) | **Cascata do orquestrador: 2 → 10 CLIs** (ordem do dono — "utilização de todas as 14 IAs"). `--help` medido um a um (só help): 10 com modo não-interativo entraram no `orquestrador.CLIS` (+ `CLI_SESSAO_OPCOES` e `SESSAO_CLIS` do painel); 4 fora — **corrigido na 2ª leva logo acima**: cline/openclaude/interpreter TINHAM one-shot e entraram; freebuff continua por modo. Modelo do OpenCode `nemotron-3-ultra-free` confirmado **fora do catálogo** e trocado por `deepseek-v4.1-flash-free` (provado, exit=0). |
 | 2026-11-18 | **O brief multi-IA é lido de fato?** Medido com OpenClaude (NIM, free) e o prompt REAL de sessão (`montar_prompt_sessao` + `brief_multi_ia.montar_brief`): prompt **5083 chars**, brief **2624** = **51,6% do prompt**. (a) só-leitura ("copie versão/HEAD/checkpoint/sincronizado do brief"): **4/4 campos corretos** em **7,8 s**, zero arquivo tocado; (b) com diff real ("crie `tools/PROVA_BRIEF.md` com 3 linhas do brief"): **3/3 corretos em 35,2 s**, **1 arquivo novo, nenhum existente alterado**. Conclusão: com o brief no prompt a CLI acerta 100% do estado sem inventar; o custo é ~2,6 k chars (metade do prompt) e a resposta inclui o bloco `[ANALISE]` do contrato. |

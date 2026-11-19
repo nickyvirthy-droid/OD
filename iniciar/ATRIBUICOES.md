@@ -9,6 +9,64 @@
 
 ---
 
+## 19/11/2026 — Cascata de IAs reordenada por medição (Freebuff, Kilo, Agy, resto)
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~15:35, ordem do dono sobre a
+ordem das IAs na cascata.
+
+### Criados
+
+- `tools/medir_cascata_ias.py` — roda o mesmo prompt em todas as CLIs de
+  `orquestrador.CLIS`, mede tempo/resultado e ordena; `--json` grava o laudo.
+
+### Modificados
+
+- `orquestrador.py` — `KILO_MODELO` → `kilo/kilo-auto/free` (o antigo saiu do
+  catálogo); Codex sem o conflito `-s workspace-write` + `--approve-for-me`;
+  Gemini com `--skip-trust`; novo `ORDEM_CLIS_2026_11_19` com a ordem medida
+  aplicada sobre `CLIS`; `CLI_SESSAO_OPCOES` na mesma ordem.
+- `integrations/api/server.py` — `SESSAO_CLIS` espelhado.
+- `tests/test_orquestrador.py` — ordem esperada e contratos de Codex/Gemini/Kilo.
+- `docs/IAS_DISPONIVEIS.md` (§2.1 + histórico), `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json` e transcrição de 19/11.
+
+### Intenção e estado
+
+- **Intenção:** a ordem da cascata era histórica, não medida; e o topo pedido
+  pelo dono (Freebuff) não é automatizável hoje. Medir, corrigir as
+  invocações quebradas e ordenar por resultado real.
+- **Estado:** **pronto e validado.** Kilo ok em 11,6 s (modelo novo), Agy ok em
+  10,65 s, OpenClaude 3,3 s e Cline 6,6 s; as demais falham por
+  autenticação/cota e ficaram por fail-fast. Gate completo **5510 passed /
+  19 skipped / 0 falha**.
+- **Limite:** afere disponibilidade/latência, não a qualidade do código; o
+  Freebuff entra em 1º no dia em que expuser prompt não-interativo.
+
+---
+
+## 19/11/2026 — "Decisão de 24 h" vencida reaparecendo: o APP republicava a notificação
+
+**Autor:** Freebuff (Buffy) — sessão de 19/11 ~15:30, relato do dono.
+
+### Modificados
+
+- `app/lib/services/push_service.dart` — `onMessageOpenedApp` e
+  `getInitialMessage()` não chamam mais `show()`; só o foreground exibe.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/session.json`
+  e transcrição de 19/11.
+
+### Intenção e estado
+
+- **Intenção:** o servidor já não reavisa (fix 18/11); o que reaparecia era a
+  notificação antiga republicada a cada toque/abertura do app.
+- **Estado:** **corrigido e validado** (`flutter analyze` 0 issues, `flutter
+  test` 257 passed / 2 skipped). **Pela metade no dispositivo:** o APK
+  publicado (1.46.0+2083) ainda tem o comportamento antigo; falta o próximo
+  build (deploy do app exige ordem do dono).
+- **Limite:** a mensagem já entregue não sai da bandeja retroativamente.
+
+---
+
 ## 19/11/2026 — Vigia da Rede: alerta com status de conexão e resolução pelo chat/painel
 
 **Autor:** **implementação de origem não identificada** — lote achado na árvore

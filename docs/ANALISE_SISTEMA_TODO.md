@@ -1081,6 +1081,20 @@ esperar o timeout.
       agora diz se o aparelho está conectado, quando foi visto e onde responder.
       Implementação de origem desconhecida (achada pronta na árvore); fechamento
       por Freebuff (Buffy).
+- [x] **App reexibia notificação antiga ("Decisão de 24 h" de prazo vencido)** —
+      **FEITO 19/11:** o servidor estava limpo (loja vazia, nenhum push do
+      título desde 18/11); quem republicava era o app
+      (`onMessageOpenedApp.listen(show)` e `getInitialMessage()` → `show`).
+      Só o foreground (`onMessage`) exibe localmente agora; toque/abertura
+      consomem o evento sem reexibir. `flutter analyze` 0 issues e
+      `flutter test` **257 passed / 2 skipped**. Falta só o próximo APK.
+- [x] **Cascata de CLIs em ordem de melhor resultado (ordem do dono 19/11)** —
+      **FEITO 19/11:** `tools/medir_cascata_ias.py` mediu as 13 CLIs com o
+      mesmo prompt (`logs/medicao_cascata_ias.json`): Kilo (modelo novo
+      `kilo-auto/free`) e Agy no topo, depois OpenClaude, Cline e as falhas
+      por fail-fast. Freebuff segue fora **por modo** (só `login`/`doctor`;
+      TUI no stdin) e entra em 1º assim que tiver headless. Também corrigidos
+      o conflito de flags do Codex e o `--skip-trust` do Gemini.
 - [ ] **Vigia da Rede na aba do app (Flutter)** — os botões Reconhecer /
       Bloquear existem só no `/admin` e no chat; o dono recebe o aviso no app e
       não tem o botão do lado. Resolve levar a mesma ação (com `role` admin) à

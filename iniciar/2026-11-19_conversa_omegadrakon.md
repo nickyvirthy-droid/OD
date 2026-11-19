@@ -144,3 +144,100 @@ Lido inteiro. O que sustenta a segurança:
 - Nenhum aparelho real foi reconhecido/bloqueado no teste (a ação mexe no
   inventário e, no bloqueio, no roteador): a prova do fast path é de detecção.
 - O pendente de 16/11 segue pendente — decisão do dono (reconhecer/bloquear).
+
+---
+
+## §3 — "Decisão de 24 h voltou a aparecer": era o APP republicando a notificação
+
+**Pedido (verbatim):** *"Decisão de 24 h voltou a aparecer, ja estava resolvido,
+regrediu porque?"*
+
+### 1. Servidor: limpo (medido, não presumido)
+
+- `data/radio_apagar_depois.json` **vazio** (2 bytes, mtime 17/11 06:36);
+  `/api/radio/musicas` com `decisoes: []`.
+- Journal do usuário desde 18/11: **nenhum** push com título "Decisão de 24 h"
+  (só os pushes horários de status, título "OmegaDrakon").
+- A correção de 18/11 (`02a1a31`) está em `HEAD` e o `od-core` reiniciou depois
+  dela — o servidor **não** regrediu.
+
+### 2. Causa real: `app/lib/services/push_service.dart`
+
+| Linha | Comportamento | Efeito |
+|---|---|---|
+| `FirebaseMessaging.onMessageOpenedApp.listen(show)` | ao **tocar** na notificação, chamava `show()` | republicava a mesma notificação local |
+| `getInitialMessage()` + `show(initial)` | a cada abertura do app disparada por notificação | republicava de novo |
+
+A notificação tocada já está na bandeja (quem exibiu foi o Android): cada
+toque/abertura repostava o aviso antigo — inclusive um de prazo vencido e já
+resolvido. Era isso que parecia "regressão".
+
+### 3. Correção
+
+- Só o **foreground** (`onMessage`) exibe notificação local — em
+  background/terminado o sistema já mostra.
+- `onMessageOpenedApp` e `getInitialMessage()` passam a **consumir** o evento
+  sem reexibir (toque é navegação, não exibição).
+
+### 4. Validação
+
+- `flutter analyze` → **0 issues**; `flutter test` → **257 passed / 2 skipped**.
+- **Limite:** o APK publicado (1.46.0+2083) ainda tem o comportamento antigo —
+  a correção chega ao celular no próximo build (deploy do app exige ordem).
+
+---
+
+## §4 — Ordem das IAs na cascata: Freebuff, Kilo, Agy e o resto medido
+
+**Pedido (verbatim):** *"od chama a lista de IAs, a mais confiável no momento é
+freebuff, acho que ela deveria ser a primeira. seguida por Kilo e AGY, depois
+poderia verificar todas e colocar em ordem de melhor resultado para o pior"*.
+
+### 1. Freebuff: não automatizável hoje (medido de novo)
+
+`freebuff --help` só aceita `login`/`doctor`; `freebuff ask …` é erro de
+argumentos; prompt por stdin sobe a TUI e **pendura** (timeout em 20 s),
+confirmando a medição de 18/11. Num subprocesso desanexado não há canal para a
+resposta, então pô-lo em 1º só faria toda sessão esperar o timeout antes de
+cair para a próxima. Fica registrado: **é a primeira assim que expuser modo
+não-interativo**.
+
+### 2. Medição das 13 CLIs (`tools/medir_cascata_ias.py`, novo)
+
+Mesmo prompt em todas, em temp, timeout 90 s; JSON em
+`logs/medicao_cascata_ias.json`; tabela em `docs/IAS_DISPONIVEIS.md` §2.1.
+
+| # | CLI | Resultado | s |
+|---|---|---|---|
+| 1 | Kilo (modelo novo) | ok | 11,6 |
+| 2 | Agy | ok | 10,65 |
+| 3 | OpenClaude | ok | 3,3 |
+| 4 | Cline | ok | 6,6 |
+| 5–13 | Codex, Qwen, Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider | falha/timeout | 0,29–90 |
+
+### 3. Correções que a medição revelou
+
+- **Kilo**: `kilo/nvidia/nemotron-3-super-120b-a12b:free` saiu do catálogo →
+  `kilo/kilo-auto/free` (ok em 11,6 s; o ultra-550b:free também respondeu, em
+  10,2 s).
+- **Codex**: `-s workspace-write` conflita com `--approve-for-me` (exit=2) →
+  só `--approve-for-me` + `--skip-git-repo-check`.
+- **Gemini**: workspace não confiável rebaixava o `-y` (exit=55) →
+  `--skip-trust`; a falha restante é a real (`API_KEY_INVALID`).
+- As falhas de Codex/Claude/Qwen são de autenticação, não de invocação.
+
+### 4. Ordem aplicada
+
+`ORDEM_CLIS_2026_11_19` (fonte única em `orquestrador.py`, aplicada por nome
+com erro alto se faltar alguma): Kilo, Agy, OpenClaude, Cline, Codex, Qwen,
+Gemini, Claude, OpenCode, Crush, OpenClaw, Interpreter, Aider. Espelhada em
+`CLI_SESSAO_OPCOES` e `APIHandler.SESSAO_CLIS`.
+
+### 5. Validação e atribuição
+
+- Recorte cascata/seletor: `test_orquestrador` + `test_api` **79 passed**;
+  **gate completo 5510 passed / 19 skipped / 0 falha** (230,49 s).
+- **Autor:** Freebuff (Buffy), 19/11.
+- **Limite:** a medição afere disponibilidade/latência, não a qualidade do
+  código gerado; a ordem das falhas é fail-fast, não mérito.
+- **Sem bump** (1.46.0+2083).
