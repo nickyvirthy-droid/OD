@@ -142,3 +142,58 @@ plano (é configurar, não instalar).
   `tests/test_mcp_od.py`, `tests/test_orchestrator.py`,
   `tests/test_orchestrator_action_registry.py`, `docs/CHANGELOG.md`,
   `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/`.
+
+## §3 — Vigia de energia por inferência: aviso e desligamento gracioso
+
+**Pedido do dono (21/11, ~02:50):** *"Montar o vigia de queda de energia por
+inferência, com aviso e shutdown gracioso"* — continuação do pedido anterior
+("monitor de no-break sem USB"), agora com o `txt.txt` na mão.
+
+### 1. Por que inferência
+
+O no-break é um **Attiv 1500 VA Bivolt sem porta de dados** (fotos de
+`analise/No Break/`): não existe `upsc`, nem `hid`, nem serial. A bateria
+Felicity tem RS485/CAN, mas ainda não chegou e exigiria adaptador. O que existe
+hoje é a **rede da casa**: com a Nicky no no-break, a queda de energia derruba
+os aparelhos da tomada enquanto o servidor continua vivo — o ARP mostra isso.
+
+### 2. Como ficou
+
+- `core/energia.py`: `Detector` (puro, relógio injetável) + `VigiaEnergia`.
+  Estados **normal → suspeita → confirmada → desligando**.
+  - suspeita: quórum de **60%** das âncoras sumidas por **3 ciclos** (20 s cada);
+  - confirmada: **3 min** depois, aviso no Telegram com a carência;
+  - desligando: **8 min** de carência → `systemctl poweroff`.
+  - âncoras expiram em 30 min (celular que saiu de casa não vira "sumido").
+  - se os aparelhos voltam em qualquer fase, volta a `normal` e avisa.
+- **Permissão**: antes de desligar, `pkcheck` (o serviço roda como usuário
+  comum). Sem a regra, **não desliga** — avisa no Telegram o comando exato.
+  `runtime/setup/energia_polkit.sh` instala a regra (sudo, uma vez).
+- **Desarmado** com `OD_ENERGIA_DESLIGAR=0`: só monitora e avisa.
+- Ações `energia_status` e `energia_cancelar` (catálogo **131**), check
+  `energia` no `/health`, aviso "cancelar: /executa energia_cancelar".
+
+### 3. Prova viva
+
+- Leitura real: **15 âncoras, 15 presentes, gateway 192.168.0.1 visto**,
+  estado `normal`.
+- `desligamento_autorizado()` → `{autorizado: False, motivo: "Authorization
+  requires authentication..."}` — ou seja, o vigia **sabe** que não pode
+  desligar e degrada o check em vez de falhar silencioso.
+- Gate completo **5551 passed / 19 skipped / 0 falha**; 21 testes novos em
+  `tests/test_energia.py` (estados, cancelamento por arquivo e por método,
+  desligamento executado uma única vez, parsers de ARP/rota, health/actions).
+
+### 4. Limites
+
+- Isto **infere** a queda; não mede carga da bateria. Reinício de roteador
+  produz o mesmo sumiço — por isso há 3 ciclos + 3 min de confirmação + 8 min
+  de carência e o aviso antes de qualquer desligamento.
+- **Desligamento ainda bloqueado pelo polkit** até o dono rodar o instalador
+  uma vez com sudo (não tenho senha e não é meu lugar).
+- A telemetria real (tensão/carga) virá do BMS da Felicity via RS485/CAN
+  quando a bateria chegar e houver adaptador.
+- **Autor:** Freebuff (Buffy), 21/11. Arquivos: `core/energia.py`,
+  `runtime/launcher.py`, `runtime/setup/energia_polkit.sh`,
+  `runtime/setup/od-energia.rules`, `tools/actions/actions.py`,
+  `tests/test_energia.py` + contagens de catálogo, `docs/`.

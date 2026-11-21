@@ -3825,6 +3825,36 @@ def homebox_atualizar(
     )
 
 
+def energia_status() -> dict[str, Any]:
+    """Vigia de energia: estado inferido (sem USB), âncoras e permissão."""
+    try:
+        from core import energia as mod
+
+        dados = mod.estado_atual()
+        return {"ok": True, **dados}
+    except Exception as exc:  # degrada ESTA ação, nunca o núcleo
+        return {"ok": False, "error": "energia_indisponivel", "message": str(exc)}
+
+
+def energia_cancelar(motivo: str = "cancelado pelo dono") -> dict[str, Any]:
+    """Cancela o desligamento por queda de energia (janela de carência)."""
+    try:
+        from core import energia as mod
+
+        feito = mod.cancelar(motivo)
+        return {
+            "ok": feito,
+            "cancelado": feito,
+            "estado": mod.estado_atual().get("estado", ""),
+            "message": (
+                "Desligamento cancelado." if feito
+                else "Não havia desligamento pendente para cancelar."
+            ),
+        }
+    except Exception as exc:
+        return {"ok": False, "error": "energia_indisponivel", "message": str(exc)}
+
+
 def _flatnotes_op(op: Any) -> dict[str, Any]:
     """Roda uma operação no FlatNotes com erro honesto e tipado.
 
@@ -4754,6 +4784,10 @@ CATALOG: list[dict[str, Any]] = [
               "id": S, "quantidade": {"type": "int"}, "notas": S, "descricao": S, "preco": {"type": "float"},
               "local": S, "fabricante": S, "modelo": S, "serie": S,
           }}),
+    # --- Energia: vigia de queda por inferência (21/11) ---
+    _spec("energia_status", "system", "Vigia de energia: estado inferido, âncoras, carência e permissão de desligar", energia_status),
+    _spec("energia_cancelar", "system", "Cancela o desligamento por queda de energia (janela de carência)", energia_cancelar,
+          {"properties": {"motivo": {**S, "default": "cancelado pelo dono"}}}),
     # --- FlatNotes: caderno de notas do dono (5ª interligação, 18/10) ---
     _spec("flatnotes_status", "flatnotes", "Estado do caderno (auth, nº de notas, última editada)", flatnotes_status),
     _spec("flatnotes_anota", "flatnotes", "Cria uma nota no caderno do dono (título + conteúdo markdown)", flatnotes_anota,

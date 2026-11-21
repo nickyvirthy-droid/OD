@@ -9,6 +9,38 @@
 
 ---
 
+## 21/11/2026 — Vigia de energia por inferência (aviso + desligamento gracioso)
+
+**Autor:** Freebuff (Buffy) — pedido do dono, continuação do monitor sem USB.
+
+### Modificados
+
+- `core/energia.py` (novo) — `Detector` + `VigiaEnergia`, leitura de ARP/rota,
+  âncoras com validade, estado persistido.
+- `runtime/launcher.py` — loop supervisionado + check `energia` no `/health`.
+- `runtime/setup/energia_polkit.sh` + `od-energia.rules` (novos) — liberar o
+  desligamento com sudo, uma vez.
+- `tools/actions/actions.py` — `energia_status` e `energia_cancelar`
+  (catálogo **131**).
+- `tests/test_energia.py` (novo, 21 testes) + contagens de catálogo.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (transcrição
+  §3, `session.json`, este arquivo).
+
+### Intenção e estado
+
+- **Intenção:** ter aviso e desligamento gracioso mesmo sem telemetria do
+  no-break — a queda é inferida pelo sumiço simultâneo dos aparelhos da LAN,
+  com confirmação e carência para não desligar por susto.
+- **Estado:** leitura real **15 âncoras / gateway visto / normal**; máquina de
+  estados testada (suspeita → confirmada → desligando, cancelamento e volta);
+  gate **5551 passed / 19 skipped / 0 falha**. `pkcheck` ainda **nega** o
+  desligamento (falta a regra polkit) — o vigia avisa e não desliga.
+- **Limite:** infere queda, não mede bateria; reboot de roteador se parece com
+  queda (mitigado por 3 ciclos + 3 min + 8 min + aviso). Telemetria real virá
+  do BMS RS485/CAN da Felicity.
+
+---
+
 ## 21/11/2026 — Homebox em uso: inventário físico da Nicky (9 peças, 2 locais)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"colocar para funcionar"* +

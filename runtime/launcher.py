@@ -2080,6 +2080,44 @@ def build_notifier(
     )
 
 
+async def _run_energia_forever(vigia_: Any, *, ciclos: Optional[int] = None) -> None:
+    """Loop do vigia de energia (tick a cada ``intervalo_s``).
+
+    Qualquer erro vira log: vigilância com defeito não pode derrubar o núcleo.
+    ``ciclos`` existe para o teste rodar um número fixo de voltas.
+    """
+    import asyncio as _asyncio
+
+    intervalo = float(getattr(vigia_.cfg, "intervalo_s", 20.0))
+    voltas = 0
+    while True:
+        try:
+            vigia_.tick()
+        except Exception as exc:
+            log.error("Vigia de energia falhou no ciclo", error=str(exc))
+        voltas += 1
+        if ciclos is not None and voltas >= ciclos:
+            return
+        await _asyncio.sleep(intervalo)
+
+
+def _check_energia(_: Any) -> dict[str, Any]:
+    """Check não-crítico do /health: estado do vigia + permissão de desligar."""
+    from core import energia as energia_mod
+
+    dados = energia_mod.estado_atual()
+    estado = str(dados.get("estado", "normal"))
+    autorizacao = dados.get("autorizado") or {}
+    ok = estado == "normal"
+    detalhe = (
+        f"{estado} · âncoras={dados.get('ancoras', 0)} · "
+        f"faltando={len(dados.get('faltando') or [])}"
+    )
+    if not (autorizacao.get("autorizado") if isinstance(autorizacao, dict) else False):
+        detalhe += " · SEM permissão de desligar (polkit)"
+    return {"ok": ok, "status": "up" if ok else "degraded", "detail": detalhe}
+
+
 async def _run_recovery_forever(loop: Any) -> None:
     """Ciclo de auto-recuperação: percepção + auto-reparo periódico."""
     log.info(
@@ -2554,6 +2592,26 @@ def main() -> int:
                 )
             )
             log.info("Face Detector habilitado (od-core)")
+        # Vigia de energia (21/11): sem USB no no-break, a queda é inferida
+        # pelo sumiço simultâneo dos aparelhos da rede. O aviso sai ANTES de
+        # qualquer desligamento e a carência permite cancelar.
+        if env("OD_ENERGIA_ENABLED", "1") != "0":
+            from core import energia as energia_mod
+
+            vigia_energia = energia_mod.VigiaEnergia(
+                sink=build_telegram_sink("monitor")
+            )
+            energia_mod.configurar(vigia_energia)
+            health.register("energia", _check_energia, critical=False)
+            tasks.append(_supervise(
+                "energia", lambda: _run_energia_forever(vigia_energia)
+            ))
+            log.info(
+                "Vigia de energia habilitado (inferência por ARP)",
+                intervalo_s=vigia_energia.cfg.intervalo_s,
+                carencia_s=vigia_energia.cfg.carencia_s,
+                desligar=vigia_energia.cfg.desligar,
+            )
         await asyncio.gather(*tasks)
 
     if mode == "api":

@@ -6501,5 +6501,16 @@
     "limites": "Bateria ainda nao chegou (dados da compra, nao da etiqueta); Pi 4 e ESP-01S sem modelo/serie medidos; preco do OptiPlex e do nobreak nao constam.",
     "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§2)",
     "updated_at": "2026-11-21T02:35:00-03:00"
+  },
+  "vigia_energia_2026_11_21": {
+    "pedido": "Dono (21/11 ~02:50): 'Montar o vigia de queda de energia por inferência, com aviso e shutdown gracioso' (continuação do monitor sem USB).",
+    "porque": "O Attiv 1500VA nao tem porta de dados (nem USB/serial), entao nao ha upsc. A Nicky fica no no-break e continua viva enquanto os aparelhos da tomada somem do ARP — esse sumico simultaneo e o sinal.",
+    "implementacao": "core/energia.py (Detector puro + VigiaEnergia): le /proc/net/arp e /proc/net/route, ancoras com validade de 30 min, quorum 60% por 3 ciclos -> suspeita, 3 min -> confirmada (aviso com carencia), 8 min -> desligando; volta a normal se os aparelhos reaparecem; estado em data/energia_estado.json. Antes de desligar roda pkcheck org.freedesktop.login1.power-off; sem permissao NAO desliga e avisa. runtime/setup/energia_polkit.sh instala a regra (sudo). OD_ENERGIA_DESLIGAR=0 deixa so monitorando.",
+    "superficie": "actions energia_status/energia_cancelar (catalogo 129->131), check nao-critico 'energia' no /health, loop supervisionado no launcher.",
+    "prova_viva": "Leitura real: 15 ancoras, 15 presentes, gateway 192.168.0.1 visto, estado normal. desligamento_autorizado() -> autorizado False ('Authorization requires authentication') — bloqueio declarado, nao tentado as cegas.",
+    "gate": "5551 passed / 19 skipped / 0 falha; 21 testes em tests/test_energia.py.",
+    "limites": "Infere a queda, nao mede bateria; reboot de roteador produz o mesmo sumico (mitigado por 3 ciclos + 3 min + 8 min e aviso). Desligamento fica bloqueado ate o dono rodar o instalador polkit com sudo. Telemetria real vira do BMS RS485/CAN da Felicity quando chegar.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§3)",
+    "updated_at": "2026-11-21T03:20:00-03:00"
   }
 }

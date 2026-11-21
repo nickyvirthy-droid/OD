@@ -1,0 +1,11 @@
+// =============================================================================
+// OMEGA DRAKON — permite ao usuário do od-core desligar a máquina SEM prompt
+// Uso: sudo bash runtime/setup/energia_polkit.sh  (instala este arquivo)
+// Sem esta regra, o vigia de energia avisa no Telegram mas NÃO desliga.
+// =============================================================================
+polkit.addRule(function (action, subject) {
+    if (action.id == "org.freedesktop.login1.power-off" &&
+        subject.user == "alex") {
+        return polkit.Result.YES;
+    }
+});

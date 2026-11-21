@@ -609,6 +609,35 @@ fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
 `executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
 ar no próximo restart do `od-core` (autorização pendente).
 
+## Vigia de energia por inferência: aviso e desligamento gracioso (2026-11-21, sem bump)
+
+**Resumo:** o no-break Intelbras Attiv 1500 VA do dono não tem porta de dados
+(nem USB), então não existe `upsc` para ler — mas a Nicky está no no-break e
+continua viva quando a energia cai, enquanto os aparelhos ligados na tomada
+somem da rede ao mesmo tempo. O vigia usa esse sumiço como sinal.
+
+- **`core/energia.py`:** `Detector` (máquina de estados pura, relógio
+  injetável) + `VigiaEnergia` (lê `/proc/net/arp` e `/proc/net/route`, guarda
+  âncoras com validade de 30 min, persiste `data/energia_estado.json`).
+  Estados: **normal → suspeita (3 ciclos de quórum 60% sumido) → confirmada
+  (3 min) → desligando (8 min de carência)**; se os aparelhos voltam, tudo
+  zera e o aviso de "energia de volta" sai.
+- **Segurança:** antes de desligar, `pkcheck` confirma se o serviço tem
+  permissão (`org.freedesktop.login1.power-off`). Sem permissão, **não
+  desliga** e avisa no Telegram o comando exato para liberar; com
+  `OD_ENERGIA_DESLIGAR=0` fica só monitorando.
+- **Instalador:** `runtime/setup/energia_polkit.sh` + `od-energia.rules`
+  (o dono roda uma vez com sudo).
+- **Ações:** `energia_status` e `energia_cancelar` (catálogo **129 → 131**);
+  check não-crítico `energia` no `/health`; aviso e cancelamento por
+  `/executa energia_cancelar`.
+
+**Prova viva:** leitura real da LAN → **15 âncoras, gateway 192.168.0.1
+visto**, estado `normal`; `pkcheck` sem a regra responde "authorization
+requires authentication" (por isso o desligamento é declarado bloqueado, não
+tentado às cegas). Testes: **21** em `tests/test_energia.py` (estados,
+cancelamento, volta, desligamento único, parsers e health).
+
 ## Homebox vira inventário de verdade: locais, fabricante, modelo e série (2026-11-21, sem bump)
 
 **Resumo:** o inventário rodava desde 17/10 só com as duas peças do teste de

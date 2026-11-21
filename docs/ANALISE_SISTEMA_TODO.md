@@ -1234,8 +1234,24 @@ esperar o timeout.
 > .pmtiles do Brasil" já é o checkbox de mapas offline; "monitor de UPS" e
 > "teste que amarra o compose ao readiness" entraram abaixo.
 
+- [x] **Energia: vigia de queda por inferência** — **FEITO 21/11:** o Attiv
+      1500 VA não tem USB, então a queda é deduzida pelo sumiço simultâneo
+      dos aparelhos da LAN (`/proc/net/arp`): 15 âncoras reais, quorum de 60%,
+      3 ciclos para suspeita, 3 min para confirmar e 8 min de carência com
+      aviso no Telegram antes do desligamento; `energia_status` e
+      `energia_cancelar` no catálogo (129 → 131) e check `energia` no
+      `/health`. Testes: 21 em `tests/test_energia.py`.
+- [ ] **Energia: liberar o desligamento (uma vez, com sudo)** — `pkcheck`
+      responde "authorization requires authentication": sem a regra polkit o
+      vigia **avisa mas não desliga**. Rodar `sudo bash
+      runtime/setup/energia_polkit.sh` e conferir com
+      `pkcheck --action-id org.freedesktop.login1.power-off --process $$`.
+      Enquanto isso, `energia_status` mostra `autorizado: false` e o `/health`
+      marca "SEM permissão de desligar (polkit)".
 - [ ] **Energia:** monitor de UPS no `readiness_report` — ler `upsc`/`/sys`
-      quando o nobreak chegar e reprovar se a bateria estiver sem USB ou baixa
+      quando um no-break com USB entrar (o Attiv atual nunca vai aparecer);
+      a telemetria real da Fase Nicky é o **BMS RS485/CAN da Felicity**
+      (precisa de adaptador USB-RS485).
 - [ ] **Acervo:** teste que compara os ZIMs listados em
       `docker/tools-compose.yaml` com os arquivos presentes nos dois diretórios
       — hoje um ZIM novo só entra na busca se alguém lembrar do `command`
