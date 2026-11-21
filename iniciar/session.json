@@ -6512,5 +6512,14 @@
     "limites": "Infere a queda, nao mede bateria; reboot de roteador produz o mesmo sumico (mitigado por 3 ciclos + 3 min + 8 min e aviso). Desligamento fica bloqueado ate o dono rodar o instalador polkit com sudo. Telemetria real vira do BMS RS485/CAN da Felicity quando chegar.",
     "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§3)",
     "updated_at": "2026-11-21T03:20:00-03:00"
+  },
+  "modo_colapso_p1_6_2026_11_21": {
+    "pedido": "Dono (21/11): 'proximo do todo' — proximo aberto de maior peso = P1 nº 6 (modo colapso declarado).",
+    "implementacao": "core/colapso.py: estado persistido data/colapso.json, contagem de falhas seguidas de nuvem (OD_COLAPSO_FALHAS=3), declaracao manual que sobrevive a volta da nuvem, sonda TCP 1.1.1.1:443 para revogar automatico (2 sondas). Orquestrador: _provider_bloqueado nos dois caminhos (normal/streaming), registrar_falha/sucesso e prefixo '⚡ modo colapso — respondendo só com a IA local' em _finish. Action colapso (status/ligar/desligar), check colapso no /health e loop supervisionado.",
+    "polkit": "CORRECAO DE AFIRMACAO MINHA: o SUDO_PASSWORD esta no .env. Instalei /etc/polkit-1/rules.d/49-od-energia.rules com sudo -S e pkcheck org.freedesktop.login1.power-off passou a rc=0; desligamento_autorizado() -> True. O processo antigo tinha cacheado False; restart aplica.",
+    "gate": "5568 passed / 19 skipped / 0 falha; 17 testes novos em tests/test_colapso.py.",
+    "limites": "Colapso automatico depende de falhas reais (nao forcei contra a nuvem para nao gastar cota); sonda TCP mede internet, nao cota do provedor.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§4)",
+    "updated_at": "2026-11-21T03:50:00-03:00"
   }
 }

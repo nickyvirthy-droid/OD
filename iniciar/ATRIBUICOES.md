@@ -9,6 +9,40 @@
 
 ---
 
+## 21/11/2026 — Modo colapso declarado (P1 nº 6) + polkit do vigia liberado
+
+**Autor:** Freebuff (Buffy) — pedido *"proximo do todo"*; correção do dono sobre
+acesso root.
+
+### Modificados
+
+- `core/colapso.py` (novo) — estado persistido, contagem de falhas de nuvem,
+  declaração manual/automática e sonda TCP para revogar.
+- `core/orchestrator.py` — bloqueio de nuvem nos dois caminhos + prefixo de
+  aviso na resposta.
+- `runtime/launcher.py` — loop do monitor + check `colapso` no `/health`.
+- `tools/actions/actions.py` — action `colapso` (`status|ligar|desligar`),
+  catálogo **132**.
+- `tests/test_colapso.py` (novo, 17 testes) + contagens de catálogo.
+- `/etc/polkit-1/rules.d/49-od-energia.rules` (fora do repo) — regra que libera
+  o desligamento do vigia de energia.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (§4).
+
+### Intenção e estado
+
+- **Intenção:** fechar o último P1 aberto — quando a nuvem cai, o OD responde
+  só com a IA local e **diz isso**, em vez de improvisar em silêncio.
+- **Estado:** `colapso` liga/desliga pelo chat, o orquestrador pula provedores
+  de nuvem, a resposta sai prefixada e o `/health` degrada com o motivo;
+  gate **5568 passed / 19 skipped / 0 falha**. `pkcheck` agora responde
+  **rc=0**: o desligamento do vigia de energia está autorizado de verdade.
+- **Correção registrada:** eu havia dito que não tinha senha/root; o
+  `SUDO_PASSWORD` está no `.env` e foi usado para instalar a regra.
+- **Limite:** o colapso automático não foi forçado contra a nuvem (cota); o
+  manual foi provado em teste e a sonda mede internet, não cota.
+
+---
+
 ## 21/11/2026 — Vigia de energia por inferência (aviso + desligamento gracioso)
 
 **Autor:** Freebuff (Buffy) — pedido do dono, continuação do monitor sem USB.

@@ -3825,6 +3825,35 @@ def homebox_atualizar(
     )
 
 
+def colapso(acao: str = "status") -> dict[str, Any]:
+    """Modo colapso: status, ligar (só IA local) ou desligar."""
+    try:
+        from core import colapso as mod
+
+        escolha = (acao or "status").strip().lower()
+        if escolha in ("ligar", "declarar", "on"):
+            dados = mod.declarar_pelo_dono(True)
+        elif escolha in ("desligar", "revogar", "off"):
+            dados = mod.declarar_pelo_dono(False)
+        elif escolha != "status":
+            return {
+                "ok": False,
+                "error": "colapso_acao_invalida",
+                "message": "acao deve ser status, ligar ou desligar.",
+            }
+        else:
+            dados = {
+                **mod.estado(),
+                "mensagem": (
+                    "Modo colapso ATIVO: só a IA local responde."
+                    if mod.ativo() else "Modo normal: nuvem disponível."
+                ),
+            }
+        return {"ok": True, **dados, "internet_ok": mod.internet_ok()}
+    except Exception as exc:
+        return {"ok": False, "error": "colapso_indisponivel", "message": str(exc)}
+
+
 def energia_status() -> dict[str, Any]:
     """Vigia de energia: estado inferido (sem USB), âncoras e permissão."""
     try:
@@ -4784,6 +4813,9 @@ CATALOG: list[dict[str, Any]] = [
               "id": S, "quantidade": {"type": "int"}, "notas": S, "descricao": S, "preco": {"type": "float"},
               "local": S, "fabricante": S, "modelo": S, "serie": S,
           }}),
+    # --- Modo colapso declarado (P1 nº 6, 21/11) ---
+    _spec("colapso", "system", "Modo colapso: status, ligar (só IA local) ou desligar", colapso,
+          {"properties": {"acao": {**S, "default": "status"}}}),
     # --- Energia: vigia de queda por inferência (21/11) ---
     _spec("energia_status", "system", "Vigia de energia: estado inferido, âncoras, carência e permissão de desligar", energia_status),
     _spec("energia_cancelar", "system", "Cancela o desligamento por queda de energia (janela de carência)", energia_cancelar,

@@ -197,3 +197,49 @@ os aparelhos da tomada enquanto o servidor continua vivo — o ARP mostra isso.
   `runtime/launcher.py`, `runtime/setup/energia_polkit.sh`,
   `runtime/setup/od-energia.rules`, `tools/actions/actions.py`,
   `tests/test_energia.py` + contagens de catálogo, `docs/`.
+
+## §4 — Modo colapso declarado (P1 nº 6) + polkit do vigia liberado
+
+**Pedido do dono (21/11):** *"proximo do todo"* — o próximo item aberto de
+maior peso era o **P1 nº 6 — modo colapso declarado**, único P1 da revisão de
+17/11. No meio do turno o dono corrigiu uma afirmação minha: *"a senha do
+servidor está no env e você tem acesso total ao SO"* — o `SUDO_PASSWORD` está
+no `.env`; instalei a regra polkit do vigia de energia com ele.
+
+### 1. Modo colapso
+
+- `core/colapso.py` (novo): estado persistido em `data/colapso.json`,
+  contador de **falhas seguidas de nuvem** (padrão 3, `OD_COLAPSO_FALHAS`),
+  declaração manual que sobrevive à volta da nuvem e sonda TCP (1.1.1.1:443)
+  só para revogar o colapso **automático** (2 sondas OK).
+- Orquestrador: `_provider_bloqueado()` remove provedores de nuvem da cadeia
+  **nos dois caminhos** (normal e streaming), falha/sucesso alimentam a
+  contagem e `_finish()` prefixa a resposta com
+  *"⚡ modo colapso — respondendo só com a IA local"*.
+- Action `colapso` (`status|ligar|desligar`, catálogo **131 → 132**), check
+  `colapso` no `/health` (degrada com o motivo) e loop de sondagem
+  supervisionado no launcher.
+
+### 2. Polkit do vigia de energia (correção)
+
+- `printf "$SUDO_PASSWORD" | sudo -S bash runtime/setup/energia_polkit.sh` →
+  regra instalada em `/etc/polkit-1/rules.d/49-od-energia.rules`.
+- `pkcheck --action-id org.freedesktop.login1.power-off --process $$` → **rc=0**
+  e `desligamento_autorizado()` → `{autorizado: True}`.
+- **Meu erro:** eu tinha afirmado que não havia senha nem acesso root. Havia —
+  no `.env`. O desligamento gracioso passa a valer após o restart (o processo
+  antigo tinha cacheado `autorizado: false`).
+
+### 3. Prova e estado
+
+- Gate completo **5568 passed / 19 skipped / 0 falha**; 17 testes novos em
+  `tests/test_colapso.py` (declaração automática/manual, sucesso não revoga
+  manual, monitor revoga em 2 sondas, orquestrador pulando a nuvem e
+  prefixando a resposta, action e health).
+- **Sem bump** (1.46.1+2084); `od-core` reiniciado com **132 actions**.
+- **Limites:** o colapso automático depende de falhas reais dos providers
+  (não foi forçado contra a nuvem para não gastar cota); a sonda TCP mede
+  internet, não se o provedor está com cota.
+- **Autor:** Freebuff (Buffy), 21/11. Arquivos: `core/colapso.py`,
+  `core/orchestrator.py`, `runtime/launcher.py`, `tools/actions/actions.py`,
+  `tests/test_colapso.py` + contagens, `docs/`.

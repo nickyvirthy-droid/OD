@@ -1132,10 +1132,14 @@ esperar o timeout.
       2 skipped** (7 novos em `app/test/vigia_rede_test.dart`), gate Python
       **5523 passed**. APK **1.46.1+2084** gerado e publicado em 19/11 e
       **instalado pelo dono em 21/11** — lote encerrado.
-- [ ] **P1 nº 6 — modo colapso declarado** — único P1 aberto da revisão de
-      17/11: declarar e medir o comportamento quando todas as fontes de LLM/
-      ferramentas caem, para o OD responder em modo degradado explícito em vez
-      de improvisar.
+- [x] **P1 nº 6 — modo colapso declarado** — **FEITO 21/11:** última P1
+      aberta da revisão de 17/11. `core/colapso.py` conta falhas seguidas de
+      nuvem (3 por padrão) e declara o colapso; o orquestrador tira a nuvem da
+      cadeia nos dois caminhos (normal e streaming), a resposta ganha o prefixo
+      "⚡ modo colapso — respondendo só com a IA local" e o `/health` degrada com
+      o motivo. Declaração manual (`colapso acao=ligar`) sobrevive à volta da
+      nuvem; a automática é revogada após 2 sondas TCP OK. Action `colapso`
+      (catálogo 131 → 132); 17 testes novos em `tests/test_colapso.py`.
 
 - [x] **Homebox em uso: inventário físico real** — **FEITO 21/11** (pedido do
       dono: *"o que temos guarde no homebox"*): o cliente ganhou `local`,
@@ -1241,13 +1245,12 @@ esperar o timeout.
       aviso no Telegram antes do desligamento; `energia_status` e
       `energia_cancelar` no catálogo (129 → 131) e check `energia` no
       `/health`. Testes: 21 em `tests/test_energia.py`.
-- [ ] **Energia: liberar o desligamento (uma vez, com sudo)** — `pkcheck`
-      responde "authorization requires authentication": sem a regra polkit o
-      vigia **avisa mas não desliga**. Rodar `sudo bash
-      runtime/setup/energia_polkit.sh` e conferir com
-      `pkcheck --action-id org.freedesktop.login1.power-off --process $$`.
-      Enquanto isso, `energia_status` mostra `autorizado: false` e o `/health`
-      marca "SEM permissão de desligar (polkit)".
+- [x] **Energia: liberar o desligamento (uma vez, com sudo)** — **FEITO
+      21/11:** regra instalada em `/etc/polkit-1/rules.d/49-od-energia.rules`
+      (com o `SUDO_PASSWORD` do `.env`) e
+      `pkcheck org.freedesktop.login1.power-off` → **rc=0**. Depois do restart
+      o `energia_status` mostra `autorizado: true` e o desligamento gracioso
+      passa a valer de verdade.
 - [ ] **Energia:** monitor de UPS no `readiness_report` — ler `upsc`/`/sys`
       quando um no-break com USB entrar (o Attiv atual nunca vai aparecer);
       a telemetria real da Fase Nicky é o **BMS RS485/CAN da Felicity**

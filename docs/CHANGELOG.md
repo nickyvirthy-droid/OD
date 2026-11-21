@@ -609,6 +609,32 @@ fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
 `executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
 ar no próximo restart do `od-core` (autorização pendente).
 
+## Modo colapso declarado: cadeia local e aviso explícito (P1 nº 6, 2026-11-21, sem bump)
+
+**Resumo:** último P1 aberto da revisão de 17/11. Quando a nuvem falha de vez
+(ou por ordem do dono), o OD **para de tentar provedores externos**, responde só
+com a IA local e **diz isso na resposta** — em vez de cair em silêncio ou
+improvisar.
+
+- **`core/colapso.py`:** estado persistido em `data/colapso.json` (sobrevive a
+  restart), contagem de falhas seguidas de nuvem (`OD_COLAPSO_FALHAS`, padrão
+  3), declaração manual que **não** é revogada quando a nuvem volta, sonda TCP
+  (1.1.1.1:443) só para revogar o colapso automático (2 sondas OK).
+- **Orquestrador:** `_provider_bloqueado()` tira a nuvem da cadeia nos dois
+  caminhos (normal e streaming); falha/sucesso de nuvem alimentam a contagem;
+  `_finish()` prefixa a resposta com "⚡ modo colapso — respondendo só com a IA
+  local" quando ativo.
+- **Action `colapso`** (`status|ligar|desligar`, catálogo **131 → 132**), check
+  `colapso` no `/health` e loop de sondagem supervisionado.
+- **Polkit do vigia de energia liberado** no mesmo dia: a regra
+  `49-od-energia.rules` foi instalada com o `SUDO_PASSWORD` do `.env` e o
+  `pkcheck` passou a responder **rc=0** (antes "authorization requires
+  authentication").
+
+**Prova viva:** 17 testes em `tests/test_colapso.py` (declaração automática e
+manual, sucesso não revoga manual, monitor revoga em 2 sondas, orquestrador
+pulando a nuvem e prefixando a resposta, action e health).
+
 ## Vigia de energia por inferência: aviso e desligamento gracioso (2026-11-21, sem bump)
 
 **Resumo:** o no-break Intelbras Attiv 1500 VA do dono não tem porta de dados

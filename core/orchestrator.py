@@ -1705,6 +1705,10 @@ class Orchestrator:
             if not self._provider_tem_quota(provider.name):
                 log.info("Provider sem cota — pulando", provider=provider.name)
                 continue
+            # Modo colapso: só a IA local responde (P1 nº 6).
+            if self._provider_bloqueado(provider):
+                log.info("Modo colapso — nuvem bloqueada", provider=provider.name)
+                continue
             try:
                 llm_used = provider.name
                 fallback_used = index > 0
@@ -1726,6 +1730,7 @@ class Orchestrator:
                     obter_quota_tracker().record_usage(provider.name)
                 except Exception:
                     pass
+                self._registrar_sucesso_colapso(provider)
                 break  # Sucesso, sair do loop
             except Exception as exc:
                 log.warn(
@@ -1733,6 +1738,7 @@ class Orchestrator:
                     provider=provider.name,
                     error=f"{type(exc).__name__}: {exc}",
                 )
+                self._registrar_falha_colapso(provider)
                 # Fallback para non-streaming NESTE provider, com a mesma
                 # tolerância do `_generate` (provider sync também vale).
                 try:
@@ -3722,6 +3728,10 @@ class Orchestrator:
             if not self._provider_tem_quota(provider.name):
                 log.info("Provider sem cota — pulando", provider=provider.name)
                 continue
+            # Modo colapso: só a IA local responde (P1 nº 6).
+            if self._provider_bloqueado(provider):
+                log.info("Modo colapso — nuvem bloqueada", provider=provider.name)
+                continue
             try:
                 output = await self._generate_one(provider, prompt)
                 # Registra uso bem-sucedido
@@ -3729,6 +3739,7 @@ class Orchestrator:
                     obter_quota_tracker().record_usage(provider.name)
                 except Exception:
                     pass
+                self._registrar_sucesso_colapso(provider)
                 return output, provider.name, index > 0
             except asyncio.TimeoutError:
                 log.warn(
@@ -3736,13 +3747,40 @@ class Orchestrator:
                     provider=provider.name,
                     timeout=self._config.llm_timeout_s,
                 )
+                self._registrar_falha_colapso(provider)
             except Exception as exc:
                 log.warn(
                     "LLM provider failed",
                     provider=provider.name,
                     error=f"{type(exc).__name__}: {exc}",
                 )
+                self._registrar_falha_colapso(provider)
         return None, "", False
+
+    def _provider_bloqueado(self, provider: Any) -> bool:
+        """Modo colapso ativo → provedores de nuvem ficam de fora."""
+        try:
+            from core import colapso
+
+            return colapso.ativo() and not colapso.eh_local(provider)
+        except Exception:
+            return False
+
+    def _registrar_falha_colapso(self, provider: Any) -> None:
+        try:
+            from core import colapso
+
+            colapso.registrar_falha(str(getattr(provider, "name", provider)))
+        except Exception:
+            pass
+
+    def _registrar_sucesso_colapso(self, provider: Any) -> None:
+        try:
+            from core import colapso
+
+            colapso.registrar_sucesso(str(getattr(provider, "name", provider)))
+        except Exception:
+            pass
 
     async def _record_terminal(
         self,
@@ -3936,6 +3974,22 @@ class Orchestrator:
         """Finaliza o resultado: duração, métricas e evento opcional."""
         result.finished_at = time.time()
         result.latency_ms = (time.perf_counter() - started) * 1000.0
+        # Modo colapso declarado no chat (P1 nº 6): quem lê a resposta sabe
+        # por que a nuvem não foi usada.
+        try:
+            from core import colapso
+
+            prefixo = colapso.resumo_para_resposta()
+            if (
+                prefixo
+                and isinstance(result.message, str)
+                and result.message
+                and result.route in (ROUTE_LLM, ROUTE_FALLBACK)
+                and not result.message.startswith("⚡")
+            ):
+                result.message = f"{prefixo}\n\n{result.message}"
+        except Exception:
+            pass
 
         with self._lock:
             self._metrics.processed += 1

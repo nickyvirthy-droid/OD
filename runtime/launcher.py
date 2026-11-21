@@ -2080,6 +2080,40 @@ def build_notifier(
     )
 
 
+async def _run_colapso_forever(monitor: Any, *, ciclos: Optional[int] = None) -> None:
+    """Loop do modo colapso: sonda internet e revoga o colapso automático."""
+    import asyncio as _asyncio
+
+    intervalo = float(getattr(monitor.cfg, "intervalo_s", 30.0))
+    voltas = 0
+    while True:
+        try:
+            monitor.tick()
+        except Exception as exc:
+            log.error("Monitor de colapso falhou no ciclo", error=str(exc))
+        voltas += 1
+        if ciclos is not None and voltas >= ciclos:
+            return
+        await _asyncio.sleep(intervalo)
+
+
+def _check_colapso(_: Any) -> dict[str, Any]:
+    """Check não-crítico: colapso ativo = degradado (nuvem fora)."""
+    from core import colapso as colapso_mod
+
+    dados = colapso_mod.estado()
+    ativo_ = bool(dados.get("ativo"))
+    detalhe = (
+        f"ATIVO ({dados.get('origem') or '?'}) — {dados.get('motivo') or 'sem motivo'}"
+        if ativo_ else "normal (nuvem disponível)"
+    )
+    return {
+        "ok": not ativo_,
+        "status": "degraded" if ativo_ else "up",
+        "detail": detalhe,
+    }
+
+
 async def _run_energia_forever(vigia_: Any, *, ciclos: Optional[int] = None) -> None:
     """Loop do vigia de energia (tick a cada ``intervalo_s``).
 
@@ -2592,6 +2626,20 @@ def main() -> int:
                 )
             )
             log.info("Face Detector habilitado (od-core)")
+        # Modo colapso declarado (P1 nº 6): quando a nuvem falha de vez, a
+        # cadeia vira local e a resposta DIZ isso; a internet é sondada para
+        # revogar o colapso automático quando ela volta.
+        from core import colapso as colapso_mod
+
+        monitor_colapso = colapso_mod.MonitorColapso(
+            sink=build_telegram_sink("monitor")
+        )
+        health.register("colapso", _check_colapso, critical=False)
+        tasks.append(_supervise(
+            "colapso", lambda: _run_colapso_forever(monitor_colapso)
+        ))
+        log.info("Monitor de modo colapso habilitado",
+                 falhas=monitor_colapso.cfg.falhas_para_declarar)
         # Vigia de energia (21/11): sem USB no no-break, a queda é inferida
         # pelo sumiço simultâneo dos aparelhos da rede. O aviso sai ANTES de
         # qualquer desligamento e a carência permite cancelar.
