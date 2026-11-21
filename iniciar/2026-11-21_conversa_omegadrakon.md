@@ -279,3 +279,32 @@ pendente).
   entrada registra o fato (PID/commit/hora) e não a intenção.
 - **Autor:** Freebuff (Buffy), 21/11. Arquivos: `core/registro_restart.py`,
   `runtime/launcher.py`, `tests/test_registro_restart.py`, `docs/`.
+
+## §6 — Ideias do `txt.txt` no TODO + conexão com a Meta
+
+**Pedido do dono (21/11):** *"leia txt. anote as ideias no todo e prepare a
+conexão com o meta"*.
+
+### 1. Ideias anotadas (seção 9 do `docs/ANALISE_SISTEMA_TODO.md`)
+
+- Foto da peça no APK → identificar → cadastrar no Homebox (existe:
+  `homebox_criar` + visão de faces; falta o reconhecedor + confirmação).
+- Abrir o Homebox pelo site (hoje só 127.0.0.1/LAN:8470, fora do Funnel).
+- Ouvir a música em quarentena antes de decidir (pré-escuta no `/radio-pro`).
+- Religar quando a energia volta (BIOS AC Recovery = Power On + boot
+  idempotente; o auto-registro do §5 passa a anotar o retorno).
+- Conexão com a Meta — preparada neste mesmo §6.
+
+### 2. Conexão com a Meta
+
+- **Fato:** não há API pública do Meta AI; o caminho é o WhatsApp Cloud API.
+- `integrations/meta.py` (novo) + rotas `GET/POST /webhook/meta` (públicas,
+  portão no handler) + ligação no launcher.
+- Relatório exato (linguagem Python 3.12.3, servidor stdlib, porta 8000,
+  **144 rotas**, auth por X-API-Key/sessão, Funnel 443 → 8000, Homebox por
+  API) em `docs/META_CONEXAO.md`.
+- **Limite:** dormente por desenho até o dono preencher `OD_META_TOKEN`,
+  `OD_META_PHONE_ID`, `OD_META_VERIFY_TOKEN` e `OD_META_APP_SECRET`.
+- **Autor:** Freebuff (Buffy), 21/11. Arquivos: `integrations/meta.py`,
+  `integrations/api/server.py`, `runtime/launcher.py`,
+  `tests/test_meta.py`, `docs/META_CONEXAO.md`.

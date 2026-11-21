@@ -158,8 +158,9 @@ class TestAPIRoutes:
         curadoria do acervo da rádio (excluir música, bloqueadas e
         exceções de cantores, 17/11) + /api/radio/pro/traducao (lista
         paralela da letra, 17/11) + Vigia da Rede no painel
-        (GET/POST /admin/vigia*, 19/11)."""
-        assert len(ROUTES) == 142
+        (GET/POST /admin/vigia*, 19/11) + /webhook/meta (WhatsApp
+        Cloud API, 21/11)."""
+        assert len(ROUTES) == 144
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -297,6 +298,8 @@ class TestAPIRoutes:
             ("POST", "/message"), ("POST", "/anon/message"),
             ("POST", "/executa"),
             ("POST", "/transcribe"), ("POST", "/tts"),
+            # WhatsApp Cloud API (Meta, 21/11): gate é do handler.
+            ("GET", "/webhook/meta"), ("POST", "/webhook/meta"),
             # Rádio Nicky (Etapa D, 27/10): AzuraCast → locução. Auth é o
             # token no path (AUTH_EXEMPT; gate no handler radio_webhook).
             ("POST", "/radio/webhook/{token}"),
@@ -459,6 +462,9 @@ class TestAPIRoutes:
             # Rádio Nicky (Etapa D, 27/10): gate é o token no path,
             # conferido no handler (radio_webhook) — v. RADIO_TOKEN.
             ("POST", "/radio/webhook/{token}"),
+            # WhatsApp Cloud API (Meta, 21/11): a Meta autentica por
+            # assinatura e hub.verify_token (gate no handler).
+            ("GET", "/webhook/meta"), ("POST", "/webhook/meta"),
         }
 
 

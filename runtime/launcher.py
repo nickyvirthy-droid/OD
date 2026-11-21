@@ -980,6 +980,18 @@ def build_api_server(
     # Rádio Nicky (Etapa D, 27/10): webhook do AzuraCast → locução.
     radio_handler, radio_token = build_radio_handler(database)
 
+    # WhatsApp Cloud API (Meta, 21/11): só monta com as 3 credenciais no
+    # .env; sem elas as rotas /webhook/meta respondem 503 e nada muda.
+    from integrations.meta import config_do_ambiente as _meta_cfg
+    from integrations.meta import construir_handler as _meta_handler
+
+    meta_cfg = _meta_cfg()
+    meta_handler = (
+        _meta_handler(orchestrator) if meta_cfg.configurado() else None
+    )
+    if meta_handler is not None:
+        log.info("Webhook da Meta (WhatsApp) plugado")
+
     # auth_all: bind exposto na LAN exige X-API-Key em TODOS os endpoints
     server = APIServer(
         orchestrator,
@@ -1009,6 +1021,9 @@ def build_api_server(
             tts=voice_tts,  # v1.17.3: /tts real (Piper)
             radio=radio_handler,  # Etapa D: locutor da rádio (AzuraCast)
             radio_token=radio_token,  # segredo do path /radio/webhook/{token}
+            meta=meta_handler,  # WhatsApp Cloud API (21/11)
+            meta_verify_token=meta_cfg.verify_token,
+            meta_app_secret=meta_cfg.app_secret,
             # Freio contra força bruta no login (LoginGuard)
             login_max_attempts=int(env("OD_LOGIN_MAX_ATTEMPTS", "5")),
             login_window_s=float(env("OD_LOGIN_WINDOW_S", "300")),

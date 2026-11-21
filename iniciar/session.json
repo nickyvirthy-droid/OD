@@ -6530,5 +6530,26 @@
     "limites": "So o modo all registra; o motivo depende de OD_RESTART_MOTIVO estar exportado.",
     "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§5)",
     "updated_at": "2026-11-21T04:10:00-03:00"
+  },
+  "restarts_od_core": [
+    {
+      "pid": 3871243,
+      "commit": "bfe8277",
+      "branch": "master",
+      "iniciado_em": "2026-11-21T03:53:53-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    }
+  ],
+  "meta_whatsapp_2026_11_21": {
+    "pedido": "Dono (21/11, txt.txt): 'preciso preparar sua conexão com o Meta AI'.",
+    "fato": "Nao existe API publica do Meta AI; o caminho real e o WhatsApp Business Cloud API (Graph API).",
+    "implementacao": "integrations/meta.py (verificacao hub.challenge, assinatura X-Hub-Signature-256 fail-closed, payload messages[], divisao 4096, envio Graph v21.0) + rotas publicas GET/POST /webhook/meta (portao no handler) + handler montado no launcher so com credencial (session_id meta:<wa_id>, perfil auto, papel admin).",
+    "config": "OD_META_TOKEN, OD_META_PHONE_ID, OD_META_VERIFY_TOKEN, OD_META_APP_SECRET (opcionais OD_META_GRAPH_VERSION/PROFILE/ROLE). Sem elas: 503/403 e nada mais muda.",
+    "doc": "docs/META_CONEXAO.md (relatorio exato: Python 3.12.3, servidor stdlib, porta 8000, 144 rotas, auth, Funnel 443->8000, Homebox por API).",
+    "rotas": "142 -> 144; AUTH_EXEMPT_PATHS ganhou /webhook/meta.",
+    "gate": "25 testes em tests/test_meta.py; gate completo rodado antes do commit.",
+    "updated_at": "2026-11-21T04:40:00-03:00"
   }
 }

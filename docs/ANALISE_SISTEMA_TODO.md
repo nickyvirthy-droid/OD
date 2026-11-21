@@ -1460,4 +1460,43 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
 
 ---
 
+## 9. IDEIAS DO DONO — `txt.txt` de 21/11/2026
+
+Anotadas como vieram, sem inventar escopo; a ordem e o tamanho ficam com o
+dono. O que já existe e o que falta está em cada item.
+
+- [ ] **APK: foto da peça → identificar → cadastrar no Homebox.**
+      Escopo: tirar foto pelo app, mandar para o OD, a visão propor
+      nome/tipo/marca e o cadastro cair no Homebox com a foto anexada.
+      Já existe: `tools/vision/` (detector de faces — serve de base, não de
+      identificador de peça), action `homebox_criar` com local/fabricante/
+      modelo/série e `registry` com foto. Falta: modelo de reconhecimento de
+      peça (ou consulta à cadeia de LLM com visão), confirmação do dono antes
+      de gravar e o vínculo foto ↔ entidade do Homebox.
+- [ ] **Abrir o Homebox pelo site.** Hoje ele só responde em
+      `127.0.0.1:8470` / LAN `192.168.0.205:8470` e o site não tem link.
+      Escopo: rota/atalho no `/site` (ou proxy autenticado) — decidir se é
+      link direto na LAN ou túnel, já que o Funnel não expõe 8470.
+- [ ] **Ouvir a música antes de decidir o que fazer com ela.** O acervo tem
+      `revisar/` + `reprovadas/` (38 arquivos) e a curadoria decide às cegas.
+      Escopo: pré-escuta no `/radio-pro` (streaming da faixa em quarentena,
+      sem entrar na programação) para o dono aprovar/reprovar ouvindo.
+- [ ] **Religar quando a energia volta.** O vigia desliga com segurança, mas
+      ninguém religa. Escopo de software: o desligamento é da máquina — quem
+      liga é a BIOS (restore on AC power loss). Plano: conferir/ajustar
+      "AC Recovery = Power On" no OptiPlex, e do lado do OD deixar o boot
+      idempotente (o auto-registro de restart já anota o retorno) + aviso no
+      Telegram quando voltar. Sem hardware novo.
+- [ ] **Conexão com a Meta (WhatsApp Cloud API).** Preparada em 21/11:
+      `integrations/meta.py` + rotas `GET/POST /webhook/meta` (verificação
+      `hub.challenge`, assinatura `X-Hub-Signature-256`, texto → orquestrador
+      → resposta pelo Graph API). Falta só o dono criar o app no Meta for
+      Developers e preencher `OD_META_TOKEN`, `OD_META_PHONE_ID`,
+      `OD_META_VERIFY_TOKEN` e `OD_META_APP_SECRET` no `.env`; sem isso as
+      rotas respondem 503/403 e nada mais do sistema muda. Relatório técnico
+      exato (linguagem, portas, rotas, auth, Funnel, Homebox) em
+      `docs/META_CONEXAO.md`.
+
+---
+
 > **Nota:** Este TODO é vivo. Itens podem ser reordenados, divididos ou descartados conforme aprendizado durante a execução. A filosofia é **"entregar valor incremental a cada 2 semanas"** — não reescrita big-bang.

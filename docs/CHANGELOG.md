@@ -609,6 +609,30 @@ fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
 `executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
 ar no próximo restart do `od-core` (autorização pendente).
 
+## Conexão com a Meta preparada: webhook do WhatsApp Cloud API (2026-11-21, sem bump)
+
+**Resumo:** o dono pediu no `txt.txt` a conexão com o Meta AI. Não existe API
+pública do Meta AI — o caminho real é o **WhatsApp Business Cloud API**
+(Graph API). O lado do servidor ficou pronto e dormente até chegarem as
+credenciais.
+
+- **`integrations/meta.py`:** verificação do webhook (`hub.mode=subscribe` +
+  `hub.verify_token`, challenge em texto puro), assinatura
+  `X-Hub-Signature-256` (HMAC-SHA256 do corpo cru, fail-closed), leitura de
+  `messages[]` (texto/botão/interativo), divisão em 4096 caracteres e envio
+  pelo Graph API (`v21.0`).
+- **Rotas públicas** `GET/POST /webhook/meta` (o portão é do handler). Sem
+  `OD_META_TOKEN`/`OD_META_PHONE_ID`/`OD_META_VERIFY_TOKEN` respondem
+  503/403 e **nada mais do sistema muda**.
+- **Launcher:** handler montado só com credencial; conversa por número
+  (`session_id="meta:<wa_id>"`), perfil `auto` e papel `admin` por padrão.
+- **`docs/META_CONEXAO.md`:** relatório técnico exato pedido (linguagem,
+  framework, porta, 144 rotas, auth, Funnel, Homebox, o que dá para criar) e
+  o passo a passo do painel da Meta.
+- Testes: **25** em `tests/test_meta.py` (verificação, assinatura, payload,
+  envio, handler e rotas reais). `/api/radio/*` e `/webhook/meta` estão em
+  `AUTH_EXEMPT_PATHS`; total de rotas **142 → 144**.
+
 ## Auto-registro do restart do `od-core` no `session.json` (2026-11-21, sem bump)
 
 **Resumo:** a regra 4 mandava registrar cada restart, mas o registro dependia

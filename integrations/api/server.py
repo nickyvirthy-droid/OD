@@ -193,7 +193,11 @@ AUTH_EXEMPT_PATHS = frozenset(
      # /radio/webhook/{token}: o gate é o token secreto no path
      # (hmac.compare_digest no handler radio_webhook) — o AzuraCast não
      # envia X-API-Key e o auth_all de produção bloquearia o POST.
-     "/radio/webhook/{token}"}
+     "/radio/webhook/{token}",
+     # /webhook/meta: a Meta autentica por assinatura (X-Hub-Signature-256)
+     # no POST e por hub.verify_token no GET — não manda X-API-Key. O gate
+     # é do handler (integrations/meta.py).
+     "/webhook/meta"}
 )
 
 
@@ -283,6 +287,12 @@ class APIConfig:
     # Rádio Nicky (Etapa D, 27/10): webhook do AzuraCast → locução.
     radio: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
     radio_token: str = ""
+    # WhatsApp Cloud API (Meta, 21/11): handler do POST /webhook/meta e o
+    # segredo da verificação (hub.verify_token). O app secret chega por
+    # env no próprio handler (a assinatura é conferida lá).
+    meta: Optional[Callable[[dict[str, Any]], dict[str, Any]]] = None
+    meta_verify_token: str = ""
+    meta_app_secret: str = ""
     metrics: Optional[Any] = None
     health: Optional[Any] = None
     site_dir: Optional[str] = None
@@ -588,6 +598,11 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     # muda e o od-core monta a fala + gera o MP3 da locução. Auth é o
     # token secreto no path (em AUTH_EXEMPT_PATHS; gate no handler).
     ("POST", "/radio/webhook/{token}", "radio_webhook", False),
+    # WhatsApp Cloud API (Meta, 21/11): GET verifica o webhook no painel,
+    # POST recebe as mensagens (assinatura conferida no handler). Sem
+    # credencial as duas rotas respondem 503 e o resto segue igual.
+    ("GET", "/webhook/meta", "meta_verify", False),
+    ("POST", "/webhook/meta", "meta_webhook", False),
     ("DELETE", "/history/{user_id}", "history_delete", True),
     ("DELETE", "/history/{user_id}/messages/{message_id}", "history_delete_message", True),
     ("GET", "/history/{user_id}/stats", "history_stats", True),
@@ -8245,6 +8260,67 @@ class APIHandler(BaseHTTPRequestHandler):
         if resultado.get("status") != "ok":
             self._json(502, {"ok": False, **resultado})
             return
+        self._json(200, {"ok": True, **resultado})
+
+    def meta_verify(self) -> None:
+        """GET /webhook/meta — verificação do webhook no painel da Meta.
+
+        A Meta manda `hub.mode=subscribe`, `hub.verify_token` e
+        `hub.challenge`; a resposta tem de ser o challenge em texto puro.
+        Gate: o verify token do painel == OD_META_VERIFY_TOKEN (constante
+        `config.meta_verify_token`, comparação em tempo constante). Sem
+        token configurado ou token errado → 403.
+        """
+        from integrations import meta as meta_mod
+
+        query = parse_qs(urlsplit(self.path).query)
+        modo = (query.get("hub.mode") or [""])[0]
+        token = (query.get("hub.verify_token") or [""])[0]
+        desafio = (query.get("hub.challenge") or [""])[0]
+        resposta = meta_mod.verificar(
+            modo, token, desafio, self.api.config.meta_verify_token
+        )
+        if resposta is None:
+            raise APIError(403, "meta_verificacao_invalida")
+        self._text(200, resposta)
+
+    def meta_webhook(self) -> None:
+        """POST /webhook/meta — mensagens do WhatsApp → orquestrador.
+
+        A Meta não manda X-API-Key: o gate é a assinatura
+        `X-Hub-Signature-256` (HMAC do corpo cru com o app secret). Sem
+        handler plugado (sem credencial) → 503; assinatura inválida → 403.
+        O corpo é lido cru AQUI (o `_read_json` perderia os bytes que a
+        assinatura cobre).
+        """
+        import json as _json_mod
+
+        from integrations import meta as meta_mod
+
+        handler = self.api.config.meta
+        if handler is None:
+            raise APIError(503, "meta_indisponivel")
+        length = int(self.headers.get("Content-Length") or 0)
+        if length <= 0:
+            raise APIError(400, "corpo_vazio")
+        if length > self.api.config.max_body_bytes:
+            raise APIError(413, "body_too_large")
+        cru = self.rfile.read(length)
+        if not meta_mod.assinatura_valida(
+            cru, self.headers.get("X-Hub-Signature-256"),
+            self.api.config.meta_app_secret,
+        ):
+            raise APIError(403, "meta_assinatura_invalida")
+        try:
+            payload = _json_mod.loads(cru.decode("utf-8"))
+        except (UnicodeDecodeError, _json_mod.JSONDecodeError) as exc:
+            raise APIError(400, f"json_invalido: {exc}") from exc
+        if not isinstance(payload, dict):
+            raise APIError(400, "esperado objeto JSON")
+        try:
+            resultado = handler(payload)
+        except Exception as exc:  # pragma: no cover — handler plugado
+            raise APIError(502, f"meta_falhou: {exc}") from exc
         self._json(200, {"ok": True, **resultado})
 
     def _historico_existe(self, uid: str) -> bool:

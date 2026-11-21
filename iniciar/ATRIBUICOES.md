@@ -9,6 +9,33 @@
 
 ---
 
+## 21/11/2026 — Ideias do `txt.txt` no TODO + conexão com a Meta
+
+**Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt` de 21/11.
+
+### Modificados
+
+- `integrations/meta.py` (novo) — WhatsApp Cloud API: verificação do webhook,
+  assinatura `X-Hub-Signature-256`, payload e envio pelo Graph.
+- `integrations/api/server.py` — `GET/POST /webhook/meta` (144 rotas).
+- `runtime/launcher.py` — handler montado só com credencial.
+- `tests/test_meta.py` (novo, 25 testes), `tests/test_api.py` (contagem).
+- `docs/META_CONEXAO.md` (novo), `docs/ANALISE_SISTEMA_TODO.md` (§9),
+  `docs/CHANGELOG.md`, `iniciar/`.
+
+### Intenção e estado
+
+- **Intenção:** deixar a conexão pronta e dormente, para o dono só colar as
+  credenciais no `.env` e apontar o webhook no painel da Meta.
+- **Estado:** fail-closed (sem app secret não passa assinatura; sem
+  credencial as rotas respondem 503/403); nada mais do sistema muda. As 4
+  ideias do `txt.txt` estão na seção 9 do TODO com o que já existe e o que
+  falta.
+- **Limite:** não há API pública do Meta AI — a conversa é pelo WhatsApp; a
+  foto→Homebox e o religar pós-queda dependem de trabalho e de BIOS.
+
+---
+
 ## 21/11/2026 — Auto-registro do restart do `od-core` (regra 4)
 
 **Autor:** Freebuff (Buffy) — item aberto do TODO desde 18/11.
