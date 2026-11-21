@@ -6567,6 +6567,15 @@
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
+    },
+    {
+      "pid": 3986249,
+      "commit": "1db5e6a",
+      "branch": "master",
+      "iniciado_em": "2026-11-21T05:38:21-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
     }
   ],
   "meta_whatsapp_2026_11_21": {
@@ -6598,5 +6607,17 @@
     "fonte": "Sem arquivo unico: session.json (operacional), README_VERSAO+CHANGELOG (entregue), ANALISE_SISTEMA_TODO (pendente), ARCHITECTURE_v2 (arquitetura).",
     "txt": "txt.txt reescrito com a resposta (31 entradas em docs/).",
     "updated_at": "2026-11-21T05:40:00-03:00"
+  },
+  "meta_webhook_2026_11_21": {
+    "verify_token": "gerado e gravado no .env (600, nao versionado)",
+    "verificacao": "GET /webhook/meta 200 + challenge local e via Funnel; token errado 403",
+    "faltam": [
+      "OD_META_TOKEN",
+      "OD_META_PHONE_ID",
+      "OD_META_APP_SECRET"
+    ],
+    "post_sem_credenciais": "503 (handler nao plugado)",
+    "doc": "docs/META_CONEXAO.md secao 8 com passo a passo do painel",
+    "updated_at": "2026-11-21T05:45:00-03:00"
   }
 }

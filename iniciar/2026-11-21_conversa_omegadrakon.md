@@ -364,3 +364,12 @@ nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
 - Corrigido o resumo: §3 (leituras reais), §5 (não inventar leitura sem
   action; não colar credenciais) e §6 (client_secret marcado como segredo).
 - Análise registrada no `txt.txt` §5, com roteiro de reteste.
+
+## §12 — Verify token do webhook Meta
+
+- Gerado `OD_META_VERIFY_TOKEN` (43 chars) no `.env` 600, fora do git.
+- `GET /webhook/meta` com `hub.mode=subscribe` + token + challenge respondeu
+  **200** com o challenge local e por `https://nicky-server.tail1b1f51.ts.net`;
+  token errado **403**; POST sem handler **503**.
+- Faltam `OD_META_TOKEN`, `OD_META_PHONE_ID`, `OD_META_APP_SECRET`; passo a
+  passo do painel em `docs/META_CONEXAO.md` §8.

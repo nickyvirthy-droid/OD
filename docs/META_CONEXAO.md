@@ -247,8 +247,15 @@ inventário; o agregado caro continua em `GET /health` (32 checks).
   e envio pelo Graph API.
 - **Rotas** `GET /webhook/meta` (verificação) e `POST /webhook/meta`
   (mensagens → orquestrador → resposta), públicas por desenho, com portão no
-  handler. Sem credencial: GET/POST respondem **503/403** — nada mais do
-  sistema muda.
+  handler.
+- **Verify token gerado em 21/11** e gravado em `OD_META_VERIFY_TOKEN` no
+  `.env` (arquivo 600, fora do git). Verificação **provada** local e pelo
+  Funnel: `GET .../webhook/meta?hub.mode=subscribe&hub.verify_token=<token>&
+  hub.challenge=<x>` devolve `<x>` com **200**; token errado devolve **403**.
+- **Estado das chaves em 21/11:** `OD_META_VERIFY_TOKEN` definido;
+  `OD_META_TOKEN`, `OD_META_PHONE_ID` e `OD_META_APP_SECRET` **ausentes**.
+  Por isso o POST ainda responde **503** (handler não plugado). Com token e
+  phone_id definidos e app secret ausente, o POST falha fechado em **403**.
 - **Launcher** monta o handler só quando as credenciais existem; a conversa
   usa `session_id = "meta:<wa_id>"` (histórico separado por número) e papel
   `admin` por padrão (`OD_META_ROLE`).
@@ -256,16 +263,45 @@ inventário; o agregado caro continua em `GET /health` (32 checks).
 
 ## 8. O QUE FALTA (lado do dono, no painel da Meta)
 
-1. Criar o app em **developers.facebook.com** → produto **WhatsApp**.
-2. Anotar **Phone number ID** e gerar um **token permanente** (system user).
-3. Definir um **verify token** (qualquer segredo) e o **app secret**.
-4. Preencher no `.env`:
-   `OD_META_TOKEN`, `OD_META_PHONE_ID`, `OD_META_VERIFY_TOKEN`,
-   `OD_META_APP_SECRET` (opcionais: `OD_META_GRAPH_VERSION`, `OD_META_PROFILE`,
-   `OD_META_ROLE`).
-5. No painel, configurar o webhook
-   `https://nicky-server.tail1b1f51.ts.net/webhook/meta` com o mesmo verify
-   token e assinar o campo **messages**.
-6. Reiniciar o `od-core` e conferir o log `Webhook da Meta (WhatsApp) plugado`.
+O verify token já está pronto. Faltam **três valores que só a Meta emite**.
+Passo a passo:
 
-Sem esses passos o código fica dormente — por desenho.
+1. **Criar o app:** `developers.facebook.com` → *My Apps* → *Create App* →
+   tipo **Business** → adicionar o produto **WhatsApp** → *Set up*.
+2. **Phone number ID:** em *WhatsApp → API Setup*, copie o **Phone number ID**
+   do número de teste (não é o telefone). Anote também o número de teste.
+3. **Token:**
+   - para testar agora, copie o **temporary access token** (vale 24 h);
+   - para ficar de pé, crie um **system user** em *Business Settings* →
+     *Users → System users*, dê acesso ao app e gere um token com
+     `whatsapp_business_messaging` e `whatsapp_business_management`.
+4. **App secret:** *App settings → Basic* → **App secret** → *Show*.
+5. **Preencher o `.env`** (só estes três; o verify token já está lá):
+   ```
+   OD_META_TOKEN=...
+   OD_META_PHONE_ID=...
+   OD_META_APP_SECRET=...
+   ```
+   Opcionais: `OD_META_GRAPH_VERSION` (padrão `v21.0`), `OD_META_PROFILE`,
+   `OD_META_ROLE`.
+6. **Webhook no painel:** *WhatsApp → Configuration → Webhook → Edit*:
+   - Callback URL: `https://nicky-server.tail1b1f51.ts.net/webhook/meta`
+   - Verify token: o valor de `OD_META_VERIFY_TOKEN` no `.env`
+     (`grep '^OD_META_VERIFY_TOKEN=' .env | cut -d= -f2-`)
+   - Clique **Verify and save** (o OD responde o challenge com 200) e
+     assine o campo **messages**.
+7. **Reiniciar** o `od-core` e conferir o log
+   `Webhook da Meta (WhatsApp) plugado`.
+8. **Testar:** adicione seu número em *API Setup → To* (até 5 números de
+   teste), mande uma mensagem para o número de teste e veja a resposta no
+   WhatsApp. O histórico fica em `meta:<wa_id>`.
+
+**Conferir o token/phone sem mandar mensagem:**
+```bash
+set -a; . ./.env; set +a
+curl -s "https://graph.facebook.com/${OD_META_GRAPH_VERSION:-v21.0}/${OD_META_PHONE_ID}?fields=display_phone_number,verified_name" \
+  -H "Authorization: Bearer $OD_META_TOKEN"
+```
+Erro `190` = token inválido/expirado; `100` = phone_id errado.
+
+Sem os três valores o código fica dormente — por desenho.

@@ -1491,10 +1491,11 @@ dono. O que já existe e o que falta está em cada item.
       `integrations/meta.py` + rotas `GET/POST /webhook/meta` (verificação
       `hub.challenge`, assinatura `X-Hub-Signature-256`, texto → orquestrador
       → resposta pelo Graph API). Falta só o dono criar o app no Meta for
-      Developers e preencher `OD_META_TOKEN`, `OD_META_PHONE_ID`,
-      `OD_META_VERIFY_TOKEN` e `OD_META_APP_SECRET` no `.env`; sem isso as
-      rotas respondem 503/403 e nada mais do sistema muda. Relatório técnico
-      exato (linguagem, portas, rotas, auth, Funnel, Homebox) em
+      Developers e preencher `OD_META_TOKEN`, `OD_META_PHONE_ID` e
+      `OD_META_APP_SECRET` no `.env`. O `OD_META_VERIFY_TOKEN` já foi gerado
+      em 21/11 e a verificação do webhook já responde 200 pelo Funnel; sem os
+      outros três o POST responde 503 e nada mais do sistema muda. Relatório
+      técnico exato (linguagem, portas, rotas, auth, Funnel, Homebox) em
       `docs/META_CONEXAO.md`.
 
 ---

@@ -9,6 +9,26 @@
 
 ---
 
+## 21/11/2026 — Verify token do webhook Meta
+
+**Autor:** Freebuff (Buffy) — pedido do dono.
+
+### Modificados
+
+- `.env` (não versionado) — `OD_META_VERIFY_TOKEN` gerado (43 caracteres).
+- `docs/META_CONEXAO.md` §7/§8 — estado das chaves e passo a passo do painel.
+- `docs/ANALISE_SISTEMA_TODO.md` §9 — verify token marcado como pronto.
+- `iniciar/`.
+
+### Intenção e estado
+
+- **Intenção:** deixar a verificação do webhook pronta e encurtar o que falta.
+- **Estado:** `GET /webhook/meta` devolve o challenge com 200 local **e pelo
+  Funnel**; token errado dá 403. Faltam `OD_META_TOKEN`, `OD_META_PHONE_ID`
+  e `OD_META_APP_SECRET` (só a Meta emite); o POST segue 503 até lá.
+
+---
+
 ## 21/11/2026 — Resumo do estado para o Meta AI
 
 **Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt`.

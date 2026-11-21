@@ -8960,3 +8960,12 @@ __signature__ = "OD // CORE"
   ambiente.
 - `docs/RESUMO_PARA_META_AI.md` §3/§5/§6 atualizados; `client_secret…json`
   marcado como segredo que não deve ser colado.
+
+## Webhook Meta: verify token pronto (2026-11-21, sem bump)
+
+- `OD_META_VERIFY_TOKEN` gerado e gravado no `.env` (600, fora do git).
+- Verificação do webhook provada: `GET /webhook/meta` devolve o
+  `hub.challenge` com **200** local e pelo Funnel; token errado **403**.
+- Faltam `OD_META_TOKEN`, `OD_META_PHONE_ID` e `OD_META_APP_SECRET` (só a
+  Meta emite); POST permanece **503**. Passo a passo em
+  `docs/META_CONEXAO.md` §8.
