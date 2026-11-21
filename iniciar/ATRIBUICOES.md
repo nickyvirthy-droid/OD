@@ -9,6 +9,31 @@
 
 ---
 
+## 21/11/2026 — Auto-registro do restart do `od-core` (regra 4)
+
+**Autor:** Freebuff (Buffy) — item aberto do TODO desde 18/11.
+
+### Modificados
+
+- `core/registro_restart.py` (novo) — grava PID/commit/branch/horário/host/
+  modo/usuário (e motivo opcional) em `iniciar/session.json`, chave
+  `restarts_od_core` com os últimos 30.
+- `runtime/launcher.py` — gancho no início do `main()`, só no modo `all`.
+- `tests/test_registro_restart.py` (novo, 7 testes).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (§5).
+
+### Intenção e estado
+
+- **Intenção:** o registro do restart deixa de depender de quem reiniciou
+  lembrar (regra 4) e passa a ser fato do serviço.
+- **Estado:** append-only com `flock`, idempotente por PID, limite de 30,
+  nunca corrompe JSON ilegível nem derruba o boot; desligável com
+  `OD_REGISTRAR_RESTART=0`. Gate completo verde.
+- **Limite:** o motivo só aparece quando `OD_RESTART_MOTIVO` é exportado; só o
+  modo `all` registra.
+
+---
+
 ## 21/11/2026 — Modo colapso declarado (P1 nº 6) + polkit do vigia liberado
 
 **Autor:** Freebuff (Buffy) — pedido *"proximo do todo"*; correção do dono sobre

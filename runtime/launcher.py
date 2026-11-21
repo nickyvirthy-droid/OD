@@ -2433,6 +2433,16 @@ def main() -> int:
         from core.capabilities import render_json
         print(render_json())
         return 0
+    # Auto-registro do restart (regra 4): o serviço anota sozinho PID, commit
+    # e horário no `iniciar/session.json` — não depende de quem reiniciou
+    # lembrar. Nunca derruba o boot; só o modo `all` (o serviço) registra.
+    if mode == "all" and env("OD_REGISTRAR_RESTART", "1") != "0":
+        try:
+            from core.registro_restart import registrar_restart
+
+            registrar_restart()
+        except Exception as exc:
+            log.warn("Auto-registro do restart falhou", error=str(exc))
     # Observabilidade (F2, 10/11/2026): OTel opcional e de import tardio.
     # Sem OD_OTEL_ENDPOINT nada sai pela rede; com span ativo, cada linha do
     # log NICKY carrega trace_id/span_id e casa com o trace no coletor.

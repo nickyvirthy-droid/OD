@@ -609,6 +609,26 @@ fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
 `executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
 ar no próximo restart do `od-core` (autorização pendente).
 
+## Auto-registro do restart do `od-core` no `session.json` (2026-11-21, sem bump)
+
+**Resumo:** a regra 4 mandava registrar cada restart, mas o registro dependia
+de quem reiniciou lembrar — o restart das 15:01 de 18/11 (PID 220986) ficou
+fora do `iniciar/` e o checkpoint seguinte ainda o dava como pendente. Agora o
+serviço anota sozinho.
+
+- **`core/registro_restart.py`:** no boot do modo `all`, grava em
+  `iniciar/session.json` (chave `restarts_od_core`, últimos 30) **PID, commit,
+  branch, horário, host, modo, usuário** e `motivo` se `OD_RESTART_MOTIVO`
+  estiver definido. `flock` no próprio arquivo + append-only; idempotente por
+  PID; JSON ilegível não é sobrescrito; qualquer erro só gera aviso (o boot
+  nunca cai por causa disso). `OD_REGISTRAR_RESTART=0` desliga o gancho.
+- **`runtime/launcher.py`:** chamada no início do `main()`, antes de OTel/DB.
+
+**Prova viva:** o próximo restart do serviço entra sozinho na lista — sem
+ninguém digitar nada. Testes: **7** em `tests/test_registro_restart.py`
+(append, preservação do arquivo, dedupe por PID, limite, ausência, JSON
+inválido e motivo por ambiente).
+
 ## Modo colapso declarado: cadeia local e aviso explícito (P1 nº 6, 2026-11-21, sem bump)
 
 **Resumo:** último P1 aberto da revisão de 17/11. Quando a nuvem falha de vez

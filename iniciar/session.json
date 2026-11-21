@@ -6521,5 +6521,14 @@
     "limites": "Colapso automatico depende de falhas reais (nao forcei contra a nuvem para nao gastar cota); sonda TCP mede internet, nao cota do provedor.",
     "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§4)",
     "updated_at": "2026-11-21T03:50:00-03:00"
+  },
+  "auto_registro_restart_2026_11_21": {
+    "pedido": "Dono (21/11): 'Implementar o auto-registro de restart do od-core no session.json'.",
+    "problema": "A regra 4 dependia de quem reiniciou lembrar: o restart de 18/11 15:01 (PID 220986) ficou fora do iniciar/ e o checkpoint seguinte o dava como pendente.",
+    "implementacao": "core/registro_restart.py: no boot do modo all grava em iniciar/session.json a chave restarts_od_core (ultimos 30) com pid, commit, branch, iniciado_em, host, modo, usuario e motivo (OD_RESTART_MOTIVO). flock no proprio arquivo + append-only, dedupe por PID, JSON ilegivel nao e sobrescrito, erro so gera aviso. Gancho no inicio do main() do launcher; OD_REGISTRAR_RESTART=0 desliga.",
+    "gate": "7 testes em tests/test_registro_restart.py; gate completo rodado antes do commit.",
+    "limites": "So o modo all registra; o motivo depende de OD_RESTART_MOTIVO estar exportado.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§5)",
+    "updated_at": "2026-11-21T04:10:00-03:00"
   }
 }

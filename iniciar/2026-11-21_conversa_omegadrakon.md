@@ -243,3 +243,39 @@ no `.env`; instalei a regra polkit do vigia de energia com ele.
 - **Autor:** Freebuff (Buffy), 21/11. Arquivos: `core/colapso.py`,
   `core/orchestrator.py`, `runtime/launcher.py`, `tools/actions/actions.py`,
   `tests/test_colapso.py` + contagens, `docs/`.
+
+## §5 — Auto-registro do restart do `od-core` (regra 4)
+
+**Pedido do dono (21/11):** *"Implementar o auto-registro de restart do od-core
+no session.json"* — o item aberto no TODO desde 18/11 (o restart das 15:01 com
+PID 220986 não entrou em `iniciar/` e o checkpoint seguinte o dava como
+pendente).
+
+### 1. Como ficou
+
+- `core/registro_restart.py` (novo): no boot do modo `all`, grava em
+  `iniciar/session.json` a chave **`restarts_od_core`** (lista dos últimos
+  **30**) com **PID, commit, branch, horário, host, modo, usuário** e `motivo`
+  quando `OD_RESTART_MOTIVO` está definido.
+- `flock` no próprio arquivo + escrita no lugar (append-only): dois processos
+  não se atropelam; JSON ilegível **não** é sobrescrito; qualquer erro vira
+  aviso e o boot segue. Dedupe por PID evita linha repetida em reentrada.
+- `runtime/launcher.py`: chamada no começo do `main()`, antes de OTel/DB.
+- Desligável com `OD_REGISTRAR_RESTART=0`.
+
+### 2. Prova viva
+
+- 7 testes em `tests/test_registro_restart.py` (append, preservação do resto do
+  arquivo, dedupe por PID, limite de 30, arquivo ausente, JSON inválido e
+  motivo por ambiente).
+- O restart deste próprio turno passa a ser a primeira entrada real — sem eu
+  digitar nada no `session.json`.
+
+### 3. Limites
+
+- Só o modo `all` (o serviço) registra; execuções pontuais (`capabilities`,
+  `--help`) não sujam o histórico.
+- O `motivo` depende de quem reinicia exportar `OD_RESTART_MOTIVO`; sem ele, a
+  entrada registra o fato (PID/commit/hora) e não a intenção.
+- **Autor:** Freebuff (Buffy), 21/11. Arquivos: `core/registro_restart.py`,
+  `runtime/launcher.py`, `tests/test_registro_restart.py`, `docs/`.

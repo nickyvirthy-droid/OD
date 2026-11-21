@@ -683,11 +683,14 @@ esperar o timeout.
       distintas, hoje fora da rádio) ou manter fora; `revisar/duplicadas/`:
       4 cópias exatas que o pipeline manda o dono limpar; `reprovadas/`:
       6 arquivos <60 s ou bitrate baixo. Nada é apagado sem ordem.
-- [ ] **Auto-registro de restart do `od-core`** — o restart das 15:01:19 de
-      18/11 (PID 220986) não entrou em `iniciar/`; o checkpoint anterior
-      ainda o dava como pendente. Um gancho no boot do serviço que grava
-      PID/commit/horário no `session.json` evita que o registro dependa de
-      quem reiniciou lembrar (regra 4).
+- [x] **Auto-registro de restart do `od-core`** — **FEITO 21/11:**
+      `core/registro_restart.py` roda no boot do modo `all` e acrescenta uma
+      entrada em `iniciar/session.json` (chave `restarts_od_core`, últimos
+      **30**): PID, commit, branch, horário, host, modo, usuário e motivo
+      quando `OD_RESTART_MOTIVO` está definido. Escrita com `flock` no próprio
+      arquivo (append-only, atômica), idempotente por PID, nunca derruba o
+      boot e não sobrescreve JSON ilegível. `OD_REGISTRAR_RESTART=0` desliga.
+      7 testes em `tests/test_registro_restart.py`.
 - [x] **Limpar os resíduos do lote da madrugada de 18/11 (Cline)** — fechado
       em 18/11 ~10:50 com **ordem do dono** ("encerrou por falta de crédito,
       cota diária acabou"): removidos **171 `gerado_*.py`** (7 commitados +
