@@ -9,6 +9,28 @@
 
 ---
 
+## 21/11/2026 — Retorno após queda de energia (aviso no Telegram + BIOS)
+
+**Autor:** Freebuff (Buffy) — pedido do dono.
+
+### Modificados
+
+- `core/queda_energia.py` (novo) — detecta boot recente sem desligamento
+  registrado e calcula o tempo fora do ar.
+- `integrations/notifier.py` — alerta de boot passa a anunciar queda de
+  energia com a duração, mantendo o texto antigo quando não há sinal.
+- `tests/test_queda_energia.py` e `tests/test_notifier.py` — 11 testes novos.
+- `docs/QUEDA_DE_ENERGIA.md`, `docs/CHANGELOG.md`, `iniciar/`.
+
+### Intenção e estado
+
+- **Intenção:** saber que o servidor voltou e por quanto tempo ficou fora.
+- **Estado:** aviso implementado. O **AC Recovery do BIOS não é programável
+  por software neste OptiPlex 3040** — o passo físico está documentado e
+  pendente de alguém na frente da máquina.
+
+---
+
 ## 21/11/2026 — Sondas públicas `/api/ping` e `/api/public/inventario`
 
 **Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt` de 21/11.

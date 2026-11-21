@@ -6576,5 +6576,11 @@
     "inventario": "GET /api/public/inventario publico -> nome, local, categoria, quantidade apenas (HomeboxClient.publico); sem serie/preco/notas/fabricante/garantia/ids; locais filtrados; Homebox fora -> 503 homebox_indisponivel.",
     "rotas": "144 -> 146; AUTH_EXEMPT_PATHS ganhou /api/ping e /api/public/inventario.",
     "updated_at": "2026-11-21T05:55:00-03:00"
+  },
+  "queda_energia_2026_11_21": {
+    "pedido": "Dono (21/11): religar após queda via BIOS AC Recovery e avisar no Telegram.",
+    "bios": "OptiPlex 3040 NAO aceita ajuste por software: dell-wmi-sysman No such device e CCTK exige WMI-ACPI. Passo fisico em docs/QUEDA_DE_ENERGIA.md (F2 > Power Management > AC Recovery > Power On).",
+    "alerta": "core/queda_energia.py detecta boot recente sem 'Journal stopped' no boot anterior; notifier anuncia queda + tempo fora no Telegram (bot monitor). Sem sinal, texto de restart comum.",
+    "updated_at": "2026-11-21T05:20:00-03:00"
   }
 }

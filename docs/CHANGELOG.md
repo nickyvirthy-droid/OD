@@ -8928,3 +8928,18 @@ __signature__ = "OD // CORE"
 - Testes: 2 no `tests/test_homebox.py` (recorte e teto) e 3 no
   `tests/test_api.py` (ping, inventário sem campos sensíveis e 503 honesto).
 
+
+## Aviso de retorno após queda de energia (2026-11-21, sem bump)
+
+- **`core/queda_energia.py`** (novo): lê o journal dos dois últimos boots;
+  desligamento limpo termina com `Journal stopped`, queda/travamento não.
+  Só vale para boot com menos de 30 min, então `systemctl restart od-core`
+  dias depois não vira "queda de energia". Journal ilegível → silêncio.
+- **`integrations/notifier.py`**: o alerta `restart` (um por boot) usa o
+  detector e informa o tempo fora do ar quando o boot vem de queda; sem
+  sinal, mantém o texto antigo.
+- **BIOS:** o AC Recovery do OptiPlex 3040 **não é programável por software**
+  (`dell-wmi-sysman` → "No such device"; CCTK exige WMI-ACPI). Passo a passo
+  físico em `docs/QUEDA_DE_ENERGIA.md`.
+- Testes: `tests/test_queda_energia.py` (9 casos) e 2 no
+  `tests/test_notifier.py`.

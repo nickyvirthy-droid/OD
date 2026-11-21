@@ -49,6 +49,7 @@ from typing import Any, Awaitable, Callable, Optional, Protocol, Union
 
 from core.logger import get_logger
 from core.orchestrator import Orchestrator
+from core.queda_energia import detectar_queda, resumo_queda
 from core.supervision import CRASH_LOOP_RESTARTS, get_supervision
 
 __signature__ = "OD // CORE"
@@ -378,12 +379,19 @@ def _check_restart(notifier: "ProactiveNotifier") -> CheckResult:
     e ainda assim emite UMA vez.
     """
     if notifier._restart_detected and not notifier._restart_reported:
+        # Boot recente + desligamento sem despedida no journal = queda de
+        # energia provável (core/queda_energia.py). Restart do serviço dias
+        # depois do boot não é anunciado como queda.
+        detalhe = "Sistema foi reiniciado (PID mudou desde o último estado)."
+        queda = detectar_queda()
+        if queda:
+            detalhe = resumo_queda(queda)
         return CheckResult(
             ok=False,
             severity=SEVERITY_WARN,
             source="restart",
             key="restart",
-            detail="Sistema foi reiniciado (PID mudou desde o último estado).",
+            detail=detalhe,
             cooldown_s=notifier.config.restart_alert_guard_s,
         )
     return CheckResult(ok=True, source="restart", detail="Sem reinício detectado.")

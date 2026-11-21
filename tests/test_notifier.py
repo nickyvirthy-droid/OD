@@ -544,6 +544,38 @@ class TestAlertaDeRestartPorBoot:
         assert await notifier.tick() == []  # e não repete no mesmo boot
         assert notifier.metrics.snapshot()["alerts_emitted"] == 1
 
+    @pytest.mark.asyncio
+    async def test_alerta_de_boot_anuncia_queda_de_energia(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Boot recente sem desligamento registrado vira aviso de queda e
+        conta quanto tempo o servidor ficou fora (21/11)."""
+        monkeypatch.setattr(
+            "integrations.notifier.detectar_queda",
+            lambda: {"fora_s": 3_600.0},
+        )
+        clock = _Clock()
+        notifier = self._notifier(
+            self._estado_de_boot_anterior(tmp_path), clock
+        )
+        alerts = await notifier.tick()
+        assert [a.key for a in alerts] == ["restart"]
+        assert "queda de energia" in alerts[0].detail
+        assert "1 h" in alerts[0].detail
+
+    @pytest.mark.asyncio
+    async def test_alerta_de_boot_nao_inventa_queda_sem_sinal(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setattr(
+            "integrations.notifier.detectar_queda", lambda: None
+        )
+        notifier = self._notifier(self._estado_de_boot_anterior(tmp_path), _Clock())
+        alerts = await notifier.tick()
+        assert alerts[0].detail == (
+            "Sistema foi reiniciado (PID mudou desde o último estado)."
+        )
+
 
 # ===========================================================================
 # Anti-spam (cooldown)

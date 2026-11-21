@@ -321,3 +321,16 @@ nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
   Homebox fora → 503 `homebox_indisponivel`.
 - Ambas em `AUTH_EXEMPT_PATHS`; total **144 → 146** rotas.
 - **Autor:** Freebuff (Buffy), 21/11. Gate completo: 5605 passed, 19 skipped.
+
+## §8 — Queda de energia: religar pelo BIOS e avisar no Telegram
+
+- **BIOS AC Recovery:** não programável por software no OptiPlex 3040
+  (`dell-wmi-sysman` recusa o hardware; CCTK exige WMI-ACPI). Passo físico
+  em `docs/QUEDA_DE_ENERGIA.md`: F2 → Power Management → AC Recovery →
+  Power On. **Pendente de alguém na frente da máquina.**
+- **Aviso no Telegram:** `core/queda_energia.py` + alerta `restart` do
+  notifier. Boot recente sem `Journal stopped` no boot anterior = queda;
+  a mensagem informa quanto tempo ficou fora. Boot antigo ou desligamento
+  limpo seguem como restart comum; journal ilegível não inventa causa.
+- **Autor:** Freebuff (Buffy), 21/11. Testes: 108 em `test_queda_energia` +
+  `test_notifier`.
