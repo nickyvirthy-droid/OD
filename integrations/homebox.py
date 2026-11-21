@@ -106,6 +106,7 @@ import os
 import pathlib
 import re
 import socket
+import unicodedata
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -205,6 +206,12 @@ def _transporte(
 def _limpar_texto(bruto: str) -> str:
     """Colapsa espaço simples (nomes/descrições de uma linha)."""
     return " ".join(str(bruto or "").split())
+
+
+def _chave(texto: str) -> str:
+    """Compara nome sem caixa e sem acento ("Rack" == "rack")."""
+    base = unicodedata.normalize("NFKD", _limpar_texto(texto))
+    return "".join(c for c in base if not unicodedata.combining(c)).casefold()
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +382,50 @@ class HomeboxClient:
     def _tipos(self) -> list[dict[str, Any]]:
         _s, dados = self._chamada("/api/v1/entity-types")
         return dados if isinstance(dados, list) else []
+
+    def locais(self) -> list[dict[str, Any]]:
+        """Locais cadastrados (o filtro isLocation existe no fork vivo)."""
+        _s, dados = self._chamada("/api/v1/entities?isLocation=true&pageSize=100")
+        itens = dados.get("items") if isinstance(dados, dict) else None
+        return [
+            {"id": e.get("id", ""), "nome": _limpar_texto(e.get("name", ""))}
+            for e in (itens or [])
+            if e.get("id")
+        ]
+
+    def _local_id(self, nome: str, *, criar: bool = True) -> tuple[str, bool]:
+        """Nome do local → id (cria como entidade de tipo Location se faltar)."""
+        alvo = _chave(nome)
+        if not alvo:
+            return "", False
+        for local in self.locais():
+            if _chave(local["nome"]) == alvo:
+                return str(local["id"]), False
+        if not criar:
+            existentes = [local["nome"] for local in self.locais()]
+            raise HomeboxError(
+                "homebox_parametro_invalido",
+                f"local '{nome}' não existe (criar_local=False). Locais: {existentes}.",
+            )
+        id_tipo = ""
+        for tipo in self._tipos():
+            if tipo.get("isLocation"):
+                id_tipo = str(tipo.get("id") or "")
+                break
+        if not id_tipo:
+            raise HomeboxError(
+                "homebox_falhou", "inventário sem o tipo 'Location' — não crio local."
+            )
+        s, novo = self._chamada(
+            "/api/v1/entities",
+            metodo="POST",
+            payload={"name": _limpar_texto(nome), "entityTypeId": id_tipo, "quantity": 0},
+        )
+        if s != 201 or not (isinstance(novo, dict) and novo.get("id")):
+            raise HomeboxError(
+                "homebox_falhou", f"criação do local '{nome}' não confirmada."
+            )
+        return str(novo["id"]), True
 
     def _tags(self) -> list[dict[str, Any]]:
         _s, dados = self._chamada("/api/v1/tags")
@@ -566,10 +617,15 @@ class HomeboxClient:
         notas: str = "",
         tags: str = "",
         preco: Optional[float] = None,
+        local: str = "",
+        fabricante: str = "",
+        modelo: str = "",
+        serie: str = "",
         criar_tipo: bool = True,
         criar_tag: bool = True,
+        criar_local: bool = True,
     ) -> dict[str, Any]:
-        """Cadastra UMA peça (tipo/tags inexistentes são criados e declarados)."""
+        """Cadastra UMA peça (tipo/tags/local inexistentes são criados e declarados)."""
         nome = _limpar_texto(nome)
         if not nome:
             raise HomeboxError("homebox_parametro_invalido", "nome não pode ser vazio.")
@@ -580,6 +636,11 @@ class HomeboxClient:
         tipo_criado = False
         if _limpar_texto(tipo):
             payload["entityTypeId"], tipo_criado = self._tipo_id(tipo, criar=criar_tipo)
+        local_criado = False
+        if _limpar_texto(local):
+            id_local, local_criado = self._local_id(local, criar=criar_local)
+            if id_local:
+                payload["parentId"] = id_local
         tag_ids: list[str] = []
         tags_criadas: list[str] = []
         if _limpar_texto(tags):
@@ -590,18 +651,25 @@ class HomeboxClient:
         s, ent = self._chamada("/api/v1/entities", metodo="POST", payload=payload)
         if s != 201 or not isinstance(ent, dict) or not ent.get("id"):
             raise HomeboxError("homebox_falhou", "criação não confirmada (esperado 201).")
-        # notas/preço não existem no EntityCreate — completam via PUT cheio
-        if _limpar_texto(notas) or preco is not None:
-            mudancas: dict[str, Any] = {}
-            if _limpar_texto(notas):
-                mudancas["notes"] = _limpar_texto(notas)
-            if preco is not None:
-                mudancas["purchasePrice"] = float(preco)
+        # notas/preço/modelo/série não existem no EntityCreate — PUT cheio
+        mudancas: dict[str, Any] = {}
+        if _limpar_texto(notas):
+            mudancas["notes"] = _limpar_texto(notas)
+        if preco is not None:
+            mudancas["purchasePrice"] = float(preco)
+        if _limpar_texto(fabricante):
+            mudancas["manufacturer"] = _limpar_texto(fabricante)
+        if _limpar_texto(modelo):
+            mudancas["modelNumber"] = _limpar_texto(modelo)
+        if _limpar_texto(serie):
+            mudancas["serialNumber"] = _limpar_texto(serie)
+        if mudancas:
             ent = self._entao_put(ent, mudancas)
         r = _detalhe(ent)
         r.update({
             "tipo_criado": tipo_criado,
             "tags_criadas": tags_criadas,
+            "local_criado": local_criado,
         })
         return r
 
@@ -613,6 +681,10 @@ class HomeboxClient:
         notas: Optional[str] = None,
         descricao: Optional[str] = None,
         preco: Optional[float] = None,
+        local: Optional[str] = None,
+        fabricante: Optional[str] = None,
+        modelo: Optional[str] = None,
+        serie: Optional[str] = None,
     ) -> dict[str, Any]:
         """Atualiza UMA peça: quantidade pura → PATCH; o resto → PUT cheio."""
         id_entidade = _valida_uuid(id_entidade)
@@ -625,10 +697,21 @@ class HomeboxClient:
             mudancas["description"] = _limpar_texto(descricao)
         if preco is not None:
             mudancas["purchasePrice"] = float(preco)
+        if fabricante is not None:
+            mudancas["manufacturer"] = _limpar_texto(fabricante)
+        if modelo is not None:
+            mudancas["modelNumber"] = _limpar_texto(modelo)
+        if serie is not None:
+            mudancas["serialNumber"] = _limpar_texto(serie)
+        if local is not None:
+            id_local, _criado = self._local_id(local, criar=True)
+            if id_local:
+                mudancas["parentId"] = id_local
         if not mudancas:
             raise HomeboxError(
                 "homebox_parametro_invalido",
-                "informe ao menos um campo (quantidade/notas/descricao/preco).",
+                "informe ao menos um campo (quantidade/notas/descricao/preco/"
+                "local/modelo/serie).",
             )
         rota = f"/api/v1/entities/{urllib.parse.quote(id_entidade)}"
         if set(mudancas) == {"quantity"}:

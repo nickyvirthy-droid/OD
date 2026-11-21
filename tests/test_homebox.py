@@ -52,6 +52,7 @@ from tools.actions.actions import (
     homebox_criar,
     homebox_detalhar,
     homebox_listar,
+    homebox_locais,
     homebox_status,
 )
 
@@ -753,16 +754,16 @@ class TestActionsHomebox:
 # ===========================================================================
 
 HOMEBX_ACOES = {
-    "homebox_status", "homebox_busca", "homebox_listar",
+    "homebox_status", "homebox_busca", "homebox_listar", "homebox_locais",
     "homebox_detalhar", "homebox_criar", "homebox_atualizar",
 }
 
 
 class TestCatalogoHomebox:
-    def test_seis_actions_na_categoria_homebox(self) -> None:
+    def test_sete_actions_na_categoria_homebox(self) -> None:
         da_ferramenta = [s for s in CATALOG if s["category"] == "homebox"]
         assert {s["name"] for s in da_ferramenta} == HOMEBX_ACOES
-        assert len(da_ferramenta) == 6
+        assert len(da_ferramenta) == 7
 
     def test_schemas_dos_params(self) -> None:
         por_nome = {s["name"]: s for s in CATALOG}
@@ -774,6 +775,9 @@ class TestCatalogoHomebox:
         assert por_nome["homebox_criar"]["params"].get("required") == ["nome"]
         assert por_nome["homebox_criar"]["params"]["properties"]["criar_tipo"]["default"] is True
         assert por_nome["homebox_atualizar"]["params"].get("required") == ["id"]
+        assert por_nome["homebox_locais"]["params"] == {}
+        criar = por_nome["homebox_criar"]["params"]["properties"]
+        assert criar["local"]["default"] == "" and criar["serie"]["default"] == ""
 
     def test_nenhuma_action_deleta(self) -> None:
         # Régua do dono: nada apagado — o inventário só LÊ e CADASTRA.
@@ -781,7 +785,7 @@ class TestCatalogoHomebox:
         # — são de outras integrações e não fazem parte da categoria.)
         proibidos = ("delete", "exclu", "apagar", "remover", "destruir")
         da_ferramenta = [s for s in CATALOG if s["category"] == "homebox"]
-        assert len(da_ferramenta) == 6
+        assert len(da_ferramenta) == 7
         for s in da_ferramenta:
             nome = s["name"].lower()
             assert not any(p in nome for p in proibidos), s["name"]
@@ -795,6 +799,7 @@ class TestCatalogoHomebox:
             "homebox_status": {},
             "homebox_busca": {"query": "peça"},
             "homebox_listar": {},
+            "homebox_locais": {},
             "homebox_detalhar": {"id": "abc"},
             "homebox_criar": {"nome": "Peça"},
             "homebox_atualizar": {"id": "abc", "quantidade": 1},
@@ -803,6 +808,112 @@ class TestCatalogoHomebox:
             result = await registry.execute(nome, params=params[nome], role="user")
             assert result.status == "denied", nome
             assert result.denied_by == "permission", nome
+
+
+# ===========================================================================
+# Local, modelo e série (21/11: inventário físico de verdade)
+# ===========================================================================
+
+LOCATION_TIPO_ID = "ceb67ea5-39c7-44fb-b054-f150c00dcc5b"
+
+
+def _envelope_locais(*itens: dict[str, Any]) -> bytes:
+    return _pct({"page": -1, "pageSize": -1, "total": len(itens), "items": list(itens)})
+
+
+class TestClienteLocal:
+    def test_locais_lista_id_e_nome(self) -> None:
+        rotas = _base_ok()
+        rotas[("GET", "/api/v1/entities")] = (
+            200, {}, _envelope_locais({"id": "loc-rack", "name": "Rack OD"})
+        )
+        cliente, t = _cliente(rotas)
+        assert cliente.locais() == [{"id": "loc-rack", "nome": "Rack OD"}]
+        assert "isLocation=true" in t.chamadas[-1]["consulta"]
+
+    def test_criar_com_local_existente_manda_parent_id(self) -> None:
+        rotas = _base_ok()
+        rotas[("GET", "/api/v1/entities")] = (
+            200, {}, _envelope_locais({"id": "loc-rack", "name": "Rack OD"})
+        )
+        rotas[("POST", "/api/v1/entities")] = (201, {}, _pct(ENTIDADE_BRUTA))
+        cliente, t = _cliente(rotas)
+        r = cliente.criar("OptiPlex 3040", local="rack od")  # sem caixa/acento
+        assert t.ultimo_payload["parentId"] == "loc-rack"
+        assert "entityTypeId" not in t.ultimo_payload  # sem tipo = sem campo
+        assert r["local_criado"] is False
+
+    def test_criar_local_inexistente_vira_entidade_location(self) -> None:
+        rotas = _base_ok()
+        rotas[("POST", "/api/v1/entities")] = (
+            201, {}, _pct({"id": "loc-novo", "name": "Energia"})
+        )
+        cliente, t = _cliente(rotas)
+        cliente.criar("Nobreak Attiv", local="Energia")
+        posts = [c for c in t.chamadas if c["metodo"] == "POST"
+                 and c["caminho"] == "/api/v1/entities"]
+        assert len(posts) == 2
+        local = json.loads(posts[0]["corpo"].decode())
+        assert local["name"] == "Energia"
+        assert local["entityTypeId"] == LOCATION_TIPO_ID
+        assert local["quantity"] == 0
+        item = json.loads(posts[1]["corpo"].decode())
+        assert item["parentId"] == "loc-novo"
+
+    def test_criar_local_recusado_quando_criar_local_false(self) -> None:
+        cliente, _ = _cliente(_base_ok())
+        with pytest.raises(HomeboxError) as exc:
+            cliente.criar("X", local="Oficina", criar_local=False)
+        assert exc.value.codigo == "homebox_parametro_invalido"
+
+    def test_criar_com_modelo_e_serie_vai_por_put(self) -> None:
+        rotas = _base_ok()
+        rotas[("POST", "/api/v1/entities")] = (201, {}, _pct(ENTIDADE_BRUTA))
+        rotas[("PUT", f"/api/v1/entities/{ENTIDADE_BRUTA['id']}")] = (
+            200, {}, _pct({**ENTIDADE_BRUTA, "modelNumber": "0K1X", "serialNumber": "ABC123"})
+        )
+        cliente, t = _cliente(rotas)
+        r = cliente.criar("OptiPlex", modelo="0K1X", serie="ABC123")
+        puts = [c for c in t.chamadas if c["metodo"] == "PUT"]
+        assert len(puts) == 1
+        payload = json.loads(puts[0]["corpo"].decode())
+        assert payload["modelNumber"] == "0K1X"
+        assert payload["serialNumber"] == "ABC123"
+        assert r["serie"] == "ABC123"
+
+    def test_atualizar_troca_de_local(self) -> None:
+        rotas = _base_ok()
+        rotas[("GET", "/api/v1/entities")] = (
+            200, {}, _envelope_locais({"id": "loc-en", "name": "Energia"})
+        )
+        rotas[("GET", f"/api/v1/entities/{ENTIDADE_BRUTA['id']}")] = (
+            200, {}, _pct(ENTIDADE_BRUTA)
+        )
+        rotas[("PUT", f"/api/v1/entities/{ENTIDADE_BRUTA['id']}")] = (
+            200, {}, _pct({**ENTIDADE_BRUTA, "parent": {"id": "loc-en", "name": "Energia"}})
+        )
+        cliente, t = _cliente(rotas)
+        r = cliente.atualizar(ENTIDADE_BRUTA["id"], local="Energia")
+        payload = t.ultimo_payload
+        assert payload["parentId"] == "loc-en"
+        assert payload["name"] == ENTIDADE_BRUTA["name"]  # PUT preserva o resto
+        assert r["local"] == "Energia"
+
+    def test_action_locais_devolve_total_e_lista(self) -> None:
+        transporte = _TransporteFalso({
+            **_base_ok(),
+            ("GET", "/api/v1/entities"): (200, {}, _envelope_locais(
+                {"id": "a", "name": "Rack OD"}, {"id": "b", "name": "Bancada"})),
+        })
+        import integrations.homebox as mod
+        mod.resetar_cliente()
+        mod._CLIENTE = HomeboxClient(api_key="k", transporte=transporte)
+        try:
+            r = homebox_locais()
+            assert r["ok"] is True and r["total"] == 2
+            assert [local["nome"] for local in r["locais"]] == ["Rack OD", "Bancada"]
+        finally:
+            mod.resetar_cliente()
 
 
 __all__ = [
@@ -816,4 +927,5 @@ __all__ = [
     "TestFabrica",
     "TestActionsHomebox",
     "TestCatalogoHomebox",
+    "TestClienteLocal",
 ]

@@ -53,7 +53,7 @@ EXPECTED_CATEGORIES = {
     "vault": 4,  # cofre do sistema via bw (v1.35.0): status/list/get/set
     "stirling": 4,  # pipeline de documentos Stirling PDF (v1.36.0): status/merge/split/compress
     "kiwix": 3,  # acervo offline Kiwix (v1.37.0): status/busca/leitura
-    "homebox": 6,  # inventário do dono (v1.38.0): status/busca/listar/detalhar/criar/atualizar
+    "homebox": 7,  # inventário do dono (v1.38.0): status/busca/listar/locais/detalhar/criar/atualizar
     "flatnotes": 3,  # caderno de notas do dono (v1.40.0): status/anota/busca
     "filebrowser": 3,  # caixa de arquivos do dono (v1.41.0): status/lista/envia
     "calibre": 3,  # biblioteca de e-books do dono (v1.43.0): resync/status/busca
@@ -76,10 +76,10 @@ class TestActionsCatalog:
     """123 ações catalogadas por categoria com metadados consistentes."""
 
     def test_catalog_count_and_categories(self) -> None:
-        assert ACTIONS_COUNT == 128
-        assert len(CATALOG) == 128
+        assert ACTIONS_COUNT == 129
+        assert len(CATALOG) == 129
         assert CATEGORIES == EXPECTED_CATEGORIES
-        assert sum(CATEGORIES.values()) == 128
+        assert sum(CATEGORIES.values()) == 129
 
     def test_names_unique_and_dotted_clean(self) -> None:
         names = [spec["name"] for spec in CATALOG]
@@ -134,8 +134,8 @@ class TestActionsRegistration:
 
     def test_build_registry_registers_123(self) -> None:
         registry = build_registry()
-        assert len(registry.list_actions()) == 128
-        assert registry.metrics.actions == 128
+        assert len(registry.list_actions()) == 129
+        assert registry.metrics.actions == 129
 
     def test_every_action_has_permission_and_schema(self) -> None:
         registry = build_registry()
@@ -150,7 +150,7 @@ class TestActionsRegistration:
         registry = ActionRegistry()
         first = register_all(registry)
         second = register_all(registry)
-        assert first == 128
+        assert first == 129
         assert second == 0
 
     def test_find_by_category(self) -> None:
@@ -238,7 +238,7 @@ class TestSystemActions:
         registry = self._registry()
         listed = await registry.execute("action_list", role="admin")
         assert listed.status == "ok"
-        assert listed.data["count"] == 128
+        assert listed.data["count"] == 129
         info = await registry.execute(
             "action_info", params={"name": "git_status"}, role="admin"
         )
@@ -591,7 +591,7 @@ class TestActionsSecurity:
         assert snap["ok"] == 1
         assert snap["denied"] == 1
         assert registry.history[0]["status"] == "denied"
-        assert registry.dump()["actions"] == 128
+        assert registry.dump()["actions"] == 129
 
 
 # ===========================================================================

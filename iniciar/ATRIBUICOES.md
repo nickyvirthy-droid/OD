@@ -9,6 +9,39 @@
 
 ---
 
+## 21/11/2026 — Homebox em uso: inventário físico da Nicky (9 peças, 2 locais)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"colocar para funcionar"* +
+*"o que temos guarde no homebox"*, com o `txt.txt` do plano solar).
+
+### Modificados
+
+- `integrations/homebox.py` — `locais()`, `_local_id()` e
+  `local/fabricante/modelo/serie` em `criar`/`atualizar`.
+- `tools/actions/actions.py` — mesmos parâmetros nas actions e **nova
+  `homebox_locais`** (catálogo **129**).
+- Testes de contagem de catálogo (6 arquivos) e 7 testes novos em
+  `tests/test_homebox.py`.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/` (transcrição
+  §2, `session.json`, este arquivo).
+
+### Intenção e estado
+
+- **Intenção:** tirar o Homebox do estado de teste e fazer dele o inventário
+  real da parte física, com local, fabricante, modelo e série — para o dono e
+  o OD planejarem a Fase Nicky (solar 12 V).
+- **Estado:** **9 peças / 10 locais / R$ 1.743** cadastrados; locais
+  "Nicky — Servidor" e "Energia — Fase 1"; bateria Felicity (comprada,
+  entrega 23–24/11), no-break Attiv 1500 VA BI e PWM 30 A com as regras de
+  ouro nas notas. Gate **5530 passed / 19 skipped / 0 falha**; `od-core`
+  reiniciado com **129 actions**.
+- **Correção:** o `txt.txt` diz que falta instalar o Home Assistant; ele já
+  roda em Docker aqui — o próximo passo é configurar, não instalar.
+- **Limites:** bateria ainda não chegou (dados da compra); Pi 4/ESP-01S sem
+  série; preço do OptiPlex e do no-break não constam.
+
+---
+
 ## 21/11/2026 — Acervo do Raul fechado, APK instalado e leitura de `analise/`
 
 **Autor:** Freebuff (Buffy) — sessão de 21/11 ~01:45, pedido do dono (*"apk

@@ -3772,6 +3772,11 @@ def homebox_detalhar(id: str) -> dict[str, Any]:
     return _homebox_op(lambda c: c.detalhar(id))
 
 
+def homebox_locais() -> dict[str, Any]:
+    """Locais do inventário (id + nome), para organizar a parte física."""
+    return _homebox_op(lambda c: {"total": len(c.locais()), "locais": c.locais()})
+
+
 def homebox_criar(
     nome: str,
     quantidade: int = 1,
@@ -3780,15 +3785,21 @@ def homebox_criar(
     notas: str = "",
     tags: str = "",
     preco: Optional[float] = None,
+    local: str = "",
+    fabricante: str = "",
+    modelo: str = "",
+    serie: str = "",
     criar_tipo: bool = True,
     criar_tag: bool = True,
+    criar_local: bool = True,
 ) -> dict[str, Any]:
-    """Cadastra UMA peça (tipo/tags inexistentes são criados e DECLARADOS)."""
+    """Cadastra UMA peça (tipo/tag/local inexistentes são criados e DECLARADOS)."""
     return _homebox_op(
         lambda c: c.criar(
             nome, quantidade=quantidade, tipo=tipo, descricao=descricao,
-            notas=notas, tags=tags, preco=preco,
-            criar_tipo=criar_tipo, criar_tag=criar_tag,
+            notas=notas, tags=tags, preco=preco, local=local,
+            fabricante=fabricante, modelo=modelo, serie=serie,
+            criar_tipo=criar_tipo, criar_tag=criar_tag, criar_local=criar_local,
         )
     )
 
@@ -3799,11 +3810,17 @@ def homebox_atualizar(
     notas: Optional[str] = None,
     descricao: Optional[str] = None,
     preco: Optional[float] = None,
+    local: Optional[str] = None,
+    fabricante: Optional[str] = None,
+    modelo: Optional[str] = None,
+    serie: Optional[str] = None,
 ) -> dict[str, Any]:
     """Atualiza UMA peça (ex.: gastou resistores → nova quantidade)."""
     return _homebox_op(
         lambda c: c.atualizar(
-            id, quantidade=quantidade, notas=notas, descricao=descricao, preco=preco
+            id, quantidade=quantidade, notas=notas, descricao=descricao,
+            preco=preco, local=local, fabricante=fabricante, modelo=modelo,
+            serie=serie,
         )
     )
 
@@ -4719,17 +4736,23 @@ CATALOG: list[dict[str, Any]] = [
           {"required": ["query"], "properties": {"query": S, "quantidade": {**I, "default": 10}}}),
     _spec("homebox_listar", "homebox", "Lista o inventário (opcional por tags: \"a, b\")", homebox_listar,
           {"properties": {"quantidade": {**I, "default": 25}, "tags": {**S, "default": ""}}}),
-    _spec("homebox_detalhar", "homebox", "Detalha UMA peça (notas, compra, garantia, série)", homebox_detalhar,
+    _spec("homebox_detalhar", "homebox", "Detalha UMA peça (notas, compra, garantia, série, local)", homebox_detalhar,
           {"required": ["id"], "properties": {"id": S}}),
-    _spec("homebox_criar", "homebox", "Cadastra UMA peça (tipo/tags inexistentes são criados e declarados)", homebox_criar,
+    _spec("homebox_locais", "homebox", "Locais do inventário (id + nome) para organizar a parte física", homebox_locais),
+    _spec("homebox_criar", "homebox", "Cadastra UMA peça (tipo/tag/local inexistentes são criados e declarados)", homebox_criar,
           {"required": ["nome"], "properties": {
               "nome": S, "quantidade": {**I, "default": 1}, "tipo": {**S, "default": ""},
               "descricao": {**S, "default": ""}, "notas": {**S, "default": ""}, "tags": {**S, "default": ""},
-              "preco": {"type": "float"}, "criar_tipo": {**B, "default": True}, "criar_tag": {**B, "default": True},
+              "preco": {"type": "float"}, "local": {**S, "default": ""},
+              "fabricante": {**S, "default": ""}, "modelo": {**S, "default": ""},
+              "serie": {**S, "default": ""},
+              "criar_tipo": {**B, "default": True}, "criar_tag": {**B, "default": True},
+              "criar_local": {**B, "default": True},
           }}),
-    _spec("homebox_atualizar", "homebox", "Atualiza UMA peça (ex.: gastou resistores → nova quantidade)", homebox_atualizar,
+    _spec("homebox_atualizar", "homebox", "Atualiza UMA peça (quantidade, notas, local, modelo, série)", homebox_atualizar,
           {"required": ["id"], "properties": {
               "id": S, "quantidade": {"type": "int"}, "notas": S, "descricao": S, "preco": {"type": "float"},
+              "local": S, "fabricante": S, "modelo": S, "serie": S,
           }}),
     # --- FlatNotes: caderno de notas do dono (5ª interligação, 18/10) ---
     _spec("flatnotes_status", "flatnotes", "Estado do caderno (auth, nº de notas, última editada)", flatnotes_status),

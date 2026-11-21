@@ -75,3 +75,70 @@ software.
   públicas da Intelbras, não de um manual impresso da unidade dele.
 - **Autor:** Freebuff (Buffy), 21/11. Arquivos: `docs/ANALISE_SISTEMA_TODO.md`,
   `iniciar/session.json`, `iniciar/ATRIBUICOES.md`, esta transcrição.
+
+## §2 — Homebox em uso: o inventário físico real da Nicky
+
+**Pedido do dono (21/11, ~02:05 e ~02:20):** *"existe uma ferramenta de
+catálogo... está na hora de colocar para funcionar e você e OD começarem a
+saber o que temos para planejar melhor a parte física de OD"* e, depois de
+mandar o `txt.txt`, *"o que temos guarde no homebox"*.
+
+### 1. O que era o catálogo
+
+**Homebox v0.26.2**, container `od-homebox` em `127.0.0.1:8470` (também exposto
+em `192.168.0.205:8470`). Estava no ar desde 17/10 só com as **2 peças do teste
+de ligação** (Raspberry Pi 4 e ESP-01S com DHT22), sem uso real.
+
+### 2. O que faltava no cliente
+
+O modelo do Homebox tem **locais** (entidades de tipo `Location`, hierarquia
+por `parentId`), tipos, tags e campos de compra/garantia/série — mas o cliente
+só sabia criar nome, quantidade, tipo, tags, descrição, notas e preço.
+
+- `integrations/homebox.py`: `locais()` (usa o filtro `isLocation=true` do
+  fork), `_local_id()` (acha por nome sem caixa/acento e **cria** o local
+  quando falta), e `criar/atualizar` ganharam `local`, `fabricante`, `modelo`,
+  `serie`. Só `name/quantity/description/entityTypeId/parentId/tagIds` existem
+  no `EntityCreate`; fabricante/modelo/série vão no **PUT completo** (que
+  preserva os demais campos, apurado no swagger vivo).
+- `homebox_locais`: action nova, catálogo **128 → 129**.
+- 7 testes novos em `tests/test_homebox.py` (local existente/novo, recusa com
+  `criar_local=False`, modelo/série por PUT, troca de local, action).
+
+### 3. Inventário cadastrado (9 peças, 2 locais)
+
+Fonte: **`txt.txt`** (resumo do plano solar de 21/11) + **medição da máquina**
+(`hostnamectl`, `lscpu`, `free`, `lsblk`, `docker ps`) + fotos de
+`analise/No Break/`.
+
+| Local | Peça | Dados guardados |
+|---|---|---|
+| Nicky — Servidor | Dell OptiPlex 3040 (Nicky) | i5-6500, 7,7 GiB, Ubuntu 24.04.5, BIOS 1.20.1, ~40 W; HA já em Docker |
+| Nicky — Servidor | SSD 256 GB SATA | MV256GB, série 2025090600135 |
+| Nicky — Servidor | HD Seagate Expansion 1 TB (Arquivos) | série NAC5M7SZ, /mnt/Arquivos |
+| Nicky — Servidor | HD Seagate Expansion 1 TB (Dados) | série NA46WE9A, /home/alex/dados |
+| Nicky — Servidor | Raspberry Pi 4 | (peça antiga, só mudou de local) |
+| Nicky — Servidor | ESP-01S com DHT22 | (peça antiga, só mudou de local) |
+| Energia — Fase 1 | Bateria Felicity FLA12100 | 12,8 V 100 Ah, R$ 1.699, entrega 23–24/11, RS485/CAN, **nunca em série** |
+| Energia — Fase 1 | Nobreak Intelbras Attiv 1500 VA BI | série BI.A0008555344, 1500 VA/750 W, sem USB |
+| Energia — Fase 1 | PWM 30 A 12/24 V | R$ 44, nunca usado; 14,4/13,6/11,2 V e bateria antes do painel |
+
+**Correção registrada:** o `txt.txt` diz "precisa instalar Home Assistant"; o
+HA **já roda** aqui (container `homeassistant`), o que muda o próximo passo do
+plano (é configurar, não instalar).
+
+### 4. Prova viva e estado
+
+- `homebox_status` → **9 itens, 10 locais, R$ 1.743** de valor cadastrado.
+- `homebox_locais` lista os 2 locais novos ao lado dos 8 do seed.
+- Gate completo **5530 passed / 19 skipped / 0 falha**; `od-core` reiniciado
+  com o catálogo em **129 actions**.
+- **Limites:** a bateria ainda não chegou (dados são da compra, não de
+  etiqueta); o Pi 4 e o ESP-01S continuam sem modelo/série porque não foram
+  medidos; preço do OptiPlex e do no-break não constam em lugar nenhum.
+- **Autor:** Freebuff (Buffy), 21/11. Arquivos: `integrations/homebox.py`,
+  `tools/actions/actions.py`, `tests/test_homebox.py`,
+  `tests/test_actions_catalog.py`, `tests/test_capabilities.py`,
+  `tests/test_mcp_od.py`, `tests/test_orchestrator.py`,
+  `tests/test_orchestrator_action_registry.py`, `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md`, `iniciar/`.

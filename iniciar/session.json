@@ -6489,5 +6489,17 @@
     "fontes": "Manual/fichas Intelbras (Attiv 1200/1500VA BI) e pagina do produto, consultados 21/11; leitura das imagens da pasta.",
     "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§1.3)",
     "updated_at": "2026-11-21T01:58:00-03:00"
+  },
+  "homebox_inventario_real_2026_11_21": {
+    "pedido": "Dono (21/11 ~02:05 e ~02:20): 'existe uma ferramenta de catalogo... colocar para funcionar' + 'o que temos guarde no homebox' (mandou o txt.txt do plano solar).",
+    "ferramenta": "Homebox v0.26.2, container od-homebox, 127.0.0.1:8470 (LAN 192.168.0.205:8470); estava desde 17/10 com apenas as 2 pecas do teste.",
+    "implementacao": "integrations/homebox.py: locais() (filtro isLocation=true), _local_id() (acha sem caixa/acento e cria entidade de tipo Location), criar/atualizar com local/fabricante/modelo/serie (modelo+serie via PUT completo, local via parentId). Action nova homebox_locais (catalogo 128->129).",
+    "inventario": "9 pecas, 2 locais novos: 'Nicky — Servidor' (OptiPlex 3040 i5-6500 7,7GiB, SSD MV256GB serie 2025090600135, HD Seagate NAC5M7SZ, HD Seagate NA46WE9A, Raspberry Pi 4, ESP-01S+DHT22) e 'Energia — Fase 1' (Felicity FLA12100 R$1699 comprada entrega 23-24/11, Attiv 1500VA BI serie BI.A0008555344, PWM 30A R$44). Total R$ 1.743.",
+    "fontes": "txt.txt (plano solar de 21/11) + medicao real (hostnamectl, lscpu, free -h, lsblk, docker ps) + fotos de analise/No Break/.",
+    "correcao": "txt.txt diz 'precisa instalar Home Assistant', mas o HA ja roda em Docker neste servidor; proximo passo e configurar, nao instalar.",
+    "gate": "5530 passed / 19 skipped / 0 falha; od-core reiniciado com 129 actions.",
+    "limites": "Bateria ainda nao chegou (dados da compra, nao da etiqueta); Pi 4 e ESP-01S sem modelo/serie medidos; preco do OptiPlex e do nobreak nao constam.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§2)",
+    "updated_at": "2026-11-21T02:35:00-03:00"
   }
 }

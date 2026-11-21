@@ -1137,6 +1137,22 @@ esperar o timeout.
       ferramentas caem, para o OD responder em modo degradado explícito em vez
       de improvisar.
 
+- [x] **Homebox em uso: inventário físico real** — **FEITO 21/11** (pedido do
+      dono: *"o que temos guarde no homebox"*): o cliente ganhou `local`,
+      `fabricante`, `modelo`, `serie` (local vira entidade de tipo Location;
+      modelo/série pelo PUT completo) e a action nova `homebox_locais`
+      (catálogo **129**). Cadastradas **9 peças em 2 locais**:
+      **Nicky — Servidor** (OptiPlex 3040 i5-6500, SSD 256 GB, dois Seagate
+      Expansion 1 TB por série, Raspberry Pi 4, ESP-01S+DHT22) e
+      **Energia — Fase 1** (Felicity FLA12100 comprada, Attiv 1500 VA BI por
+      série, PWM 30 A), com as regras de ouro do plano solar nas notas. Fonte
+      do plano: `txt.txt` (21/11) + medição da máquina (`hostnamectl`,
+      `lsblk`, `lscpu`, `free`).
+- [ ] **Inventário, próximo passo:** acrescentar o que entra da Fase Nicky
+      (cabos 16 mm/fusível/terminais em dez/26, inversor 12 V→127 V 600 W em
+      jan/27, painel 100 W DIY em fev/27) e a casa 24 V quando forem
+      comprados — hoje o Homebox só guarda o que o dono já tem.
+
 ### Continuidade (plano de 12/11 — `docs/CONTINUIDADE.md`)
 
 > A `readiness_report` mediu **6/9**: reprovam energia, conhecimento e

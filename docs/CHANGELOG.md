@@ -609,6 +609,30 @@ fora, e por modo medido (só `login`/`doctor`; stdin sobe a TUI).
 `executar_cli(OpenClaude)` → `SAIDA: ok`. Sem bump (1.46.0+2083); entra no
 ar no próximo restart do `od-core` (autorização pendente).
 
+## Homebox vira inventário de verdade: locais, fabricante, modelo e série (2026-11-21, sem bump)
+
+**Resumo:** o inventário rodava desde 17/10 só com as duas peças do teste de
+ligação. O dono pediu para colocá-lo em uso ("o que temos guarde no homebox")
+e o cliente não sabia lidar com **local**, **fabricante**, **modelo** e
+**série** — tudo caía num balde único.
+
+- **`integrations/homebox.py`:** `locais()` (filtro `isLocation` do fork),
+  `_local_id()` (cria a entidade de tipo Location quando o local não existe,
+  comparação sem caixa/acento), `criar(..., local, fabricante, modelo, serie)`
+  e `atualizar(..., local, fabricante, modelo, serie)`; modelo/série vão pelo
+  PUT completo (o `EntityCreate` não os aceita) e o local pelo `parentId`.
+- **`homebox_locais`** (action nova, catálogo 128 → 129): lista id + nome dos
+  locais para planejar a parte física.
+- **Inventário real (9 peças, 2 locais novos):** "Nicky — Servidor" (OptiPlex
+  3040 i5-6500/7,7 GiB, SSD 256 GB, os dois HDs Seagate de 1 TB por série,
+  Raspberry Pi 4, ESP-01S+DHT22) e "Energia — Fase 1" (Felicity FLA12100
+  comprada, Attiv 1500 VA BI por série, PWM 30 A), com as regras de ouro do
+  plano solar nas notas do próprio item.
+
+**Testes:** `tests/test_homebox.py` 59 passed (7 novos de local/modelo/série);
+catálogo 129 actions nos 6 arquivos que fixam a contagem. Gate completo
+**5530 passed / 19 skipped / 0 falha**.
+
 ## Download da playlist do Raul Seixas + fix do cgroup (2026-11-18, sem bump)
 
 **Contexto:** o pedido de 17/11 morreu às 03:36 quando o od-core parou —
