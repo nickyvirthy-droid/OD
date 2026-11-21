@@ -354,3 +354,13 @@ nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
   (local por padrão, OpenAI sem créditos); memória SQLite vs banco Postgres;
   containers auxiliares x núcleo; números datados.
 - `txt.txt` ganhou a seção 4 com o limite honesto e o roteiro de teste.
+
+## §11 — Análise da resposta do Meta AI
+
+- Resposta colada no `txt.txt`: fiel aos números e pendências do resumo.
+- Nenhuma capacidade inventada. Dois acréscimos fora do resumo (regra de
+  sensores e aviso sobre `client_secret...json`); a regra de sensores estava
+  imprecisa porque o OD lê temperatura da CPU e percentuais.
+- Corrigido o resumo: §3 (leituras reais), §5 (não inventar leitura sem
+  action; não colar credenciais) e §6 (client_secret marcado como segredo).
+- Análise registrada no `txt.txt` §5, com roteiro de reteste.

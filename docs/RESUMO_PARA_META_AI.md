@@ -61,6 +61,10 @@ OpenAI **sem créditos**), usados como fallback — nuvem não é garantia.
 - Inventário Homebox (9 itens, 10 locais) e duas rotas públicas novas:
   `GET /api/ping` e `GET /api/public/inventario` (só nome, local, categoria,
   quantidade — sem série/preço).
+- **Leituras reais do host:** temperatura da CPU (`cpu_temp`, sysfs
+  thermal/hwmon), uso de CPU/memória e percentual de disco. **Não** há sensor
+  de tensão nem de temperatura ambiente; leitura desses só existe se vier de
+  integração (ex.: Home Assistant/estação meteorológica).
 - Rádio própria com curadoria, quarentena e reprovadas, painel `/radio-pro`.
 - App Flutter com push, painel, decisões da rádio e Vigia da Rede
   (`flutter test` 264 passed em 19/11).
@@ -105,6 +109,11 @@ OpenAI **sem créditos**), usados como fallback — nuvem não é garantia.
 - Não há acesso remoto ao BIOS, iDRAC ou console fora do Tailscale.
 - Não existe um único arquivo que contenha "tudo": o estado é dividido entre
   código, `iniciar/session.json`, CHANGELOG e README_VERSAO (ver §6).
+- Não invente leituras: existe `cpu_temp` real e percentuais de CPU/memória/
+  disco; **tensão e temperatura ambiente não têm sensor**. Leitura que não
+  veio de uma action/integração não existe.
+- Nunca peça nem cole credenciais em chat: `docs/client_secret_…json` é
+  segredo OAuth do Google e não deve sair da máquina.
 - Não proponha reescrita big-bang: a regra é entrega incremental com gate.
 
 ## 6. Índice dos documentos (o que ler para cada assunto)
@@ -124,6 +133,7 @@ OpenAI **sem créditos**), usados como fallback — nuvem não é garantia.
 | `docs/LEGADO_CONSOLIDADO.md` | 09/11/2026 | Bússola para o Legado (história/identidade). |
 | `docs/OMEGADRAKON_SPEC.md` | 02/09/2026 | Especificação oficial 1.0.0 (base histórica). |
 | `docs/ROADMAP_V1.md` / `docs/ROADMAP_ABSORCAO.md` | 09/2026 | Planos antigos; não são estado atual. |
+| `docs/client_secret_….apps.googleusercontent.com.json` | 01/10/2026 | Credencial OAuth do Google — **segredo, nunca colar em chat**. |
 
 ### Resposta curta: qual colar no Meta AI?
 
