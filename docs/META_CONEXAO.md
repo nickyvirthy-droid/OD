@@ -14,7 +14,7 @@ nada de suposição. No fim, o que já foi preparado e o que falta.
 
 **FRAMEWORK:** **nenhum framework web** — servidor HTTP da biblioteca padrão:
 `ThreadingHTTPServer` + `BaseHTTPRequestHandler`, com roteamento declarativo
-próprio em `integrations/api/server.py` (`_ROUTE_SPECS` → `ROUTES`, 144 rotas).
+próprio em `integrations/api/server.py` (`_ROUTE_SPECS` → `ROUTES`, 146 rotas).
 Não há FastAPI, Flask nem Express instalados; o que existe é a cadeia de LLM,
 memória e actions do OmegaDrakon por baixo.
 
@@ -25,7 +25,7 @@ memória e actions do OmegaDrakon por baixo.
 `OD_API_HOST` (padrão `0.0.0.0`) — na LAN o site é `192.168.0.250:8000`.
 **8470 é o Homebox**, outra ferramenta (container `od-homebox`), não o OD.
 
-Rotas: **144** no total, todas em `integrations/api/server.py`. Quase todas
+Rotas: **146** no total, todas em `integrations/api/server.py`. Quase todas
 respondem **JSON** (`_json`); HTML em `/site`, `/chat`, `/dashboard`, `/admin`,
 `/radio-pro`, `/registry*`; texto puro em `/metrics` e `/webhook/meta`.
 
@@ -228,17 +228,16 @@ sempre pela API.
 
 ## 6. O QUE O SISTEMA CONSEGUE FAZER
 
-**PODE_CRIAR_PING:** **Sim** — uma rota `GET /api/ping` pública devolvendo
-`{"status":"ok"}` é trivial (basta uma entrada em `_ROUTE_SPECS` +
-`AUTH_EXEMPT_PATHS`). **Ela não existe hoje**: a rota pública equivalente é
-`GET /health` (32 checks). Criar um ping público é decisão do dono, porque
-qualquer rota sem chave é superfície aberta.
+**PODE_CRIAR_PING:** **Sim — criada em 21/11** (`GET /api/ping`, pública):
+`{"status":"ok","sistema":"Omega Drakon","versao":"1.0"}`. Não toca banco nem
+inventário; o agregado caro continua em `GET /health` (32 checks).
 
-**PODE_CRIAR_INVENTARIO:** **Sim, tecnicamente** — a leitura já existe pela
-action `homebox_listar` (e `homebox_busca`/`homebox_detalhar`) atrás de
-`POST /executa` com credencial. Uma rota pública `GET /api/inventario` exporia
-o inventário inteiro (preços, números de série) sem login; **não** foi criada.
-Autenticada, é uma montagem direta sobre o cliente que já está pronto.
+**PODE_CRIAR_INVENTARIO:** **Sim — criada em 21/11** como
+`GET /api/public/inventario`, pública e **restrita por construção** a
+`nome`, `local`, `categoria` e `quantidade` (método
+`HomeboxClient.publico()`). Série, preço, notas, fabricante, garantia e ids
+**não** saem; entidades de localização são filtradas. Homebox fora do ar →
+503 `homebox_indisponivel` (nunca lista inventada).
 
 ## 7. O QUE JÁ FOI PREPARADO (21/11)
 

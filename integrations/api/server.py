@@ -197,7 +197,11 @@ AUTH_EXEMPT_PATHS = frozenset(
      # /webhook/meta: a Meta autentica por assinatura (X-Hub-Signature-256)
      # no POST e por hub.verify_token no GET — não manda X-API-Key. O gate
      # é do handler (integrations/meta.py).
-     "/webhook/meta"}
+     "/webhook/meta",
+     # Sondas públicas (ordem do dono, 21/11): ping sem credencial e
+     # inventário SÓ com nome/local/categoria/quantidade (o handler monta a
+     # lista campo a campo em HomeboxClient.publico — nada sensível sai).
+     "/api/ping", "/api/public/inventario"}
 )
 
 
@@ -369,6 +373,11 @@ class APIConfig:
 _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/", "info", False),
     ("GET", "/health", "health", False),
+    # Sondas públicas pedidas pelo dono (21/11, txt.txt): /api/ping é um
+    # "estou de pé" barato e /api/public/inventario mostra o inventário
+    # SÓ com nome/local/categoria/quantidade (nada de série, preço ou id).
+    ("GET", "/api/ping", "api_ping", False),
+    ("GET", "/api/public/inventario", "api_public_inventario", False),
     ("GET", "/profiles", "profiles", False),
     ("GET", "/profiles/{name}", "profile_detail", False),
     ("GET", "/presence/today", "presence_today", False),
@@ -6016,6 +6025,41 @@ class APIHandler(BaseHTTPRequestHandler):
         if metadados is not None:
             payload["size"], payload["sha256"] = metadados
         self._json(200, payload)
+
+    def api_ping(self) -> None:
+        """GET /api/ping — sonda pública barata (ordem do dono, 21/11).
+
+        Não toca banco nem inventário: responde só o essencial para um
+        monitor externo saber que o processo está de pé. O /health continua
+        sendo o agregado dos 32 checks (é mais caro de propósito).
+        """
+        self._json(200, {
+            "status": "ok",
+            "sistema": "Omega Drakon",
+            "versao": "1.0",
+        })
+
+    def api_public_inventario(self) -> None:
+        """GET /api/public/inventario — inventário SEM dado sensível.
+
+        Ordem do dono (21/11, txt.txt): público, porém só nome, local,
+        categoria e quantidade. Série, preço, notas, fabricante, garantia
+        e ids ficam fora por construção em HomeboxClient.publico().
+        Homebox fora do ar → 503 honesto, nunca 500 nem lista inventada.
+        """
+        from integrations.homebox import HomeboxError, client_padrao
+
+        try:
+            dados = client_padrao().publico()
+        except HomeboxError as exc:
+            self._json(503, {"ok": False, "error": exc.codigo,
+                             "message": exc.mensagem})
+            return
+        except Exception as exc:              # pragma: no cover — transporte
+            self._json(503, {"ok": False, "error": "homebox_indisponivel",
+                             "message": str(exc)[:200]})
+            return
+        self._json(200, {"ok": True, **dados})
 
     def api_radio_agora(self) -> None:
         """GET /api/radio/agora — "Tocando agora" da rádio (Item 1, público).

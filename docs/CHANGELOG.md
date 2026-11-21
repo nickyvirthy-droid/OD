@@ -8911,3 +8911,20 @@ Arquiteto: Alex Projeti
 """
 __signature__ = "OD // CORE"
 ```
+
+## Sondas públicas `/api/ping` e `/api/public/inventario` (2026-11-21, sem bump)
+
+**Pedido do dono (txt.txt de 21/11):** criar as duas rotas sem quebrar nada.
+
+- **`GET /api/ping`** (pública): `{"status":"ok","sistema":"Omega Drakon",
+  "versao":"1.0"}`, sem tocar banco/inventário — o `/health` (32 checks)
+  continua sendo o agregado caro.
+- **`GET /api/public/inventario`** (pública): `{"ok":true,"total":N,
+  "itens":[{nome, local, categoria, quantidade}]}`. O recorte é feito em
+  `HomeboxClient.publico()` (novo): série, preço, notas, fabricante,
+  garantia e ids **não** entram na resposta, e entidades de localização são
+  filtradas. Homebox fora do ar → **503** `homebox_indisponivel`.
+- `AUTH_EXEMPT_PATHS` ganhou as duas; total de rotas **144 → 146**.
+- Testes: 2 no `tests/test_homebox.py` (recorte e teto) e 3 no
+  `tests/test_api.py` (ping, inventário sem campos sensíveis e 503 honesto).
+

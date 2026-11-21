@@ -6560,5 +6560,12 @@
     "rotas": "142 -> 144; AUTH_EXEMPT_PATHS ganhou /webhook/meta.",
     "gate": "25 testes em tests/test_meta.py; gate completo rodado antes do commit.",
     "updated_at": "2026-11-21T04:40:00-03:00"
+  },
+  "sondas_publicas_2026_11_21": {
+    "pedido": "Dono (txt.txt 21/11): criar GET /api/ping e GET /api/public/inventario sem quebrar rotas.",
+    "ping": "GET /api/ping publico -> {status:ok, sistema:Omega Drakon, versao:1.0}; sem banco/inventario.",
+    "inventario": "GET /api/public/inventario publico -> nome, local, categoria, quantidade apenas (HomeboxClient.publico); sem serie/preco/notas/fabricante/garantia/ids; locais filtrados; Homebox fora -> 503 homebox_indisponivel.",
+    "rotas": "144 -> 146; AUTH_EXEMPT_PATHS ganhou /api/ping e /api/public/inventario.",
+    "updated_at": "2026-11-21T05:55:00-03:00"
   }
 }

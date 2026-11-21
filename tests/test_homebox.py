@@ -348,6 +348,32 @@ class TestClienteBusca:
             cliente.listar(tags="fantasma")
         assert exc.value.codigo == "homebox_parametro_invalido"
 
+    def test_publico_so_nome_local_categoria_quantidade(self) -> None:
+        # Rota pública (21/11): série, preço, notas e ids NÃO podem sair.
+        item = {
+            **RESUMO_BRUTO,
+            "parent": {"id": "loc1", "name": "Oficina"},
+        }
+        local = {
+            **RESUMO_BRUTO,
+            "id": "loc1", "name": "Oficina", "quantity": 0,
+            "entityType": {"name": "Location", "isLocation": True},
+        }
+        rotas = _base_ok()
+        rotas[("GET", "/api/v1/entities")] = (
+            200, {}, _pct({"total": 2, "items": [item, local]})
+        )
+        cliente, t = _cliente(rotas)
+        r = cliente.publico()
+
+        assert r["total"] == 1  # a entidade de localização fica de fora
+        assert r["itens"] == [{
+            "nome": "Raspberry Pi 4", "local": "Oficina",
+            "categoria": "Placa de desenvolvimento", "quantidade": 1,
+        }]
+        assert set(r["itens"][0]) == {"nome", "local", "categoria", "quantidade"}
+        assert "pageSize=100" in t.chamadas[0]["url"]
+
 
 # ===========================================================================
 # Cliente — detalhe

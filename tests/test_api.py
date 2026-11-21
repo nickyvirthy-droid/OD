@@ -159,11 +159,15 @@ class TestAPIRoutes:
         exceções de cantores, 17/11) + /api/radio/pro/traducao (lista
         paralela da letra, 17/11) + Vigia da Rede no painel
         (GET/POST /admin/vigia*, 19/11) + /webhook/meta (WhatsApp
-        Cloud API, 21/11)."""
-        assert len(ROUTES) == 144
+        Cloud API, 21/11) + /api/ping e /api/public/inventario (sondas
+        públicas, 21/11)."""
+        assert len(ROUTES) == 146
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
+            # Sondas públicas (ordem do dono, 21/11, txt.txt).
+            ("GET", "/api/ping"),
+            ("GET", "/api/public/inventario"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
             ("GET", "/metrics"),
@@ -423,6 +427,7 @@ class TestAPIRoutes:
         public = {(r.method, r.path) for r in ROUTES if not r.auth}
         assert public == {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
+            ("GET", "/api/ping"), ("GET", "/api/public/inventario"),
             ("GET", "/profiles/{name}"), ("GET", "/presence/today"),
             ("GET", "/dashboard"), ("GET", "/admin"), ("GET", "/chat"),
             ("GET", "/metrics"),
@@ -465,6 +470,9 @@ class TestAPIRoutes:
             # WhatsApp Cloud API (Meta, 21/11): a Meta autentica por
             # assinatura e hub.verify_token (gate no handler).
             ("GET", "/webhook/meta"), ("POST", "/webhook/meta"),
+            # Sondas públicas (ordem do dono, 21/11).
+            ("GET", "/api/ping"),
+            ("GET", "/api/public/inventario"),
         }
 
 
@@ -474,6 +482,53 @@ class TestAPIRoutes:
 
 class TestAPIPublicEndpoints:
     """/, /health, /profiles, /presence/today, HTML e /metrics."""
+
+    def test_api_ping_sem_credencial(self, serve, tmp_path: Path) -> None:
+        srv = serve(make_orch(tmp_path))
+        status, body, _ = _request(srv.bound_port, "GET", "/api/ping")
+        data = _json_response((status, body, _))
+        assert status == 200
+        assert data == {"status": "ok", "sistema": "Omega Drakon",
+                        "versao": "1.0"}
+
+    def test_api_public_inventario_so_campos_publicos(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        class _Falso:
+            def publico(self):
+                return {"total": 1, "itens": [{
+                    "nome": "Bateria LiFePO4", "local": "Energia — Fase 1",
+                    "categoria": "Bateria", "quantidade": 1,
+                }]}
+
+        monkeypatch.setattr("integrations.homebox.client_padrao",
+                            lambda *a, **k: _Falso())
+        srv = serve(make_orch(tmp_path))
+        status, body, _ = _request(srv.bound_port, "GET",
+                                   "/api/public/inventario")
+        data = _json_response((status, body, _))
+        assert status == 200
+        assert data["ok"] is True and data["total"] == 1
+        assert set(data["itens"][0]) == {"nome", "local", "categoria",
+                                         "quantidade"}
+
+    def test_api_public_inventario_503_com_homebox_fora(
+        self, serve, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from integrations.homebox import HomeboxError
+
+        class _Fora:
+            def publico(self):
+                raise HomeboxError("homebox_indisponivel", "fora do ar")
+
+        monkeypatch.setattr("integrations.homebox.client_padrao",
+                            lambda *a, **k: _Fora())
+        srv = serve(make_orch(tmp_path))
+        status, body, _ = _request(srv.bound_port, "GET",
+                                   "/api/public/inventario")
+        data = _json_response((status, body, _))
+        assert status == 503
+        assert data["error"] == "homebox_indisponivel"
 
     def test_info(self, serve, tmp_path: Path) -> None:
         srv = serve(make_orch(tmp_path))

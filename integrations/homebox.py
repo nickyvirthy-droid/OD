@@ -585,6 +585,34 @@ class HomeboxClient:
             "tags_criadas": criadas,
         }
 
+    def publico(self, quantidade: int = 100) -> dict[str, Any]:
+        """Lista para a rota PÚBLICA `/api/public/inventario`.
+
+        Só quatro campos (nome, local, categoria, quantidade): série,
+        preço, notas, fabricante, garantia e ids NUNCA saem — a rota é
+        aberta no Funnel e o dono limitou o que pode aparecer. Entidades
+        de localização (o próprio "local" do Homebox) ficam de fora para
+        a lista ser de peças, não do mapa de lugares.
+        """
+        quantidade = max(1, min(int(quantidade or 100), 100))
+        consulta = urllib.parse.urlencode({"pageSize": quantidade})
+        _s, dados = self._chamada(f"/api/v1/entities?{consulta}")
+        itens: list[dict[str, Any]] = []
+        for bruto in dados.get("items") or []:
+            tipo = bruto.get("entityType") or {}
+            if isinstance(tipo, dict) and tipo.get("isLocation"):
+                continue
+            parent = bruto.get("parent") or {}
+            itens.append({
+                "nome": _limpar_texto(bruto.get("name", "")),
+                "local": (_limpar_texto(parent.get("name", ""))
+                          if isinstance(parent, dict) else ""),
+                "categoria": (tipo.get("name", "")
+                              if isinstance(tipo, dict) else ""),
+                "quantidade": bruto.get("quantity", 0) or 0,
+            })
+        return {"total": len(itens), "itens": itens}
+
     def detalhar(self, id_entidade: str) -> dict[str, Any]:
         """Detalhe de UMA peça (compra, garantia, notas, série...)."""
         id_entidade = _valida_uuid(id_entidade)

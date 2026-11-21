@@ -308,3 +308,16 @@ conexão com o meta"*.
 - **Autor:** Freebuff (Buffy), 21/11. Arquivos: `integrations/meta.py`,
   `integrations/api/server.py`, `runtime/launcher.py`,
   `tests/test_meta.py`, `docs/META_CONEXAO.md`.
+
+## §7 — Sondas públicas `/api/ping` e `/api/public/inventario`
+
+**Pedido do dono (txt.txt de 21/11):** criar as duas rotas sem quebrar
+nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
+
+- `GET /api/ping` → `{"status":"ok","sistema":"Omega Drakon","versao":"1.0"}`.
+- `GET /api/public/inventario` → só `nome`, `local`, `categoria`,
+  `quantidade`. O recorte é do método `HomeboxClient.publico()` — série,
+  preço, notas, fabricante, garantia e ids não entram; locais filtrados.
+  Homebox fora → 503 `homebox_indisponivel`.
+- Ambas em `AUTH_EXEMPT_PATHS`; total **144 → 146** rotas.
+- **Autor:** Freebuff (Buffy), 21/11. Gate completo: 5605 passed, 19 skipped.

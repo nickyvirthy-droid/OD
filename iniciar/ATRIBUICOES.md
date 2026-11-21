@@ -9,6 +9,28 @@
 
 ---
 
+## 21/11/2026 — Sondas públicas `/api/ping` e `/api/public/inventario`
+
+**Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt` de 21/11.
+
+### Modificados
+
+- `integrations/api/server.py` — duas rotas públicas (146 no total) e os
+  handlers `api_ping` / `api_public_inventario`.
+- `integrations/homebox.py` — `HomeboxClient.publico()` (só nome, local,
+  categoria, quantidade).
+- `tests/test_api.py` (contagem e 3 testes), `tests/test_homebox.py` (1
+  teste), `docs/META_CONEXAO.md`, `docs/CHANGELOG.md`, `iniciar/`.
+
+### Intenção e estado
+
+- **Intenção:** sonda barata para monitor externo e vitrine do inventário
+  sem expor série/preço.
+- **Estado:** as duas respondem sem credencial; inventário com Homebox fora
+  devolve 503 honesto; nenhuma rota existente mudou de comportamento.
+
+---
+
 ## 21/11/2026 — Ideias do `txt.txt` no TODO + conexão com a Meta
 
 **Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt` de 21/11.
