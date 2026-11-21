@@ -6465,5 +6465,29 @@
     "release": "Bump PATCH 1.46.0+2083 -> 1.46.1+2084 (auto-update so instala code maior): pubspec, .env OD_VERSION, fallback em core/capabilities.py, _APP_VERSION_CODE, site/index.html (badge, card, tamanhos, versionCode) e site/historico.html (79 lancamentos, era 9 com 13). APKs reconstruidos com build_apk.sh e copiados para site/ (completo 72.488.590 B; arm64 27.038.253 B); site/*.apk gitignored.",
     "prova_viva_release": "aapt2 dump badging: versionCode=2084 versionName=1.46.1; /app/version 1.46.1/2084 size 72488590 sha ac60b136... igual ao site/OmegaDrakon.apk; /site/OmegaDrakon-arm64.apk 200 com 27.038.253 B; /health ok=true; od-core MainPID 1837735, NRestarts=0.",
     "gate_release": "flutter analyze 0 issues; flutter test 264 passed / 2 skipped; pytest 5523 passed / 19 skipped / 0 falha (apos corrigir a politica de versao: CHANGELOG ## [1.46.1] e contagens 79 do site)."
+  },
+  "acervo_raul_fechado_2026_11_21": {
+    "pedido": "Dono (21/11 ~01:45): 'pode fechar o acervo'.",
+    "unidade": "od-radio-lista-raul terminou em 18/11 23:38 (inactive): log '=== fim: 19 lote(s), 0 com falha, acervo 502 ===', todos os lotes codigo=0.",
+    "medicao": "502 mp3 em acervo/ = 502 linhas no acervo.db, 0 caminho ausente; sha256 das 502 -> 0 duplicata exata; 14 titulos repetidos sao gravacoes/artistas diferentes (Cicatrizes Bruna Karla x Isadora Pompeo, Pais e Filhos Legiao x Banda Rock Beats); .m3u regerados (9/85/19/35/265/26/56/7 + Mix 502); AzuraCast 504 = 502 + 2 locucoes; Raul 1 -> 141 faixas.",
+    "quarentena": "38 arquivos em revisar/+reprovadas/ (25 'Ao Vivo' do Raul marcados como parecidos pelo dedupe endurecido, 4 copias exatas antigas em revisar/duplicadas/, 6 reprovadas por duracao/bitrate, 3 ambiguas). Nenhum identico ao acervo (hash conferido). Nada apagado: por desenho o pipeline manda o dono decidir.",
+    "sem_bump": "Conteudo de acervo, nenhum codigo alterado. App segue 1.46.1+2084.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§1.2)",
+    "updated_at": "2026-11-21T01:58:00-03:00"
+  },
+  "apk_146_1_instalado_2026_11_21": {
+    "pedido": "Dono (21/11): 'apk instalado'.",
+    "estado": "O APK 1.46.1+2084 (commit 2f88e98, publicado em 19/11) foi instalado no celular do dono. Fecha o ultimo passo do lote do Vigia da Rede (Reconhecer/Bloquear no card admin + fix do repost de notificacao).",
+    "limite": "Declaracao do dono; nao ha como verificar o aparelho daqui. Servidor nao precisa de acao: as rotas /admin/vigia* ja estao no ar.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§1.1)",
+    "updated_at": "2026-11-21T01:58:00-03:00"
+  },
+  "leitura_analise_nobreak_2026_11_21": {
+    "pedido": "Dono (21/11): 'leia a pasta analise'.",
+    "conteudo": "analise/ tem so 'No Break/' (9 imagens, 14 MB); NV/ e Projeti/ nao estao mais la. 3 prints de 11/04/2026 do anuncio Intelbras Attiv 1200VA Bivolt (R$ 792,36 / R$ 860,70 em 10x; 1200VA/600W, saida 127V, onda semissenoidal) e 6 fotos de 28/04/2026 de um Attiv 1500VA Bivolt aberto: HS BI.A0008555344, 1500VA/750W, entrada 120/220V, saida 120V, fabricado 26/11/25, 2 baterias 12V 7Ah, transformador 1500VA/Bivolt, 8 tomadas, sem porta USB/serial.",
+    "achado": "A linha Attiv nao tem comunicacao; o software de gerenciamento Intelbras (com shutdown) so cobre linhas com USB. O datasheet ainda desaconselha fontes com PFC ativo (caso de servidor). Logo, o item 'nobreak com USB para upsc/shutdown gracioso' continua em aberto: a unidade existente protege a queda e religa, mas nao e monitoravel.",
+    "fontes": "Manual/fichas Intelbras (Attiv 1200/1500VA BI) e pagina do produto, consultados 21/11; leitura das imagens da pasta.",
+    "transcricao": "iniciar/2026-11-21_conversa_omegadrakon.md (§1.3)",
+    "updated_at": "2026-11-21T01:58:00-03:00"
   }
 }

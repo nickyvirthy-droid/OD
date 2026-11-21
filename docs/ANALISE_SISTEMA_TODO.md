@@ -664,10 +664,25 @@ esperar o timeout.
       (de volta a 1654 linhas) + `rm soma.py`; `tests/test_orquestrador.py`
       voltou a **116 passed**. A trava `_reescritas_em_massa` (regra 24) passa
       a impedir a repetição dentro do orquestrador.
-- [ ] **Acompanhar o download da playlist do Raul Seixas até o fim** —
-      unidade `od-radio-lista-raul` ativa desde 13:50 de 18/11, lote 4 de
-      ~19 (acervo 354 → 382). Falta: conferir os lotes restantes (~7–8 h),
-      checar duplicatas e fechar o acervo com o dedupe endurecido da §4.
+- [x] **Acompanhar o download da playlist do Raul Seixas até o fim** —
+      **FECHADO 21/11:** a unidade `od-radio-lista-raul` terminou em 18/11
+      23:38 com **19/19 lotes `codigo=0`, 0 falha, acervo 502 (+5 no último)**
+      (`logs/radio_link_lista_raul_seixas.log`). Conferência de hoje: **502
+      mp3 em `acervo/` = 502 linhas no `acervo.db`**, **0 caminho ausente**,
+      **0 duplicata exata** (sha256 de todas as 502), `.m3u` regerados e
+      **AzuraCast 504 = 502 faixas + 2 locuções** (`/api/station/nicky/files`).
+      Raul Seixas: **1 → 141 faixas** no acervo. Sobra só a pilha de
+      quarentena do pipeline (38 arquivos em `revisar/`+`reprovadas/`,
+      **nenhum idêntico ao acervo**): 25 gravações "Ao Vivo" que o dedupe
+      endurecido marcou como parecidas com a versão de estúdio, 4 cópias
+      exatas antigas em `revisar/duplicadas/`, 6 reprovadas por qualidade/
+      duração e 3 ambíguas — por desenho o pipeline não apaga nem adivinha,
+      então isso é decisão do dono (checkbox abaixo).
+- [ ] **Dono decide a quarentena do acervo (38 arquivos)** — `revisar/`:
+      aceitar como faixa própria as 25 "Ao Vivo" do Raul (são gravações
+      distintas, hoje fora da rádio) ou manter fora; `revisar/duplicadas/`:
+      4 cópias exatas que o pipeline manda o dono limpar; `reprovadas/`:
+      6 arquivos <60 s ou bitrate baixo. Nada é apagado sem ordem.
 - [ ] **Auto-registro de restart do `od-core`** — o restart das 15:01:19 de
       18/11 (PID 220986) não entrou em `iniciar/`; o checkpoint anterior
       ainda o dava como pendente. Um gancho no boot do serviço que grava
@@ -1115,7 +1130,8 @@ esperar o timeout.
       estado (conectado/fora/sem informação), "visto há…" e desde quando está
       pendente. `flutter analyze` 0 issues, `flutter test` **264 passed /
       2 skipped** (7 novos em `app/test/vigia_rede_test.dart`), gate Python
-      **5523 passed**. Falta só o APK (aguarda ordem do dono).
+      **5523 passed**. APK **1.46.1+2084** gerado e publicado em 19/11 e
+      **instalado pelo dono em 21/11** — lote encerrado.
 - [ ] **P1 nº 6 — modo colapso declarado** — único P1 aberto da revisão de
       17/11: declarar e medir o comportamento quando todas as fontes de LLM/
       ferramentas caem, para o OD responder em modo degradado explícito em vez
@@ -1128,7 +1144,17 @@ esperar o timeout.
 
 - [x] Medir a prontidão no sistema (`readiness_report` + `docs/CONTINUIDADE.md`)
 - [ ] **Energia:** nobreak 1200–1500 VA **com USB** (shutdown gracioso) — é a
-      compra nº 1; sem ela nenhum outro ganho sobrevive ao apagão
+      compra nº 1; sem ela nenhum outro ganho sobrevive ao apagão.
+      **21/11 — o que já existe (lido de `analise/No Break/`):** há um
+      **Intelbras Attiv 1500 VA Bivolt** em uso (etiqueta HS BI.A0008555344,
+      fabricado 26/11/25, 1500 VA / 750 W, 2 baterias 12 V 7 Ah, 8 tomadas).
+      Ele **não tem porta USB/serial** — a linha Attiv não comunica, o software
+      de gerenciamento da Intelbras só vale para as linhas com USB —, então
+      `upsc`/shutdown gracioso **não é possível com ele**. O datasheet ainda
+      desaconselha fontes com PFC ativo, que é o caso de servidor: o Attiv
+      segura a queda e o religamento, mas não substitui a compra do USB.
+      Os prints de 11/04 mostram o Attiv 1200 VA como referência de preço
+      (R$ 792–860).
 - [ ] **Comunicação:** segundo nó na LAN (ntfy/Matrix local + PWA offline) ou
       2 rádios LoRa Meshtastic — hoje o Telegram é o único canal externo
 - [x] **Acervo:** baixar ~25 GB de ZIMs (Wikipédia PT completa, WikiMed,

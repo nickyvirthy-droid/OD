@@ -9,6 +9,40 @@
 
 ---
 
+## 21/11/2026 — Acervo do Raul fechado, APK instalado e leitura de `analise/`
+
+**Autor:** Freebuff (Buffy) — sessão de 21/11 ~01:45, pedido do dono (*"apk
+instalado, pode fechar o acervo e leia a pasta analise"*).
+
+### Modificados
+
+- `docs/ANALISE_SISTEMA_TODO.md` — checkbox da playlist do Raul marcado como
+  fechado com a prova; nota nova na pendência de energia com o que existe em
+  `analise/No Break/`; checkbox novo para o dono decidir a quarentena de 38
+  arquivos; linha do Vigia atualizada (APK instalado).
+- `iniciar/session.json`, `iniciar/ATRIBUICOES.md` e
+  `iniciar/2026-11-21_conversa_omegadrakon.md` (novo).
+
+### Intenção e estado
+
+- **Intenção:** encerrar o lote da playlist do Raul Seixas deixado aberto em
+  18/11 e registrar a confirmação de instalação do APK 1.46.1+2084, além de
+  ler a pasta `analise/`.
+- **Estado do acervo:** unidade terminou em 18/11 23:38 (19/19 lotes
+  `codigo=0`); hoje **502 mp3 = 502 linhas**, 0 caminho ausente, **0 duplicata
+  exata** por sha256, `.m3u` regerados e **AzuraCast 504 = 502 + 2 locuções**;
+  Raul **1 → 141 faixas**. Quarentena de 38 arquivos fora do acervo, nenhum
+  idêntico — decisão do dono, nada apagado.
+- **`analise/`:** só `No Break/` (9 imagens). Prints de 11/04 do Attiv 1200 VA
+  e fotos de 28/04 de um **Attiv 1500 VA Bivolt** (HS BI.A0008555344, 1500 VA /
+  750 W, 2 baterias 12 V 7 Ah). **Sem USB/serial** → não dá shutdown gracioso;
+  a compra de um modelo com USB segue pendente.
+- **Sem bump** (1.46.1+2084, agora instalado); nenhum código alterado.
+- **Limite:** a instalação no celular é declaração do dono; a análise do
+  no-break é das fotos + fichas públicas da Intelbras, não de inspeção física.
+
+---
+
 ## 19/11/2026 — Release 1.46.1+2084: APK do Vigia da Rede (+ fix do push)
 
 **Autor:** Freebuff (Buffy) — sessão de 19/11 ~17:00, ordem do dono ("gere o apk").
