@@ -5,6 +5,9 @@
 > **Gerado em:** 21/11/2026, a partir de `docs/ANALISE_SISTEMA_TODO.md`,
 > `docs/README_VERSAO.md`, `docs/ARCHITECTURE_v2.md`, `docs/CHANGELOG.md`,
 > `docs/META_CONEXAO.md`, `docs/QUEDA_DE_ENERGIA.md` e `iniciar/session.json`.
+> **Números conferidos no código/serviço em 21/11/2026** (146 rotas, 132
+> actions, 32 checks, 9 itens/10 locais no Homebox). Contagens mudam com o
+> tempo: se um número divergir do código, o código vence.
 > **Não é fonte primária:** é um índice + resumo. O canônico continua nos
 > arquivos apontados no fim.
 
@@ -12,24 +15,30 @@
 
 Sistema pessoal do Alex Projeti ("dono"), rodando **localmente** num Dell
 OptiPlex 3040 (`nicky-server`, Ubuntu, 6.8.0), em `/home/alex/OmegaDrakon`
-(branch `master`). Não é SaaS e não depende de nuvem para o núcleo: quem
-responde é o processo local. A persona do assistente é a Nicky Virthy.
+(branch `master`). Não é SaaS: o processo local é quem responde, e o LLM
+padrão da persona é local (`od-llm.service`, llama-server em 127.0.0.1:8081,
+qwen2.5-coder-3b). Há providers online com chave (Gemini e Groq válidos;
+OpenAI **sem créditos**), usados como fallback — nuvem não é garantia.
 
 - **Versão atual:** 1.46.1 (19/11/2026).
 - **Núcleo:** Python (stdlib na maior parte), `core/orchestrator.py`,
-  `core/intents.py`, `tools/actions/actions.py`, memória SQLite/Postgres,
-  orquestração multi-IA.
+  `core/intents.py`, `tools/actions/actions.py` com **132 actions**,
+  memória de conversa em SQLite e camada de banco/actions em PostgreSQL
+  local (`OD_DB_URL`), orquestração multi-IA.
 - **API REST:** `integrations/api/server.py`, porta 8000, **146 rotas**.
-  Health agregado em `GET /health` (32 checks).
+  Health agregado em `GET /health` (32 checks, medido em 21/11).
 - **Interfaces:** app Flutter (`app/`), site (`site/`), painel (`site_admin/`),
   bots de Telegram (chat, usuários, monitor) e rádio (`/radio.mp3`, porta 8600).
 - **Acesso externo:** Tailscale Funnel `https://nicky-server.tail1b1f51.ts.net`
-  → 8000; WebSocket → 8001; rádio → 8600. Fora isso, LAN `192.168.0.x`.
-- **Integrações vivas:** Homebox (inventário, 8470), Google (Drive/Agenda/
-  Gmail, leitura), Firebase (push do app), Meta/WhatsApp (preparado, sem
-  credenciais), rádio e acervo musical.
+  → 8000; `/ws` → 8001; `/radio.mp3` → 8600. Fora isso, LAN `192.168.0.x`.
+- **Integrações vivas:** Homebox (inventário: 9 itens, 10 locais, 15 tags),
+  Google (Drive/Agenda/Gmail, leitura), Firebase (push do app), Meta/WhatsApp
+  (preparado, **sem credenciais no `.env`**), rádio e acervo musical.
 - **Serviço:** unidade de usuário `od-core.service` (`systemctl --user`),
   modo `all`, com auto-registro de cada restart em `iniciar/session.json`.
+- **Containers auxiliares:** Homebox, Home Assistant, Kiwix, Stirling PDF,
+  FileBrowser, Vaultwarden, AzuraCast etc. rodam em Docker, mas o núcleo do
+  OD (API, orquestrador, bots) **não** roda em container.
 
 ## 2. Como o trabalho é validado (regras que não podem ser afrouxadas)
 
@@ -44,8 +53,8 @@ responde é o processo local. A persona do assistente é a Nicky Virthy.
 ## 3. O que já funciona (não invente que falta)
 
 - Orquestrador com providers plugáveis, fallback entre LLMs locais/remotos,
-  intenções em pt-BR, 56+ actions e registro de ferramentas.
-- Memória de conversa, identidade/contas, permissões e painel admin.
+  intenções em pt-BR, **132 actions** e registro de ferramentas.
+- Memória de conversa (SQLite), identidade/contas, permissões e painel admin.
 - Saúde e observabilidade: `/health` (32 checks), telemetria (traces/métricas,
   `core/telemetry.py`), notificador proativo no Telegram (restart, LLM
   offline, disco, rede, crash loops), vigia de rede e auto-update com janela.
@@ -83,8 +92,16 @@ responde é o processo local. A persona do assistente é a Nicky Virthy.
 
 ## 5. O que o Meta AI NÃO deve supor
 
-- Não há Kubernetes, microsserviços, fila externa nem banco gerenciado.
-- Não há (ainda) WhatsApp/Meta ativo: só o webhook preparado.
+- Não há Kubernetes, microsserviços, fila externa nem banco gerenciado. Há
+  containers Docker auxiliares (Homebox, Home Assistant, Kiwix, Stirling
+  PDF etc.), mas o núcleo do OD não roda neles.
+- Não presuma que o chat depende de OpenAI: a chave está **sem créditos**.
+  O LLM padrão é local (llama-server, qwen2.5-coder-3b); Gemini e Groq são
+  fallback com chave válida.
+- Não diga que o catálogo tem 56 actions: são **132** (o número 56 é do
+  legado NV, citado em `ACTIONS_CORRESPONDENCIA.md`).
+- Não há (ainda) WhatsApp/Meta ativo: só o webhook preparado e sem
+  `OD_META_*` no `.env`.
 - Não há acesso remoto ao BIOS, iDRAC ou console fora do Tailscale.
 - Não existe um único arquivo que contenha "tudo": o estado é dividido entre
   código, `iniciar/session.json`, CHANGELOG e README_VERSAO (ver §6).

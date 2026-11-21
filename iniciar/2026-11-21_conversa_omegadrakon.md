@@ -343,3 +343,14 @@ nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
   `docs/RESUMO_PARA_META_AI.md` com índice + estado honesto (o que funciona,
   o que está pendente, o que não supor).
 - Resposta gravada em `txt.txt` (31 entradas em `docs/`, incluindo o novo).
+
+## §10 — Auditoria do resumo para o Meta AI
+
+- Não foi possível executar o Meta AI (sem `OD_META_*` e sem API); a auditoria
+  foi feita contra código e serviço.
+- Confirmados: 146 rotas, 32 checks, 132 actions, Homebox 9/10/15, Funnel
+  8000/8001/8600, PostgreSQL + SQLite, versão 1.46.1, gate 5621/19.
+- Corrigidos no resumo: "56+ actions" → 132; dependência de nuvem
+  (local por padrão, OpenAI sem créditos); memória SQLite vs banco Postgres;
+  containers auxiliares x núcleo; números datados.
+- `txt.txt` ganhou a seção 4 com o limite honesto e o roteiro de teste.
