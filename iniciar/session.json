@@ -6591,5 +6591,12 @@
     "bios": "OptiPlex 3040 NAO aceita ajuste por software: dell-wmi-sysman No such device e CCTK exige WMI-ACPI. Passo fisico em docs/QUEDA_DE_ENERGIA.md (F2 > Power Management > AC Recovery > Power On).",
     "alerta": "core/queda_energia.py detecta boot recente sem 'Journal stopped' no boot anterior; notifier anuncia queda + tempo fora no Telegram (bot monitor). Sem sinal, texto de restart comum.",
     "updated_at": "2026-11-21T05:20:00-03:00"
+  },
+  "resumo_meta_ai_2026_11_21": {
+    "pedido": "Dono: listar docs, dizer a fonte da verdade e gerar resumo para colar no Meta AI.",
+    "arquivo": "docs/RESUMO_PARA_META_AI.md (novo; nao existia equivalente).",
+    "fonte": "Sem arquivo unico: session.json (operacional), README_VERSAO+CHANGELOG (entregue), ANALISE_SISTEMA_TODO (pendente), ARCHITECTURE_v2 (arquitetura).",
+    "txt": "txt.txt reescrito com a resposta (31 entradas em docs/).",
+    "updated_at": "2026-11-21T05:40:00-03:00"
   }
 }

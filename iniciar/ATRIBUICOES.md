@@ -9,6 +9,26 @@
 
 ---
 
+## 21/11/2026 — Resumo do estado para o Meta AI
+
+**Autor:** Freebuff (Buffy) — pedido do dono no `txt.txt`.
+
+### Modificados
+
+- `docs/RESUMO_PARA_META_AI.md` (novo) — índice dos docs + resumo do estado
+  do sistema para colar no Meta AI.
+- `docs/CHANGELOG.md`, `iniciar/`, `txt.txt` (não versionado).
+
+### Intenção e estado
+
+- **Intenção:** impedir que o Meta AI invente capacidades/pendências por não
+  conhecer o estado real.
+- **Estado:** pronto. Não havia arquivo equivalente; o `txt.txt` foi
+  reescrito com o inventário dos 31 itens de `docs/`, a resposta sobre a
+  fonte da verdade (não há uma única) e o caminho do resumo.
+
+---
+
 ## 21/11/2026 — Retorno após queda de energia (aviso no Telegram + BIOS)
 
 **Autor:** Freebuff (Buffy) — pedido do dono.

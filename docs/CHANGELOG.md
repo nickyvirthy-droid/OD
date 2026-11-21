@@ -8943,3 +8943,11 @@ __signature__ = "OD // CORE"
   físico em `docs/QUEDA_DE_ENERGIA.md`.
 - Testes: `tests/test_queda_energia.py` (9 casos) e 2 no
   `tests/test_notifier.py`.
+
+## Índice consolidado para o Meta AI (2026-11-21, sem bump)
+
+- **`docs/RESUMO_PARA_META_AI.md`** (novo): índice dos documentos com data +
+  resumo do estado real (stack, números do gate, o que funciona, o que está
+  pendente/quebrado e o que não supor). Existe porque o estado estava
+  espalhado entre `ANALISE_SISTEMA_TODO`, `README_VERSAO`, `CHANGELOG` e
+  `ARCHITECTURE_v2`, sem um arquivo de colagem. Não é fonte primária.

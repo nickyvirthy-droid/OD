@@ -334,3 +334,12 @@ nenhuma existente, reiniciar e confirmar pelas URLs do Funnel.
   limpo seguem como restart comum; journal ilegível não inventa causa.
 - **Autor:** Freebuff (Buffy), 21/11. Testes: 108 em `test_queda_energia` +
   `test_notifier`.
+
+## §9 — Resumo do estado para o Meta AI
+
+- Pedido do dono: listar `docs/`, dizer a fonte da verdade e gerar um arquivo
+  de colagem para o Meta AI (sem duplicar se já existisse).
+- Não existia equivalente (`META_CONEXAO.md` é só o webhook). Criado
+  `docs/RESUMO_PARA_META_AI.md` com índice + estado honesto (o que funciona,
+  o que está pendente, o que não supor).
+- Resposta gravada em `txt.txt` (31 entradas em `docs/`, incluindo o novo).
