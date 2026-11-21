@@ -254,7 +254,27 @@ def readiness_report(
     elif bateria:
         item("energia", True, f"bateria visível: {', '.join(bateria)}")
     else:
-        item("energia", False, "sem UPS/bateria no SO — apagão derruba o servidor sem shutdown")
+        # Sem telemetria do no-break (o Attiv do dono não tem USB), a queda
+        # é inferida pelo vigia de energia; ele só conta se o desligamento
+        # estiver autorizado (senão avisa e não desliga).
+        vigia_ok = False
+        detalhe = "sem UPS/bateria no SO — apagão derruba o servidor sem shutdown"
+        try:
+            from core import energia as _energia
+
+            estado_energia = _energia.estado_atual()
+            autorizacao = estado_energia.get("autorizado") or {}
+            vigia_ok = bool(
+                isinstance(autorizacao, dict) and autorizacao.get("autorizado")
+            )
+            if vigia_ok:
+                detalhe = (
+                    "sem UPS no SO; queda inferida pela rede e shutdown "
+                    "gracioso pelo vigia de energia (autorizado)"
+                )
+        except Exception:
+            pass
+        item("energia", vigia_ok, detalhe)
 
     # 2. Disco: espaço para conteúdo offline novo
     try:

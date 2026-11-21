@@ -634,6 +634,11 @@ improvisar.
 **Prova viva:** 17 testes em `tests/test_colapso.py` (declaração automática e
 manual, sucesso não revoga manual, monitor revoga em 2 sondas, orquestrador
 pulando a nuvem e prefixando a resposta, action e health).
+**Junto:** `readiness_report` deixou de reprovar a energia por "sem UPS no
+SO" quando o vigia de inferência está **autorizado** a desligar — antes o
+relatório dizia "apagão derruba o servidor sem shutdown", o que deixou de ser
+verdade neste mesmo dia.
+
 
 ## Vigia de energia por inferência: aviso e desligamento gracioso (2026-11-21, sem bump)
 

@@ -15,6 +15,23 @@ from tools.actions.actions import readiness_report
 
 
 class TestReadinessReport:
+    def test_energia_conta_quando_o_vigia_esta_autorizado(
+        self, tmp_path, monkeypatch
+    ) -> None:
+        """Sem UPS no SO, o vigia de energia (inferência) substitui o upsc —
+        desde que o desligamento esteja autorizado pelo polkit."""
+        from core import energia as mod
+
+        monkeypatch.setattr(mod, "estado_atual", lambda: {
+            "estado": "normal", "autorizado": {"autorizado": True, "motivo": ""},
+        })
+        r = readiness_report(
+            zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path)
+        )
+        energia = next(i for i in r["itens"] if i["nome"] == "energia")
+        assert energia["ok"] is True
+        assert "vigia de energia" in energia["detalhe"]
+
     def test_relatorio_tem_os_nove_checks(self, tmp_path) -> None:
         r = readiness_report(zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path))
         nomes = [i["nome"] for i in r["itens"]]
