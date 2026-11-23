@@ -1,0 +1,78 @@
+[medindo] OpenCode…
+OpenCode falhou (exit=1): [0m
+> build · deepseek-v4.1-flash-free
+[91m[1mError: [0mFree usage limit reached. Connect a provider or subscribe to OpenCode Go to keep going, or switch models.
+  → falha em 3.42s
+[medindo] Kilo…
+Kilo falhou (exit=1): [91m[1mError: [0m{
+  "name": "UnknownError",
+  "data": {
+    "message": "Unexpected server error. Check server logs for details.",
+    "ref": "err_98699c02"
+  }
+}
+[91m[1mError: [0mModel not found: kilo/nvidia/nemotron-3-super-120b-a12b:free. Did you mean: nvidia/nemotron-3-super-120b-a12b, nvi
+  → falha em 10.43s
+[medindo] Gemini…
+Gemini falhou (exit=55): YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+YOLO mode is enabled. All tool calls will be automatically approved.
+Approval mode overridden to "default" because the current folder is not trusted.
+
+  → falha em 2.26s
+[medindo] Qwen…
+Qwen falhou (exit=1): Warning: running headless with --yolo / approval-mode=yolo and no sandbox. All tool calls (shell, write, edit) auto-execute at this process's privilege level. Configure tools.executionSandbox on Linux or a supported legacy sandbox via --sandbox / QWEN_SANDBOX, or set QWEN_CODE_SUPPRESS_YOLO_WARNING=
+  → falha em 2.23s
+[medindo] Claude…
+Claude falhou (exit=1): sem stderr
+  → falha em 2.27s
+[medindo] Crush…
+Crush falhou (exit=1): ERROR  
+          
+  Agent processing failed: failed to start agent processing stream: stream error: You have no credits remaining. Add  
+  credits to continue using the API at https://platform.openai.com/settings/organization/billing/..
+  → falha em 5.3s
+[medindo] Agy…
+  → ok em 10.65s
+[medindo] OpenClaw…
+OpenClaw falhou (exit=1): Error: No target session selected. Use --agent <id>, --session-key <key>, --session-id <id>, or --to <E.164>. Run openclaw agents list to see agents.
+  → falha em 10.15s
+[medindo] Codex…
+Codex falhou (exit=2): error: the argument '--sandbox <SANDBOX_MODE>' cannot be used with '--approve-for-me'
+
+Usage: codex exec [OPTIONS] [PROMPT]
+       codex exec [OPTIONS] <COMMAND> [ARGS]
+
+For more information, try '--help'.
+  → falha em 0.29s
+[medindo] Aider…
+Aider excediu 90s — grupo de processo morto (sem órfão mexendo no repo)
+  → timeout em 90.13s
+[medindo] Cline…
+  → ok em 6.6s
+[medindo] OpenClaude…
+  → ok em 3.3s
+[medindo] Interpreter…
+Interpreter falhou (exit=1): /opt/omegadrakon/builders/open-interpreter/.venv/lib/python3.12/site-packages/interpreter/core/utils/system_debug_info.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 20
+  → falha em 10.29s
+[medindo] Freebuff (sem headless; prazo curto)…
+  → timeout em 20.02s
+
+| # | CLI | resultado | s |
+|---|-----|-----------|---|
+| 1 | OpenClaude | ok | 3.3 |
+| 2 | Cline | ok | 6.6 |
+| 3 | Agy | ok | 10.65 |
+| 4 | Codex | falha | 0.29 |
+| 5 | Qwen | falha | 2.23 |
+| 6 | Gemini | falha | 2.26 |
+| 7 | Claude | falha | 2.27 |
+| 8 | OpenCode | falha | 3.42 |
+| 9 | Crush | falha | 5.3 |
+| 10 | OpenClaw | falha | 10.15 |
+| 11 | Interpreter | falha | 10.29 |
+| 12 | Kilo | falha | 10.43 |
+| 13 | Freebuff | timeout | 20.02 |
+| 14 | Aider | timeout | 90.13 |
+
+JSON: /home/alex/OmegaDrakon/logs/medicao_cascata_ias.json

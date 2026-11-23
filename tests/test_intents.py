@@ -828,6 +828,7 @@ class TestFastPathOrchestrator:
 
     @staticmethod
     def _orch(monkeypatch, *, registry=True) -> Orchestrator:
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "0")
         orch = Orchestrator(
             providers=[StaticProvider("test", "resposta-llm")],
             action_registry=build_registry(security=SecurityManager(mode="strict"))
@@ -1314,3 +1315,42 @@ class TestVigiaResposta:
         assert format_intent_result("network_bloquear", {
             "ok": True, "bloqueado": True, "mensagem": "AA bloqueado.",
         }) == "🛑 AA bloqueado."
+
+    @pytest.mark.parametrize("text", [
+        "reconhece a segurança",
+        "reconhece os eventos de segurança",
+        "reconhecer segurança",
+        "limpar eventos de segurança",
+        "limpa os alertas de segurança",
+        "pode parar de informar a segurança",
+        "parar de avisar sobre a segurança",
+        "reconhece o ssh",
+    ])
+    def test_reconhecer_seguranca(self, text: str) -> None:
+        intent = detect_action_intent(text)
+        assert intent is not None
+        assert intent[0] == "network_conhecer"
+        assert intent[1] == {"alvo": "seguranca"}
+
+    def test_sucesso_seguranca_declarado_pela_action(self) -> None:
+        assert format_intent_result("network_conhecer", {
+            "ok": True, "reconhecido": True, "tipo": "seguranca", "quantidade": 4,
+            "mensagem": "4 evento(s) de segurança reconhecido(s) — avisos de segurança encerrados.",
+        }) == "✅ 4 evento(s) de segurança reconhecido(s) — avisos de segurança encerrados."
+
+    @pytest.mark.parametrize("text", [
+        # "limpar"/"eventos"/"alertas" são palavras do dia a dia: sem o
+        # contexto de SEGURANÇA ou de REDE a frase NÃO pode virar ack nem
+        # listagem de dispositivos — segue para o LLM como sempre.
+        "limpar eventos do calendário",
+        "limpa os eventos da agenda",
+        "limpar os alertas do sistema",
+        "limpa a lixeira",
+        "reconhece meu erro",
+        "quero reconhecer o trabalho dele",
+    ])
+    def test_limpar_generico_nao_vira_vigia(self, text: str) -> None:
+        intent = detect_action_intent(text)
+        assert intent is None or intent[0] not in (
+            "network_conhecer", "network_bloquear",
+        )

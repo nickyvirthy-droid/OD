@@ -610,13 +610,14 @@ def conhecer(mac: str, nome: str = "") -> None:
     print(f"{chave} reconhecido" + (f" como {nome}" if nome else "") + ".")
 
 
-def ack_seguranca() -> None:
+def ack_seguranca() -> int:
     estado = carregar_estado()
     n = len(estado["pendentes_seguranca"])
     estado["pendentes_seguranca"] = []
     salvar_estado(estado)
     reemite_estado()
     print(f"{n} evento(s) de segurança reconhecido(s).")
+    return n
 
 
 def reemite_estado() -> bool:

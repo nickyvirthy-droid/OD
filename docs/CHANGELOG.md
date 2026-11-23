@@ -52,6 +52,55 @@ pediu o APK; um build com o mesmo code não seria oferecido pela auto-atualizaç
 `sha256` `ac60b136…` batendo com o arquivo em `site/`;
 `/site/OmegaDrakon-arm64.apk` 200 (27.038.253 B); `/health` `ok=true`.
 
+## Reconhecimento de eventos de segurança do Vigia via chat e action (2026-11-23, sem bump)
+
+**Contexto (ordem do dono, txt.txt):** *"🟡 [WARN] network — 4 evento(s) de segurança
+pendente(s) — última: [sshd] Nov 21 01:47:41 nicky-server sshd[3724576]: Disconnected
+from invalid user ALEX 100.77.242.82 port 54494 [preauth] (23/11 04:58:34) — Como
+resolver isso. Foi um erro de digitação. pode parar de informar."*
+
+**Causa e resolução imediata:** 4 tentativas sshd com usuário 'ALEX' em maiúsculo
+vindas do desktop do dono via Tailscale (100.77.242.82) em 21/11 01:47 geraram
+eventos de segurança no Vigia que permaneceram na fila de pendências. Executado
+`tools/monitor/network_watchdog.py --ack-seguranca`: os 4 eventos foram zerados, a
+linha de estado foi reemitida e o alerta parou imediatamente.
+
+**O que entrou no código:**
+
+- `tools/actions/actions.py`: `network_conhecer` agora aceita `alvo="seguranca"`
+  (ou vazio quando apenas eventos de segurança estiverem pendentes) e executa
+  `vigia.ack_seguranca()`, reemitindo a linha de estado na hora. `network_bloquear`
+  recusa com erro honesto se o alvo for segurança (bloqueio só se aplica a MAC/IP).
+- `core/intents.py`: `_detect_vigia` reconhece termos de segurança ("reconhece a
+  segurança", "reconhece os eventos de segurança", "limpar eventos de segurança",
+  "pode parar de informar a segurança", "reconhece o ssh") e despacha para
+  `("network_conhecer", {"alvo": "seguranca"})`. O contexto de segurança é
+  fechado (segurança/sshd/invalid user): "limpar eventos do calendário" e
+  "limpa os alertas do sistema" continuam indo ao LLM, sem listar dispositivos.
+- `integrations/notifier.py`: sonda `_check_network` inclui instrução de como
+  reconhecer no alerta `net:seguranca` ("Para reconhecer, responda no chat:
+  'reconhece a segurança'").
+- `tools/monitor/network_watchdog.py`: `ack_seguranca()` devolve a quantidade
+  `n: int` de eventos reconhecidos.
+- Testes: novos testes em `tests/test_intents.py` (detecção de intenção,
+  formatação e 6 frases genéricas que NÃO podem virar Vigia) e
+  `tests/test_network_watchdog.py` (`TestNetworkConhecerSeguranca`).
+
+**Causa do gate vermelho (53 falhas repetidas):** a cascata de IAs exporta o
+`.env` real no ambiente do pytest (`OD_ORCHESTRATOR_GRAPH=1`,
+`OD_CHAT_PROVIDERS=groq,gemini,local`, `OD_IA_ORDEM=groq,...`). A suíte herdava
+esses valores e os testes de rota direta/cadeia padrão respondiam pela rota
+errada sem nenhum defeito de código. `tests/conftest.py` agora remove essas
+três variáveis de runtime no import (mesmo padrão da guarda da cota); quem
+precisa do grafo ligado ou de outra ordem usa `monkeypatch.setenv` no teste.
+
+**Validado:** gate completo `pytest -q` → **5641 passed / 19 skipped / 0 falha**
+(241,82 s; antes 5583 passed / 52 failed pelos três arquivos de teste que
+herdavam o ambiente). Fila de eventos vivos conferida zerada em
+`logs/network_watchdog_estado.json`; `/health` `ok=true`. O código do chat só
+entra no ar no próximo restart do `od-core` (serviço segue rodando o de 21/11
+05:38) — restart fica registrado em `iniciar/` quando autorizado.
+
 ## Falha controlada do restore: aviso de verdade chegou no Telegram (2026-11-19, sem bump)
 
 **Contexto (ordem do dono):** *"Force uma falha controlada num dump de teste

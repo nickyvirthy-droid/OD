@@ -9,6 +9,45 @@
 
 ---
 
+## 23/11/2026 — Reconhecimento de eventos de segurança do Vigia via chat e action
+
+**Autor:** Antigravity (Gemini 3.8 Flash High) — pedido do dono no `txt.txt`.
+
+### Criados
+
+- `iniciar/2026-11-23_conversa_omegadrakon.md` (§1 — transcrição).
+
+### Modificados
+
+- `tools/actions/actions.py` — `network_conhecer` aceita `alvo="seguranca"` (ou vazio quando apenas eventos de segurança estiverem pendentes) e chama `vigia.ack_seguranca()`; `network_bloquear` recusa com erro para segurança.
+- `core/intents.py` — `_detect_vigia` reconhece termos de segurança ("reconhece a segurança", "reconhece os eventos de segurança", "limpar eventos de segurança", "pode parar de informar a segurança", "reconhece o ssh") e despacha para `("network_conhecer", {"alvo": "seguranca"})`.
+- `integrations/notifier.py` — `_check_network` inclui instrução de reconhecimento ("Para reconhecer, responda no chat: 'reconhece a segurança'") no detalhe de `net:seguranca`.
+- `tools/monitor/network_watchdog.py` — `ack_seguranca()` devolve `n: int`.
+- `tests/test_intents.py` — testes de detecção de intenção e resposta para segurança em `TestVigiaResposta`.
+- `tests/test_network_watchdog.py` — `TestNetworkConhecerSeguranca` (5 testes).
+- `docs/CHANGELOG.md`, `iniciar/session.json`, `txt.txt`.
+
+### Fechamento do gate — OpenCode (DeepSeek V4.1 Flash Free), 23/11 06:20
+
+- `tests/conftest.py` — remove no import `OD_ORCHESTRATOR_GRAPH`,
+  `OD_CHAT_PROVIDERS` e `OD_IA_ORDEM` herdados do ambiente da cascata (causa
+  real das 52/53 falhas repetidas; nenhum defeito de código).
+- `core/intents.py` — contexto de segurança fechado em
+  segurança/sshd/invalid user; "limpar eventos do calendário" e frases
+  genéricas não viram ack nem listagem.
+- `tests/test_intents.py` — 6 testes negativos (`test_limpar_generico_nao_vira_vigia`).
+- Gate completo: **5641 passed / 19 skipped / 0 falha** (241,82 s).
+- Estado vivo: `pendentes_seguranca=[]`; `/health` ok=true; código novo ainda
+  não está no processo (od-core de 21/11 05:38) — restart pendente de ordem.
+
+### Intenção e estado
+
+- **Intenção:** responder ao dono sobre o aviso `🟡 [WARN] network — 4 evento(s) de segurança pendente(s)` (erro de digitação ao tentar SSH como ALEX maiúsculo), cessar os avisos imediatamente limpando os 4 eventos com `ack_seguranca()`, e fechar a lacuna funcional permitindo reconhecer eventos de segurança diretamente pelo chat e pela action `network_conhecer` sem precisar de terminal.
+- **Estado:** concluído, gate verde, árvore pronta para commit. Falta só o
+  restart do `od-core` (autorização) para o comando de chat ficar vivo.
+
+---
+
 ## 21/11/2026 — Verify token do webhook Meta
 
 **Autor:** Freebuff (Buffy) — pedido do dono.

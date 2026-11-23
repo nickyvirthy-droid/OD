@@ -6619,5 +6619,20 @@
     "post_sem_credenciais": "503 (handler nao plugado)",
     "doc": "docs/META_CONEXAO.md secao 8 com passo a passo do painel",
     "updated_at": "2026-11-21T05:45:00-03:00"
+  },
+  "reconhecimento_seguranca_vigia_2026_11_23": {
+    "pedido": "Dono (txt.txt 23/11 04:58): '🟡 [WARN] network — 4 evento(s) de segurança pendente(s) — última: [sshd] Nov 21 01:47:41 nicky-server sshd[3724576]: Disconnected from invalid user ALEX 100.77.242.82 port 54494 [preauth] (23/11 04:58:34). Como resolver isso. Foi um erro de digitação. pode parar de informar.'",
+    "diagnostico": "4 tentativas sshd com ALEX em maiúsculo de 100.77.242.82 (desktop dele via tailnet). No Linux o usuário alex é minúsculo; sshd marcou invalid user e o Vigia reteve em pendentes_seguranca gerando aviso periódico.",
+    "acao_imediata": "tools/monitor/network_watchdog.py --ack-seguranca executado no sistema vivo; 4 eventos zerados e reemite_estado() atualizou a linha do log na hora; _check_network voltou a ok=True.",
+    "codigo": "tools/actions/actions.py: network_conhecer aceita alvo='seguranca' (ou vazio quando apenas eventos de segurança estiverem pendentes) e chama vigia.ack_seguranca(); network_bloquear recusa para segurança. core/intents.py: _detect_vigia reconhece 'reconhece a segurança', 'reconhece os eventos de segurança', 'limpar eventos de segurança', 'pode parar de informar a segurança' -> ('network_conhecer', {'alvo': 'seguranca'}). integrations/notifier.py: alerta net:seguranca inclui dica acionável de resposta. tools/monitor/network_watchdog.py: ack_seguranca devolve contagem n.",
+    "testes": "GATE COMPLETO: 5641 passed / 19 skipped / 0 falha (241,82 s) — 309 em test_intents+test_network_watchdog, 6 novos negativos (frases genéricas de limpar/eventos/alertas não viram Vigia).",
+    "causa_gate_vermelho": "A cascata exporta o .env real no ambiente do pytest (OD_ORCHESTRATOR_GRAPH=1, OD_CHAT_PROVIDERS/OD_IA_ORDEM=groq,...); 52 testes de rota direta/cadeia padrão herdavam e falhavam sem defeito. tests/conftest.py remove as 3 variáveis de runtime no import (mesmo padrão da cota); quem precisa liga por monkeypatch no próprio teste.",
+    "endurecimento_intencao": "core/intents.py: contexto de segurança fechado em segurança/sshd/invalid user; 'limpar eventos do calendário' e 'limpa os alertas do sistema' seguem ao LLM (antes listariam/limparm demais).",
+    "estado_vivo": "logs/network_watchdog_estado.json com pendentes_seguranca=[] e pendentes_novos=[]; /health ok=true; od-core MainPID 3986249 ativo desde 21/11 05:38 (código novo AINDA NÃO no ar).",
+    "restart_pendente": "O chat 'reconhece a segurança' só funciona no processo novo — restart do od-core aguarda autorização (regra 7 na sessão atual).",
+    "autor": "Antigravity (Gemini 3.8 Flash High) implementou a base; OpenCode (DeepSeek V4.1 Flash Free) fechou o gate: conftest hermético, regex endurecida e 6 testes negativos.",
+    "txt": "txt.txt atualizado com a explicação do erro de digitação e como reconhecer pelo chat.",
+    "sem_bump": "1.46.1+2084 mantido (sem necessidade de deploy de APK novo).",
+    "updated_at": "2026-11-23T06:20:00-03:00"
   }
 }

@@ -688,7 +688,8 @@ def _check_network(notifier: "ProactiveNotifier") -> CheckResult:
                     f"{len(pendentes_seg)} evento(s) de segurança "
                     f"pendente(s) — última: "
                     f"[{ultima.get('origem', '?')}] "
-                    f"{str(ultima.get('msg', '?'))[:140]}"
+                    f"{str(ultima.get('msg', '?'))[:140]}. "
+                    f"Para reconhecer, responda no chat: 'reconhece a segurança'."
                 ),
             )
 

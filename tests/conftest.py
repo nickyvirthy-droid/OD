@@ -42,6 +42,22 @@ os.environ["OD_QUOTA_FILE"] = str(
     Path(tempfile.mkdtemp(prefix="od-quota-testes-")) / "llm_quota.json"
 )
 
+# Guarda de configuração de RUNTIME (23/11/2026): a cascata de IAs exporta o
+# `.env` real no ambiente do pytest (`OD_ORCHESTRATOR_GRAPH=1`,
+# `OD_CHAT_PROVIDERS=groq,gemini,local`, `OD_IA_ORDEM=groq,...`). A suíte
+# herdava isso e 52 testes que exercitam a rota DIRETA e a cadeia PADRÃO
+# ficavam vermelhos sem nenhum defeito de código (histórico: 53 failed
+# repetidos depois de uma rodada verde). Igual à cota acima, o conftest roda
+# ANTES dos módulos de teste: quem precisa do grafo ligado ou de outra ordem
+# liga por `monkeypatch.setenv` dentro do próprio teste
+# (`tests/test_orchestrator_graph_integration.py`, `tests/test_llm.py`).
+for _variavel_de_runtime in (
+    "OD_ORCHESTRATOR_GRAPH",
+    "OD_CHAT_PROVIDERS",
+    "OD_IA_ORDEM",
+):
+    os.environ.pop(_variavel_de_runtime, None)
+
 
 @pytest.fixture(autouse=True)
 def _limitacoes_isoladas(tmp_path, monkeypatch):

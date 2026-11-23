@@ -105,11 +105,19 @@ def _detect_network(text: str) -> Optional[str]:
 # Entram ANTES de `_detect_network`: "reconhece os dispositivos da rede"
 # casa nos dois padrões e a resposta certa é RESOLVER, não listar.
 _VIGIA_RESOLVE = re.compile(
-    r"\b(?:reconhe[cç](?:a|eu|e|ou|emos)|conhe[cç](?:a|eu|e|ou)|aceit[ae])\b",
+    r"\b(?:reconhe[cç](?:a|eu|e|ou|emos|er)?|conhe[cç](?:a|eu|e|ou|er)?|aceit[ae]r?|limp(?:ar?|e))\b",
     re.IGNORECASE,
 )
 _VIGIA_BLOQUEIA = re.compile(
     r"\b(?:bloque(?:ar|ia|ie|ou|ado)|negu[ei]|banir|bani)\b",
+    re.IGNORECASE,
+)
+_VIGIA_PARAR_AVISO = re.compile(
+    r"\b(?:parar?\s+de\s+(?:informar|avisar)|pode\s+parar\s+de\s+(?:informar|avisar))\b",
+    re.IGNORECASE,
+)
+_VIGIA_SEG_RE = re.compile(
+    r"\b(?:seguran[cç]a|sshd?|invalid\s+user)\b",
     re.IGNORECASE,
 )
 # Contexto de rede obrigatório quando não há alvo explícito: sem ele,
@@ -118,6 +126,7 @@ _VIGIA_BLOQUEIA = re.compile(
 _VIGIA_CONTEXTO = (
     "dispositivo", "aparelho", "vigia", "pendente", "desconhecido",
     "mac", "celular", "host", "equipamento", "conectad", "aparecid",
+    "seguranç", "seguranc", "ssh",
 )
 _VIGIA_MAC_RE = re.compile(r"\b([0-9A-Fa-f]{2}(?:[:\-][0-9A-Fa-f]{2}){5})\b")
 _VIGIA_IP_RE = re.compile(r"\b(\d{1,3}(?:\.\d{1,3}){3})\b")
@@ -131,27 +140,32 @@ _VIGIA_NUM_RE = re.compile(
 
 
 def _detect_vigia(text: str) -> Optional[tuple[str, dict[str, Any]]]:
-    """'reconhece o dispositivo' / 'bloqueia o 2' → action do Vigia.
+    """'reconhece o dispositivo' / 'bloqueia o 2' / 'reconhece a segurança' → action do Vigia.
 
-    Alvo (MAC, IP ou número da listagem) sai da frase quando existir; sem
-    alvo a ACTION resolve sozinha (um pendente = aquele; vários = listagem
-    numerada para o dono escolher — nunca se escolhe por conta própria).
+    Alvo (MAC, IP, número da listagem ou 'seguranca') sai da frase quando existir;
+    sem alvo a ACTION resolve sozinha (um pendente = aquele; se apenas segurança
+    estiver pendente = reconhece segurança; vários = listagem numerada para o dono
+    escolher — nunca se escolhe por conta própria).
     """
     if not text or not text.strip():
         return None
     acao = None
     if _VIGIA_BLOQUEIA.search(text):
         acao = "network_bloquear"
-    elif _VIGIA_RESOLVE.search(text):
+    elif _VIGIA_RESOLVE.search(text) or _VIGIA_PARAR_AVISO.search(text):
         acao = "network_conhecer"
     if acao is None:
         return None
+
+    baixo = text.lower()
+    if _VIGIA_SEG_RE.search(text):
+        return acao, {"alvo": "seguranca"}
+
     alvo_match = (
         _VIGIA_MAC_RE.search(text)
         or _VIGIA_IP_RE.search(text)
         or _VIGIA_NUM_RE.search(text)
     )
-    baixo = text.lower()
     if alvo_match is None and not any(
         termo in baixo for termo in _VIGIA_CONTEXTO
     ):

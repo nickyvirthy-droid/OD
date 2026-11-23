@@ -1029,3 +1029,131 @@ class TestReemiteEstado:
         assert novo["ativos"] == 19 and novo["conhecidos_ativos"] == 18
         assert novo["rich"] is True and novo["ts"] != "t0"
         assert novo["pendentes_novos"] == []
+
+
+class TestNetworkConhecerSeguranca:
+    """Testes da resolução de eventos de segurança via `network_conhecer`."""
+
+    def test_conhecer_seguranca_limpa_eventos_e_reemite_log(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.actions.actions import network_conhecer
+        from tools.monitor import network_watchdog as vigia
+
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vigia, "ESTADO_FILE", tmp_path / "estado.json")
+        monkeypatch.setattr(vigia, "vizinhos_sem_ping", lambda rede=None: {})
+
+        vigia.salvar_estado({
+            "dispositivos": {},
+            "pendentes_novos": [],
+            "pendentes_seguranca": [
+                {"origem": "sshd", "msg": "Invalid user ALEX", "ts_evento": "t1"},
+                {"origem": "sshd", "msg": "Disconnected", "ts_evento": "t2"},
+            ],
+            "ciclos": 1,
+        })
+        (tmp_path / "network_watchdog.log").write_text(
+            json.dumps({"ts": "t0", "tipo": "estado", "ativos": 10,
+                        "conhecidos_ativos": 10, "pendentes_novos": [],
+                        "pendentes_seguranca": [{"origem": "sshd"}], "rich": False}) + "\n",
+            encoding="utf-8",
+        )
+
+        res = network_conhecer(alvo="seguranca")
+        assert res["ok"] is True
+        assert res["reconhecido"] is True
+        assert res["tipo"] == "seguranca"
+        assert res["quantidade"] == 2
+        assert "2 evento(s) de segurança reconhecido(s)" in res["mensagem"]
+
+        estado = vigia.carregar_estado()
+        assert estado["pendentes_seguranca"] == []
+
+        linhas = [json.loads(l) for l in
+                  (tmp_path / "network_watchdog.log").read_text("utf-8").splitlines()]
+        assert len(linhas) == 2
+        assert linhas[-1]["pendentes_seguranca"] == []
+
+    def test_conhecer_seguranca_variacoes_de_alvo(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.actions.actions import network_conhecer
+        from tools.monitor import network_watchdog as vigia
+
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vigia, "ESTADO_FILE", tmp_path / "estado.json")
+
+        for termo in ("segurança", "ssh", "eventos"):
+            vigia.salvar_estado({
+                "dispositivos": {},
+                "pendentes_novos": [],
+                "pendentes_seguranca": [{"origem": "sshd", "msg": "test", "ts_evento": "t"}],
+            })
+            res = network_conhecer(alvo=termo)
+            assert res["ok"] is True
+            assert res["tipo"] == "seguranca"
+            assert vigia.carregar_estado()["pendentes_seguranca"] == []
+
+    def test_conhecer_auto_seguranca_quando_sem_dispositivos(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.actions.actions import network_conhecer
+        from tools.monitor import network_watchdog as vigia
+
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vigia, "ESTADO_FILE", tmp_path / "estado.json")
+
+        vigia.salvar_estado({
+            "dispositivos": {},
+            "pendentes_novos": [],
+            "pendentes_seguranca": [{"origem": "sshd", "msg": "test", "ts_evento": "t"}],
+        })
+        res = network_conhecer(alvo="")
+        assert res["ok"] is True
+        assert res["tipo"] == "seguranca"
+        assert res["quantidade"] == 1
+        assert vigia.carregar_estado()["pendentes_seguranca"] == []
+
+    def test_conhecer_seguranca_sem_pendencias(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.actions.actions import network_conhecer
+        from tools.monitor import network_watchdog as vigia
+
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vigia, "ESTADO_FILE", tmp_path / "estado.json")
+
+        vigia.salvar_estado({
+            "dispositivos": {},
+            "pendentes_novos": [],
+            "pendentes_seguranca": [],
+        })
+        res = network_conhecer(alvo="seguranca")
+        assert res["ok"] is True
+        assert res.get("sem_pendencias") is True
+        assert "Nenhum evento de segurança pendente" in res["mensagem"]
+
+    def test_bloquear_seguranca_recusa(
+        self, tmp_path: Path, monkeypatch,
+    ) -> None:
+        from tools.actions.actions import network_bloquear
+        from tools.monitor import network_watchdog as vigia
+
+        monkeypatch.setattr(vigia, "LOG_DIR", tmp_path)
+        monkeypatch.setattr(vigia, "LOG_FILE", tmp_path / "network_watchdog.log")
+        monkeypatch.setattr(vigia, "ESTADO_FILE", tmp_path / "estado.json")
+
+        vigia.salvar_estado({
+            "dispositivos": {},
+            "pendentes_novos": [],
+            "pendentes_seguranca": [{"origem": "sshd", "msg": "test", "ts_evento": "t"}],
+        })
+        res = network_bloquear(alvo="seguranca")
+        assert res["ok"] is False
+        assert "Bloqueio só se aplica a dispositivos" in res["error"]
+

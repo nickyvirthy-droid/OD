@@ -1,0 +1,121 @@
+{
+  "medido_em": "2026-11-19T15:30:38-0300",
+  "prompt": "Responda apenas com a palavra: ok",
+  "timeout_s": 90,
+  "ordem_medida": [
+    "OpenClaude",
+    "Cline",
+    "Agy",
+    "Codex",
+    "Qwen",
+    "Gemini",
+    "Claude",
+    "OpenCode",
+    "Crush",
+    "OpenClaw",
+    "Interpreter",
+    "Kilo",
+    "Freebuff",
+    "Aider"
+  ],
+  "resultados": [
+    {
+      "nome": "OpenClaude",
+      "binario": "/home/alex/OmegaDrakon/tools/openclaude_headless.sh",
+      "resultado": "ok",
+      "segundos": 3.3,
+      "resposta": "ok"
+    },
+    {
+      "nome": "Cline",
+      "binario": "/home/alex/.npm-global/bin/cline",
+      "resultado": "ok",
+      "segundos": 6.6,
+      "resposta": "\u001b[2m[thinking] \u001b[0m\u001b[2mThe\u001b[0m\u001b[2m user is asking me\u001b[0m\u001b[2m to respond only with\u001b[0m\u001b[2m the word \"ok\u001b[0m\u001b[2m\" in Portuguese context\u001b[0m\u001b[2m (\"Responda\u001b[0m\u001b[2m apenas com a palavra\u001b[0m\u001b[2m: ok\"\u001b[0m\u001b["
+    },
+    {
+      "nome": "Agy",
+      "binario": "/home/alex/.local/bin/agy",
+      "resultado": "ok",
+      "segundos": 10.65,
+      "resposta": "ok"
+    },
+    {
+      "nome": "Codex",
+      "binario": "/home/alex/.npm-global/bin/codex",
+      "resultado": "falha",
+      "segundos": 0.29,
+      "resposta": ""
+    },
+    {
+      "nome": "Qwen",
+      "binario": "/home/alex/.npm-global/bin/qwen",
+      "resultado": "falha",
+      "segundos": 2.23,
+      "resposta": ""
+    },
+    {
+      "nome": "Gemini",
+      "binario": "/home/alex/.npm-global/bin/gemini",
+      "resultado": "falha",
+      "segundos": 2.26,
+      "resposta": ""
+    },
+    {
+      "nome": "Claude",
+      "binario": "/home/alex/.npm-global/bin/claude",
+      "resultado": "falha",
+      "segundos": 2.27,
+      "resposta": ""
+    },
+    {
+      "nome": "OpenCode",
+      "binario": "/home/alex/.npm-global/bin/opencode",
+      "resultado": "falha",
+      "segundos": 3.42,
+      "resposta": ""
+    },
+    {
+      "nome": "Crush",
+      "binario": "/home/alex/.npm-global/bin/crush",
+      "resultado": "falha",
+      "segundos": 5.3,
+      "resposta": ""
+    },
+    {
+      "nome": "OpenClaw",
+      "binario": "/opt/omegadrakon/builders/openclaw/bin/openclaw",
+      "resultado": "falha",
+      "segundos": 10.15,
+      "resposta": ""
+    },
+    {
+      "nome": "Interpreter",
+      "binario": "/opt/omegadrakon/builders/open-interpreter/.venv/bin/interpreter",
+      "resultado": "falha",
+      "segundos": 10.29,
+      "resposta": ""
+    },
+    {
+      "nome": "Kilo",
+      "binario": "kilo",
+      "resultado": "falha",
+      "segundos": 10.43,
+      "resposta": ""
+    },
+    {
+      "nome": "Freebuff",
+      "binario": "freebuff",
+      "resultado": "timeout",
+      "segundos": 20.02,
+      "resposta": ""
+    },
+    {
+      "nome": "Aider",
+      "binario": "/home/alex/OmegaDrakon/.venv/bin/aider",
+      "resultado": "timeout",
+      "segundos": 90.13,
+      "resposta": ""
+    }
+  ]
+}

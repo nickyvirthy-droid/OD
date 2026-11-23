@@ -2931,13 +2931,16 @@ def _alvo_do_vigia(alvo: str) -> dict[str, Any]:
     """Resolve QUAL pendente do Vigia a ação vai tocar.
 
     Contrato de retorno:
-      * ``{"ok": True, "chave": <MAC>}`` → executar;
+      * ``{"ok": True, "chave": <MAC>}`` → executar reconhecimento de MAC;
+      * ``{"ok": True, "tipo": "seguranca", "pendentes_seguranca": [...]}`` → executar ack_seguranca;
       * ``{"ok": True, "sem_pendencias": True, ...}`` → nada a resolver;
       * ``{"ok": False, ...}`` → devolver como está (erro ou listagem).
 
     ``alvo`` aceita MAC, IP ou o NÚMERO da listagem (regra 14: o dono não
-    digita MAC). Sem ``alvo``: um pendente só = aquele; vários = listagem
-    numerada para ele escolher — **nunca** se escolhe por conta própria.
+    digita MAC) ou "seguranca" / "ssh" / "eventos" para eventos de segurança.
+    Sem ``alvo``: um pendente só = aquele; se só houver eventos de segurança =
+    reconhece segurança; vários = listagem numerada para ele escolher —
+    **nunca** se escolhe por conta própria.
     """
     from tools.monitor import network_watchdog as vigia
 
@@ -2951,12 +2954,33 @@ def _alvo_do_vigia(alvo: str) -> dict[str, Any]:
     pendentes = [
         p for p in (estado.get("pendentes_novos") or []) if isinstance(p, dict)
     ]
+    pendentes_seg = [
+        p for p in (estado.get("pendentes_seguranca") or []) if isinstance(p, dict)
+    ]
     bruto = str(alvo or "").strip()
+    baixo = bruto.lower()
+
+    if baixo in ("seguranca", "segurança", "ssh", "evento", "eventos", "alerta", "alertas"):
+        if not pendentes_seg:
+            return {
+                "ok": True, "sem_pendencias": True, "tipo": "seguranca",
+                "mensagem": "Nenhum evento de segurança pendente — nada a reconhecer.",
+            }
+        return {
+            "ok": True, "tipo": "seguranca", "chave": "seguranca",
+            "pendentes_seguranca": pendentes_seg,
+        }
+
     if not bruto:
         if not pendentes:
+            if pendentes_seg:
+                return {
+                    "ok": True, "tipo": "seguranca", "chave": "seguranca",
+                    "pendentes_seguranca": pendentes_seg,
+                }
             return {
                 "ok": True, "sem_pendencias": True,
-                "mensagem": "Nenhum dispositivo desconhecido pendente — "
+                "mensagem": "Nenhum dispositivo desconhecido nem evento de segurança pendente — "
                             "nada a reconhecer nem a bloquear.",
             }
         if len(pendentes) > 1:
@@ -3008,13 +3032,15 @@ def _alvo_do_vigia(alvo: str) -> dict[str, Any]:
 
 
 def network_conhecer(alvo: str = "", nome: str = "") -> dict[str, Any]:
-    """Reconhece um dispositivo da rede e encerra o alerta do Vigia.
+    """Reconhece um dispositivo ou eventos de segurança e encerra o alerta do Vigia.
 
-    O MESMO caminho do CLI `network_watchdog.py --conhecer MAC [nome]`:
-    marca `conhecido=True`, guarda o nome (se vier) e tira o MAC de
-    `pendentes_novos`. A linha de estado é reemitida na hora — o aviso
-    `net:dispositivo-novo` some imediatamente em vez de repetir até o
-    próximo ciclo do timer (5 min).
+    O MESMO caminho do CLI `network_watchdog.py --conhecer MAC [nome]` ou
+    `network_watchdog.py --ack-seguranca`:
+    se o alvo for "seguranca" (ou vazio quando apenas eventos de segurança estiverem
+    pendentes), limpa os eventos de segurança pendentes. Para dispositivo, marca
+    `conhecido=True`, guarda o nome (se vier) e tira o MAC de `pendentes_novos`.
+    A linha de estado é reemitida na hora — o aviso some imediatamente em vez de
+    repetir até o próximo ciclo do timer (5 min).
     """
     alvo_resolvido = _alvo_do_vigia(alvo)
     if not alvo_resolvido.get("ok"):
@@ -3022,6 +3048,20 @@ def network_conhecer(alvo: str = "", nome: str = "") -> dict[str, Any]:
     if alvo_resolvido.get("sem_pendencias"):
         return alvo_resolvido
     from tools.monitor import network_watchdog as vigia
+
+    if alvo_resolvido.get("tipo") == "seguranca":
+        n = len(alvo_resolvido.get("pendentes_seguranca") or [])
+        vigia.ack_seguranca()
+        return {
+            "ok": True,
+            "reconhecido": True,
+            "tipo": "seguranca",
+            "quantidade": n,
+            "mensagem": (
+                f"{n} evento(s) de segurança reconhecido(s) — avisos de "
+                f"segurança encerrados."
+            ),
+        }
 
     chave = str(alvo_resolvido.get("chave") or "")
     nome_limpo = str(nome or "").strip()[:40]
@@ -3052,6 +3092,11 @@ def network_bloquear(alvo: str = "") -> dict[str, Any]:
         return alvo_resolvido
     if alvo_resolvido.get("sem_pendencias"):
         return alvo_resolvido
+    if alvo_resolvido.get("tipo") == "seguranca":
+        return {
+            "ok": False,
+            "error": "Bloqueio só se aplica a dispositivos da rede (MAC/IP/número), não a eventos de segurança.",
+        }
     from tools.monitor import network_watchdog as vigia
 
     chave = str(alvo_resolvido.get("chave") or "")
