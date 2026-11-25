@@ -108,3 +108,73 @@ em vez de inventar.
   reconhecer"). O ack com eventos de verdade foi provado em 23/11 no processo
   antigo e nos testes (`TestNetworkConhecerSeguranca`), não agora — não fabriquei
   evento de segurança falso só para ver a mensagem de sucesso.
+
+## §3 — Offsite do dump do Postgres fechado com prova (25/11 14:50)
+
+### Ordem do Dono
+
+> Feche o offsite físico do backup do Postgres fora da máquina
+
+### O que já existia (medido, não presumido)
+
+O dump diário de `data/pg_dumps/` (timer `od-pg-dump`, 02:50) já saía da
+máquina por **dois** caminhos:
+
+1. **HDs externas** — `core/hd_backup.py` faz snapshot diário às ~03:44 das duas
+   HDs (`/home/alex/dados` = **`/dev/sdb1`**, disco separado do sistema, e
+   `/mnt/Arquivos`) levando o repo inteiro, logo `data/pg_dumps/`;
+2. **canal privado do Telegram** — o tar diário das 03:00 leva `data/` e o
+   `core/offsite.py` envia o tar ao canal, registrando nome + sha256 em
+   `data/offsite_state.json`.
+
+O que **não** existia: prova de que o arquivo que chegou é o que foi gerado,
+e guarda contra silêncio (exclusão nova, tar trocado, cópia truncada).
+
+### Medições
+
+| Destino | Cópia | sha256 |
+|---|---|---|
+| `data/pg_dumps/od-2026-11-25_0250.sql.gz` (origem, 37.806 B) | — | `3bfaff1c…` |
+| Mídias — `snapshot_od-2026-11-25_0346` | idêntico | `3bfaff1c…` |
+| Arquivos — `snapshot_od-2026-11-25_0347` | idêntico | `3bfaff1c…` |
+| Canal — `od-2026-11-25_0301.tar.gz` (sha `a46ee6df…`, o do `offsite_state.json`) | membro do tar idêntico | `3bfaff1c…` |
+
+**Restauração a partir da cópia do HD** (não do original):
+
+```
+tools/testar_restauracao_pg.py --dump <snapshot 03:46>/…/od-2026-11-25_0250.sql.gz
+→ RESTORE OK em 0,17 s · 14 tabelas · FIDELIDADE OK: 604 linhas
+→ INFO: 1 tabela avançou no banco vivo desde o dump (esperado, não é falha)
+```
+
+### O que entrou
+
+- `tools/checar_offsite_pg.py` (novo) — guarda nas duas direções: o dump atual
+  tem de estar **presente e com o mesmo sha256** no snapshot mais novo de cada
+  HD e **dentro do tar** registrado como enviado (e o tar em disco tem de ser o
+  do registro). Compara **sha256**, nunca tamanho ou nome. HD desplugada ou
+  snapshot anterior ao dump saem como `ausente`/`aguardando`; só divergência
+  real derruba (exit 1). `--json` para painel/CI.
+- `tests/test_checar_offsite_pg.py` (novo) — **14 testes**, incluindo tar
+  trocado, tar que sumiu, dump ausente no snapshot novo, cópia com conteúdo
+  diferente e `--json`.
+
+### Prova
+
+```
+python3 tools/checar_offsite_pg.py
+CANAL ok: od-2026-11-25_0301.tar.gz — sha256 3bfaff1c idêntico
+HD ok: /home/alex/dados/od_snapshots — sha256 3bfaff1c idêntico
+HD ok: /mnt/Arquivos/od_snapshots — sha256 3bfaff1c idêntico
+OFFSITE OK  (exit 0)
+```
+
+### Estado e limites
+
+- **Fechado** o offsite do dump do Postgres com prova de conteúdo e de
+  restauração da cópia offsite.
+- **Limite declarado:** as duas HDs ficam na mesma casa e o canal é nuvem; a
+  mídia física que sai do local (pendrive/SSD criptografado com o dump +
+  `data/`) continua sendo ação do dono — é o item que sobra na pendência de
+  continuidade.
+- Sem bump (1.46.1+2084): ferramenta de verificação, serviço e app intactos.

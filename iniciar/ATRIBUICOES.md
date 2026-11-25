@@ -9,6 +9,44 @@
 
 ---
 
+## 25/11/2026 — Offsite do dump do Postgres: cópia provada + guarda por sha256
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Feche o offsite físico do backup
+do Postgres fora da máquina"*).
+
+### Criados
+
+- `tools/checar_offsite_pg.py` — guarda do offsite: dump atual presente **e com
+  o mesmo sha256** no snapshot mais novo de cada HD e dentro do tar que o
+  `data/offsite_state.json` registra como enviado; `--json`; exit 1 só em
+  divergência real.
+- `tests/test_checar_offsite_pg.py` — 14 testes.
+
+### Modificados
+
+- `docs/CHANGELOG.md` — seção datada com as medições.
+- `docs/ANALISE_SISTEMA_TODO.md` — P1 nº 7 e a checkbox do offsite fechados com
+  evidência; sobra a mídia física fora do local (dono).
+- `iniciar/session.json`, `iniciar/2026-11-25_conversa_omegadrakon.md` (§3),
+  `iniciar/ATRIBUICOES.md`.
+
+### Intenção e estado
+
+- **Intenção:** o dump do Postgres já saía da máquina (HDs externas + canal do
+  Telegram), mas ninguém provava que o arquivo que chegou é o que foi gerado —
+  backup fora da máquina sem conferência é esperança.
+- **Pronto/validado:** dump `od-2026-11-25_0250.sql.gz` com sha256
+  `3bfaff1c…` idêntico na origem, nas **duas** HDs
+  (`snapshot_od-2026-11-25_0346`/`0347`) e dentro do tar
+  `od-2026-11-25_0301.tar.gz` enviado ao canal; **a cópia do HD restaura**
+  (`testar_restauracao_pg.py`: 14 tabelas/604 linhas, 0,17 s); guarda
+  `OFFSITE OK` (exit 0) e **14 passed**.
+- **Limite declarado:** HDs na mesma casa e canal em nuvem; pendrive/SSD
+  criptografado fora do local continua ação do dono.
+- **Sem bump:** 1.46.1+2084.
+
+---
+
 ## 25/11/2026 — Restart do `od-core`: reconhecimento de segurança do Vigia no ar
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Reinicie o od-core para ativar o

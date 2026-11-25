@@ -103,7 +103,7 @@ registro):
 |---|---------|---------------|---------|
 | 5 | ~~**Ligar o I2 (Hybrid Search) no RAG com medição antes/depois**~~ **ENTREGUE 18/11 — e o número reprovou o default** — fiação pronta (`OD_RAG_HIBRIDO`, BM25 junto ao denso, piso intacto) + medidor `tools/medir_rag_hibrido.py`. No corpus real (3815 chunks): relevantes 8/8 → 8/8, paráfrases 6/6 → 6/6, **irrelevantes 0/8 → 2/8 passaram** (overlap IDF satura com termo raro: "basquete" existe num chunk de release). Fica **OFF por padrão**; ligar exige recalibrar o piso com evidência. | Médio |
 | 6 | **Modo colapso declarado** | Hoje, sem nuvem, a resposta cai no 3B **em silêncio**. Trocar para a cadeia local e avisar no chat/UI é barato e é a diferença entre degradar e parecer quebrado. | Médio |
-| 7 | **Backup fora da máquina + teste de restauração real** — **restauração PROVADA 19/11** (`tools/testar_restauracao_pg.py`: 14 tabelas/589 linhas, 0,17 s, em cluster temporário). Offsite físico segue pendente. | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
+| 7 | **Backup fora da máquina + teste de restauração real** — **restauração PROVADA 19/11** e **offsite PROVADO 25/11**: o dump do dia está, com sha256 idêntico (`3bfaff1c…`), no snapshot das duas HDs (Mídias e Arquivos) e dentro do tar enviado ao canal do Telegram; a **cópia do HD** restaura (14 tabelas/604 linhas, 0,17 s) e `tools/checar_offsite_pg.py` confere isso a qualquer momento. Pendente só a **mídia física fora do local** (pendrive/SSD criptografado = ação do dono). | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
 | 8 | **Comparador de modelos lado a lado + monitor de hardware** | Ideia do GSN Offline (17/11) e o dono já pediu para "usar a melhor IA": hoje a escolha é por log, não por comparação ao vivo. | Médio |
 
 #### P2 — depende de decisão ou compra do dono
@@ -642,13 +642,21 @@ esperar o timeout.
       "reconhece a segurança" → `fastpath:network_conhecer` em **29,1 ms**
       ("nada a reconhecer", fila vazia). Lote afetado 444 passed antes do
       restart.
+- [ ] **Rodar a guarda de offsite junto do verificador semanal** (sugestão de
+      25/11) — `tools/checar_offsite_pg.py` hoje é chamada manual; plugá-la no
+      runner do `od-pg-restore.timer` faria a divergência de cópia offsite
+      alarmar sozinha, com o cuidado de HD desplugada não virar alarme falso.
 - [ ] **Comparador de modelos lado a lado (P1 nº 8)** (sugestão de 25/11) — hoje
       "usar a melhor IA" é decidido por log/benchmark antigo (05/11); falta a
       comparação ao vivo, mesmo prompt em dois modelos, com a resposta e a
       latência lado a lado no painel.
-- [ ] **Fechar o offsite físico do backup** (sugestão de 25/11) — dump do
-      Postgres e snapshot já existem e a restauração foi provada em 19/11; falta
-      a cópia fora da máquina (P1 nº 7, metade que depende do dono/HD).
+- [x] **Fechar o offsite físico do backup** (sugestão de 25/11) — **FEITO 25/11:**
+      o dump `od-2026-11-25_0250.sql.gz` está com sha256 idêntico (`3bfaff1c…`) no
+      snapshot das **duas** HDs (`snapshot_od-2026-11-25_0346/0347`) e dentro do
+      tar `od-2026-11-25_0301.tar.gz` que o canal do Telegram recebeu; a **cópia
+      do HD restaura** (`testar_restauracao_pg.py`: 14 tabelas/604 linhas, 0,17 s)
+      e a guarda `tools/checar_offsite_pg.py` (14 testes) confere isso por sha256
+      — `OFFSITE OK`, exit 0. Resta a mídia física fora do local (dono).
 - [ ] **Recalibrar o piso do RAG híbrido para poder ligar o I2 com evidência**
       (sugestão de 25/11) — o medidor de 18/11 reprovou o default (irrelevantes
       0/8 → 2/8 passaram por saturação do overlap IDF); falta um piso que

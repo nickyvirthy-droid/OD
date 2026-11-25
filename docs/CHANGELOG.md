@@ -12,6 +12,53 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Off-site do dump do Postgres: cópia provada e guarda por sha256 (2026-11-25, sem bump)
+
+**Contexto:** o P1 nº 7 do TODO estava com a restauração provada (19/11) e o
+*offsite físico* em aberto. Medido hoje: o dump já saía da máquina por **dois**
+caminhos — o snapshot diário das duas HDs externas (`core/hd_backup.py`, disco
+separado do sistema) e o tar diário que o `core/offsite.py` envia ao canal
+privado do Telegram. O que não existia era **prova** de que o arquivo que
+chegou é o que foi gerado, nem guarda contra silêncio.
+
+**Medições (25/11, dump `od-2026-11-25_0250.sql.gz`, 37.806 B, sha256
+`3bfaff1c…`):**
+
+| Destino | Cópia | sha256 |
+|---|---|---|
+| `data/pg_dumps/` (origem) | — | `3bfaff1c…` |
+| Mídias — `/home/alex/dados/od_snapshots/snapshot_od-2026-11-25_0346` | idêntico | `3bfaff1c…` |
+| Arquivos — `/mnt/Arquivos/od_snapshots/snapshot_od-2026-11-25_0347` | idêntico | `3bfaff1c…` |
+| Canal (Telegram) — `od-2026-11-25_0301.tar.gz` (sha `a46ee6df…` = o registrado em `data/offsite_state.json`) | membro dentro do tar idêntico | `3bfaff1c…` |
+
+**Restauração da cópia offsite (não do original):**
+`tools/testar_restauracao_pg.py --dump <cópia do snapshot das 03:46>` →
+**RESTORE OK em 0,17 s · 14 tabelas · FIDELIDADE OK: 604 linhas** (1 tabela
+avançou no banco vivo desde o dump, esperado e informado, não é falha).
+
+**O que entrou:**
+
+- `tools/checar_offsite_pg.py` (novo) — guarda nas duas direções: exige o dump
+  atual **presente e com sha256 igual** no snapshot mais novo de cada HD e
+  **dentro do tar** que `data/offsite_state.json` registra como enviado (e cujo
+  sha256 em disco tem de ser o mesmo do envio). HD desplugada ou snapshot
+  anterior ao dump saem como `ausente`/`aguardando` — só divergência real
+  (`divergente`) derruba com exit 1; `--json` para o painel/CI.
+- `tests/test_checar_offsite_pg.py` (novo, 14 testes) — ok canônico, HD fora,
+  snapshot anterior ao dump, cópia com outro conteúdo, dump ausente no
+  snapshot novo, tar trocado, tar que sumiu, dump com outro conteúdo dentro do
+  tar, sem registro de envio, CLI (código 1 e `--json`) e nome fora do padrão.
+
+**Prova:** `python3 tools/checar_offsite_pg.py` → **`OFFSITE OK`** (exit 0) com
+os três destinos em `ok`; `pytest -q tests/test_checar_offsite_pg.py` →
+**14 passed**. Sem bump (1.46.1+2084): ferramenta de verificação, nada muda no
+serviço nem no app.
+
+**Limite honesto:** as duas HDs ficam na mesma casa e o canal é nuvem — a
+mídia física que sai do local (pendrive/SSD criptografado com o dump + `data/`)
+continua sendo ação do dono, e é isso que o item de pendência do TODO ainda
+pede.
+
 ## [1.46.1] — Vigia da Rede na tela do alerta: Reconhecer e Bloquear no app (2026-11-19)
 
 **Pedido do dono:** *"Leve o Vigia da Rede para o app, com os botões

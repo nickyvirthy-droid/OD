@@ -1,4 +1,16 @@
 {
+  "offsite_pg_provado_2026_11_25": {
+    "pedido": "Dono (25/11 ~14:38): 'Feche o offsite físico do backup do Postgres fora da máquina'.",
+    "medido": "O dump ja saia por DOIS caminhos: snapshot diario das 2 HDs (core/hd_backup.py, /home/alex/dados em /dev/sdb1 — disco separado — e /mnt/Arquivos) e o tar diario enviado ao canal privado do Telegram (core/offsite.py). Nao havia prova de que o arquivo que CHEGOU e o gerado, nem guarda.",
+    "prova_sha256": "dump od-2026-11-25_0250.sql.gz (37806 B) sha256 3bfaff1c... identico em: data/pg_dumps, snapshot_od-2026-11-25_0346 (Midias), snapshot_od-2026-11-25_0347 (Arquivos) e membro dentro do tar od-2026-11-25_0301.tar.gz (sha do tar a46ee6df... == registrado em data/offsite_state.json).",
+    "prova_restore_offsite": "tools/testar_restauracao_pg.py --dump <copia do snapshot das 03:46> -> RESTORE OK 0,17 s, 14 tabelas, FIDELIDADE OK 604 linhas; 1 tabela avancou no banco vivo (INFO, nao falha).",
+    "codigo": "tools/checar_offsite_pg.py (novo): confere o dump mais novo no snapshot mais recente de cada HD e dentro do tar que o estado do offsite diz ter enviado; compara sha256 (nao tamanho nem nome); HD fora/snapshot anterior ao dump = ausente/aguardando (nao derruba); divergencia real = exit 1; --json; tests/test_checar_offsite_pg.py (novo, 14 testes).",
+    "validacao": "python3 tools/checar_offsite_pg.py -> OFFSITE OK (exit 0), canal + as 2 HDs em ok; pytest tests/test_checar_offsite_pg.py -> 14 passed.",
+    "limite": "As 2 HDs ficam na mesma casa e o canal e nuvem; a midia fisica que sai do local (pendrive/SSD criptografado com dump + data/) continua acao do dono.",
+    "sem_bump": "1.46.1+2084 (ferramenta de verificacao; servico e app intactos).",
+    "arquivos": "tools/checar_offsite_pg.py (novo), tests/test_checar_offsite_pg.py (novo), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/session.json, iniciar/2026-11-25_conversa_omegadrakon.md (§3), iniciar/ATRIBUICOES.md.",
+    "updated_at": "2026-11-25T14:50:00-03:00"
+  },
   "restart_seguranca_no_ar_2026_11_25": {
     "pedido": "Dono (25/11 ~14:26): 'Reinicie o od-core para ativar o reconhecimento de segurança pelo chat, com registro e prova viva'.",
     "antes": "MainPID 3986249 desde 21/11 05:38 (commit 1db5e6a) — lote de 23/11 publicado e fora do ar.",
