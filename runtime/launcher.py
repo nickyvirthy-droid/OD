@@ -167,14 +167,22 @@ def build_rag() -> Optional[Any]:
     if env("OD_RAG_ENABLED", "1") == "0":
         return None
     try:
-        from memory.rag import RAGPipeline, fontes_padrao, janela_do_modelo
+        from memory.rag import (
+            TOP_K_CANDIDATOS,
+            RAGPipeline,
+            fontes_padrao,
+            janela_do_modelo,
+        )
         from memory.vector import HashEmbeddingProvider, VectorStore
         from memory.rag import ProviderSemStopwords
 
         store = VectorStore(
             store_dir=DATA_DIR / "vector_memory",
             provider=ProviderSemStopwords(HashEmbeddingProvider()),
-            top_k=24,  # coerente com TOP_K_CANDIDATOS (medição: alvo em 15º)
+            # Coerente com o RAG: a medição de 14/11 achou o alvo do "projeto
+            # nômade" na 26ª posição; 24 era o valor antigo e o deixava fora
+            # do pool em produção.
+            top_k=TOP_K_CANDIDATOS,
         )
         carregados = store.load()
         modelo = env("OD_LLM_MODEL", "qwen2.5-coder-3b")

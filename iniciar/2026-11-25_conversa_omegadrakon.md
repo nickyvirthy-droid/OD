@@ -178,3 +178,129 @@ OFFSITE OK  (exit 0)
   `data/`) continua sendo ação do dono — é o item que sobra na pendência de
   continuidade.
 - Sem bump (1.46.1+2084): ferramenta de verificação, serviço e app intactos.
+
+---
+
+## §4 — I2 (RAG híbrido) ligado com piso próprio medido (~15:5x)
+
+**Pedido do dono:** *"Recalibre o piso do RAG híbrido para ligar o I2 com
+evidência medida."*
+
+### O que a medição mostrou
+
+1. O medidor de 18/11 reproduzido no corpus de hoje (4104 chunks) ainda
+   reprovava o default: com o piso denso aplicado à união, **2 de 8
+   irrelevantes** injetavam trecho.
+2. A causa ficou explícita: os trechos falsos são **as nossas próprias
+   transcrições** que citam as perguntas do gate (auto-referência), com
+   `overlap = 1,0` ou 0,68.
+3. Grid de 9.333 células (score × overlap, passo 0,001): **nenhum par
+   separa**. O comb dos falsos positivos (0,439 e 0,447) é **maior** que o
+   do relevante mais fraco (0,410); o overlap chega a 1,0. Não é piso: é
+   casamento de palavra contra um corpus que fala das próprias perguntas.
+
+### A régua que separa (medida)
+
+Piso **próprio do candidato só-lexical**: `PISO_SCORE_LEXICAL = 0,47`
+(pior irrelevante 0,447 + margem 0,023). O piso denso `0,399/0,036` ficou
+**intocado**; candidato vindo do denso não usa o piso novo. A faixa válida
+medida é 0,448–0,60; 0,47 é o menor com margem.
+
+```text
+python3 tools/recalibrar_piso_hibrido.py
+corpus: 4104 chunks
+piso denso (intocado): score 0.399 / overlap 0.036
+pior irrelevante só-lexical: comb 0.4471
+faixa de piso lexical que passa o gate: (0.448, 0.6)
+piso lexical escolhido: 0.47 (pior irrelevante + margem 0.02)
+gate no escolhido: 8/8 relevantes · 0/8 irrelevantes · 6/6 paráfrases · 2/2 estruturais
+```
+
+### Gate nos dois modos
+
+| Grupo | Denso | Híbrido |
+|---|---|---|
+| 8 relevantes | 8/8 | 8/8 |
+| 8 irrelevantes bloqueadas | 8/8 | 8/8 |
+| 6 paráfrases | 6/6 | 6/6 |
+| 2 estruturais | 2/2 | 2/2 |
+
+Resgates reais preservados (`tools/medir_rag_hibrido.py`): eval do
+assistente **comb 0,636** (chunk `[1.24.2]` no bloco), Registro Mestre
+0,628, identidade visual 0,565, versionamento 0,552, containers 0,528,
+regras 0,514, cadastro 0,512.
+
+### Código
+
+- `memory/rag.py`: `PISO_SCORE_LEXICAL = 0,47`, parâmetro
+  `min_score_lexical`, piso aplicado por `doc_id` marcado como só-lexical,
+  métrica `descartados_lexicais`, `hibrido` **ON por padrão**
+  (`OD_RAG_HIBRIDO` default "1") e `dump()` expondo `hibrido` e
+  `min_score_lexical`.
+- `runtime/launcher.py`: `top_k` do store 24 → `TOP_K_CANDIDATOS` (32) —
+  o comentário dizia "coerente", mas 24 deixava fora o alvo que a medição
+  de 14/11 achou em 26º.
+- `tools/recalibrar_piso_hibrido.py` (novo): medidor do piso com origem do
+  candidato, varredura e resgates; `--json`.
+- `tests/test_rag.py`: `TestCalibracaoHibrida` (8+8+6 + resgate do eval),
+  default ligado, desligado explícito, env "0", piso só-lexical
+  descartando candidato.
+
+### Lição operacional (custou uma rodada)
+
+A primeira gravação **deste registro** repetiu as perguntas do gate e o
+gate caiu na hora (comb 0,490 no chunk novo) — o mesmo falso-amigo de
+05/11 e 10/11. Reescrito sem as frases literais (o precedente da casa) e o
+gate voltou verde. Texto novo em `docs/`/`iniciar/` mexe na calibragem.
+
+**Validação:** `tests/test_rag.py` 125 passed; `test_rag` +
+`test_hybrid_search` 138 passed. Sem bump (1.46.1+2084).
+
+---
+
+## §5 — Atualizações do sistema operacional (~16:0x)
+
+**Pedido do dono:** *"leia também o txt. existem atualizações do sistema
+operacional, OD possui algum action ou ferramenta para resolver isso, se não
+então crie."*
+
+**Medido (`python3 -m core.os_updater --status`, 25/11 15:5x):**
+
+```json
+{"ok": true, "kernel_atual": "6.8.0-147-generic", "precisa_reboot": true,
+ "upgradable": 56, "firmware_upgrades": 51, "schedule": "weekly",
+ "day": 6, "hour": 3, "ultima_execucao": 1794273354, "proxima_execucao": 1795932000}
+```
+
+**Existe ferramenta? Sim — e não foi preciso criar:**
+
+- `core/os_updater.py` — ciclo apt update + full-upgrade + autoremove,
+  `fwupdmgr refresh/update`, reboot pendente, notificação Telegram, estado
+  em `data/os_updater_estado.json`; CLI `--status/--executar/--forcar/
+  --dry-run`; **19 testes** em `tests/test_os_updater.py`.
+- Rotas `GET /admin/os-updater/status`, `POST /admin/os-updater/executar`,
+  `POST /admin/os-updater/reboot`.
+- Units `systemd/od-os-updater.service` + `.timer` (domingos 03:00).
+
+**O que falta (medido, não suposto):**
+
+1. `systemctl is-enabled od-os-updater.timer` → **not-found**: as units
+   existem no repositório mas **não estão instaladas**; nada dispara o
+   ciclo sozinho nesta máquina. A "próxima execução" do status é só a
+   conta do agendamento, não um timer ativo.
+2. A última execução registrada (09/11 22:15) foi **dry-run** — não
+   atualizou nada, apesar de `sucessos_consecutivos: 1` no estado.
+3. Há **reboot pendente** (`/var/run/reboot-required`) e 56 pacotes +
+   51 firmwares esperando.
+
+**Ação do dono (precisa de sudo e decide sobre reboot):**
+
+```bash
+sudo cp systemd/od-os-updater.service systemd/od-os-updater.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now od-os-updater.timer
+python3 -m core.os_updater --status
+```
+
+Para aplicar agora, sem esperar domingo: `sudo systemctl start
+od-os-updater.service` (o ciclo agenda reboot +5 min se necessário).

@@ -9,6 +9,56 @@
 
 ---
 
+## 25/11/2026 — I2 (RAG híbrido) ligado com piso próprio medido
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Recalibre o piso do RAG híbrido
+para ligar o I2 com evidência medida"*).
+
+### Criados
+
+- `tools/recalibrar_piso_hibrido.py` — medidor do piso: coleta os candidatos
+  com a origem (denso × só-lexical), varre score × overlap (9.333 células) e
+  imprime a faixa válida, o pior irrelevante e os resgates que sobrevivem;
+  `--json`.
+
+### Modificados
+
+- `memory/rag.py` — `PISO_SCORE_LEXICAL = 0,47` (pior irrelevante + 0,023),
+  `min_score_lexical` no construtor, piso aplicado ao candidato só-lexical por
+  `doc_id`, métrica `descartados_lexicais`, `hibrido` ON por padrão e `dump()`
+  expondo `hibrido`/`min_score_lexical`. Piso denso **intocado**.
+- `runtime/launcher.py` — `top_k` do store 24 → `TOP_K_CANDIDATOS` (32).
+- `tests/test_rag.py` — `TestCalibracaoHibrida` (8+8+6 nos dois modos + resgate
+  do eval), default ligado/desligado explícito, env "0", piso só-lexical.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (P1 nº 5 e checkbox),
+  `docs/ARCHITECTURE_v2.md` (I2 ligado), `iniciar/session.json`,
+  `iniciar/2026-11-25_conversa_omegadrakon.md` (§4 e §5).
+
+### Intenção e estado
+
+Trocar precisão por recall no escuro era o risco de 18/11; a medição mostrou
+que o piso denso não separa e o piso só-lexical separa com margem. **Ligado**
+com gate verde nos dois modos, sem bump (1.46.1+2084).
+
+---
+
+## 25/11/2026 — Atualizações do SO: ferramenta existente verificada
+
+**Autor:** Freebuff (Buffy) — pergunta do dono (*"OD possui algum action ou
+ferramenta para resolver isso, se não então crie"*).
+
+### Medido (nada criado: já existe)
+
+- `core/os_updater.py` + CLI + 3 rotas `/admin/os-updater/*` + units
+  `systemd/od-os-updater.{service,timer}` + 19 testes.
+- Status real: 56 pacotes, 51 firmwares, reboot pendente; última execução
+  registrada (09/11) foi **dry-run**; timer **não instalado** (not-found) —
+  a ação de instalar exige sudo e é do dono.
+
+`iniciar/2026-11-25_conversa_omegadrakon.md` §5 registra os comandos.
+
+---
+
 ## 25/11/2026 — Offsite do dump do Postgres: cópia provada + guarda por sha256
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Feche o offsite físico do backup

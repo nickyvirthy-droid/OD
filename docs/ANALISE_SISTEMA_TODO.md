@@ -101,7 +101,7 @@ registro):
 
 | # | Entrega | Por que agora | Esforço |
 |---|---------|---------------|---------|
-| 5 | ~~**Ligar o I2 (Hybrid Search) no RAG com medição antes/depois**~~ **ENTREGUE 18/11 — e o número reprovou o default** — fiação pronta (`OD_RAG_HIBRIDO`, BM25 junto ao denso, piso intacto) + medidor `tools/medir_rag_hibrido.py`. No corpus real (3815 chunks): relevantes 8/8 → 8/8, paráfrases 6/6 → 6/6, **irrelevantes 0/8 → 2/8 passaram** (overlap IDF satura com termo raro: "basquete" existe num chunk de release). Fica **OFF por padrão**; ligar exige recalibrar o piso com evidência. | Médio |
+| 5 | ~~**Ligar o I2 (Hybrid Search) no RAG com medição antes/depois**~~ **ENTREGUE E LIGADO 25/11** — fiação de 18/11 + recalibração medida: nenhum par (score, overlap) do piso denso separa (os 2 falsos positivos são **as nossas transcrições** citando a pergunta do gate, comb 0,439/0,447 acima do relevante mais fraco 0,410), então entrou um piso **só-lexical** `PISO_SCORE_LEXICAL = 0,47` (pior irrelevante + 0,023), com o piso denso **intocado**. Gate nos dois modos: **8/8 relevantes · 0/8 irrelevantes · 6/6 paráfrases · 2/2 estruturais**; resgates reais mantidos (eval 0,636, Registro Mestre 0,628). `OD_RAG_HIBRIDO` agora **ON** por padrão; medidor reprodutível em `tools/recalibrar_piso_hibrido.py`. | Médio |
 | 6 | **Modo colapso declarado** | Hoje, sem nuvem, a resposta cai no 3B **em silêncio**. Trocar para a cadeia local e avisar no chat/UI é barato e é a diferença entre degradar e parecer quebrado. | Médio |
 | 7 | **Backup fora da máquina + teste de restauração real** — **restauração PROVADA 19/11** e **offsite PROVADO 25/11**: o dump do dia está, com sha256 idêntico (`3bfaff1c…`), no snapshot das duas HDs (Mídias e Arquivos) e dentro do tar enviado ao canal do Telegram; a **cópia do HD** restaura (14 tabelas/604 linhas, 0,17 s) e `tools/checar_offsite_pg.py` confere isso a qualquer momento. Pendente só a **mídia física fora do local** (pendrive/SSD criptografado = ação do dono). | É o DoD do plano de continuidade: o dump do Postgres e o snapshot já existem, mas **nunca foram restaurados**. | Médio |
 | 8 | **Comparador de modelos lado a lado + monitor de hardware** | Ideia do GSN Offline (17/11) e o dono já pediu para "usar a melhor IA": hoje a escolha é por log, não por comparação ao vivo. | Médio |
@@ -642,6 +642,16 @@ esperar o timeout.
       "reconhece a segurança" → `fastpath:network_conhecer` em **29,1 ms**
       ("nada a reconhecer", fila vazia). Lote afetado 444 passed antes do
       restart.
+- [ ] **Instalar e ativar o timer do `od-os-updater` nesta máquina** (achado de
+      25/11, pedido do dono no `txt`) — a ferramenta existe e responde
+      (`--status`: 56 pacotes, 51 firmwares, reboot pendente), mas
+      `systemctl is-enabled od-os-updater.timer` dá **not-found**: as units
+      estão no repositório e não foram instaladas, então nada roda sozinho. A
+      última execução registrada (09/11) foi dry-run. Ação do dono (sudo):
+      `sudo cp systemd/od-os-updater.{service,timer} /etc/systemd/system/ &&
+      sudo systemctl daemon-reload && sudo systemctl enable --now
+      od-os-updater.timer`. Para aplicar já: `sudo systemctl start
+      od-os-updater.service` (agenda reboot +5 min se necessário).
 - [ ] **Rodar a guarda de offsite junto do verificador semanal** (sugestão de
       25/11) — `tools/checar_offsite_pg.py` hoje é chamada manual; plugá-la no
       runner do `od-pg-restore.timer` faria a divergência de cópia offsite
@@ -657,10 +667,14 @@ esperar o timeout.
       do HD restaura** (`testar_restauracao_pg.py`: 14 tabelas/604 linhas, 0,17 s)
       e a guarda `tools/checar_offsite_pg.py` (14 testes) confere isso por sha256
       — `OFFSITE OK`, exit 0. Resta a mídia física fora do local (dono).
-- [ ] **Recalibrar o piso do RAG híbrido para poder ligar o I2 com evidência**
-      (sugestão de 25/11) — o medidor de 18/11 reprovou o default (irrelevantes
-      0/8 → 2/8 passaram por saturação do overlap IDF); falta um piso que
-      mantenha 8/8 de relevantes e pare as irrelevantes.
+- [x] **Recalibrar o piso do RAG híbrido para poder ligar o I2 com evidência**
+      (sugestão de 25/11) — **FEITO 25/11:** `tools/recalibrar_piso_hibrido.py`
+      provou que nenhum par (score, overlap) separa (os falsos positivos são as
+      nossas transcrições citando a pergunta do gate; comb 0,439/0,447 >
+      relevante mais fraco 0,410) e mediu o piso **só-lexical 0,47** (pior
+      irrelevante 0,447 + 0,023). Gate nos dois modos **8/8 · 0/8 · 6/6 · 2/2**
+      (`TestCalibracaoHibrida`), resgates reais intactos (eval 0,636) — I2
+      **ligado por padrão**, piso denso intocado.
 - [x] **Hook de pré-commit com a trava de reescrita maciça** — **FEITO 18/11:**
       `tools/trava_reescrita.py` virou a fonte única da régua (o orquestrador
       passou a delegar nele) e `tools/instalar_hooks.sh` instala o hook

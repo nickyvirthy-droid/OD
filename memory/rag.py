@@ -188,6 +188,22 @@ PESO_OVERLAP = 0.2
 PISO_SCORE = 0.399       # score combinado mínimo (comb de 8/8 rel. ≥ este)
 PISO_OVERLAP = 0.036     # overlap-IDF mínimo (ov=0 nunca injeta; teto 0.071:
                          # acima disso a parafrase "contêiner" cai)
+# I2 (Hybrid Search) — piso PRÓPRIO do candidato só-lexical (25/11, medido).
+# O BM25 acrescenta ao pool chunks que o denso não trouxe; o piso denso
+# (0.399/0.036) foi calibrado para candidatos já filtrados por cosseno e,
+# aplicado à união, deixava passar 2/8 irrelevantes: "previsão do tempo em
+# campo grande" (comb 0.439/overlap 0.681) e "melhor time de basquete"
+# (comb 0.447/overlap 1.0) — os trechos são as NOSSAS transcrições que
+# citam essas perguntas (auto-referência), não respostas. Grid de 25/11
+# (tools/recalibrar_piso_hibrido.py, corpus de 4104 chunks): nenhum par
+# (score, overlap) separa — o cosseno/overlap desses 2 é MAIOR que o do
+# relevante mais fraco. A régua que separa é um piso só-lexical mais alto:
+# o máximo dos irrelevantes é 0.447 → 0.47 (margem 0.023) mantém 8/8
+# relevantes, 0/8 irrelevantes, 6/6 paráfrases e 2/2 estruturais NOS DOIS
+# modos, e ainda deixa entrar os resgates reais (eval do assistente 0.636,
+# Registro Mestre 0.628, identidade visual 0.565). O piso denso fica
+# intocado: candidato que já veio do denso não usa este piso.
+PISO_SCORE_LEXICAL = 0.47
 # oversample: o reranker reordena depois do floor. Era 12; a prova de fogo
 # no serviço (2026-10-14) mostrou o chunk certo do doc na posição 15 da
 # busca — fora do pool — com 0 trechos no prompt. 24 cobria o alvo medido.
@@ -464,6 +480,7 @@ class RAGPipeline:
         namespace: str = "conhecimento",
         min_score: float = PISO_SCORE,
         min_overlap: float = PISO_OVERLAP,
+        min_score_lexical: float = PISO_SCORE_LEXICAL,
         top_k: int = TOP_K_CANDIDATOS,
         max_trechos: int = MAX_TRECHOS,
         max_tokens_bloco: int = MAX_TOKENS_BLOCO,
@@ -476,15 +493,17 @@ class RAGPipeline:
         self._store = store
         # I2 (Hybrid Search): o lado LEXICAL (BM25) é o que o cosseno do
         # HashEmbedding não enxerga — termo raro presente no chunk mas sem
-        # peso vetorial. A fiação NÃO troca o piso calibrado: o BM25 só
-        # AUMENTA o pool de candidatos, e cada candidato lexical entra com
-        # o cosseno real (mesmo provider da indexação) e passa pelo mesmo
-        # floor duplo + reranker de sempre.
-        # `hibrido=None` → env OD_RAG_HIBRIDO (padrão "0": medido, ver
-        # docs/CHANGELOG.md). O índice é construído no sync().
+        # peso vetorial. O BM25 só AUMENTA o pool de candidatos; cada
+        # candidato lexical entra com o cosseno real (mesmo provider da
+        # indexação), passa pelo piso duplo + reranker de sempre e, por ser
+        # casamento de palavra e não de sentido, obedece a um piso de score
+        # MAIS ALTO (PISO_SCORE_LEXICAL, medido em 25/11 — ver comentário da
+        # constante).
+        # `hibrido=None` → env OD_RAG_HIBRIDO (padrão "1" desde 25/11, com
+        # gate dos dois modos medido). O índice é construído no sync().
         if hibrido is None:
             import os
-            hibrido = os.getenv("OD_RAG_HIBRIDO", "0").strip().lower() in (
+            hibrido = os.getenv("OD_RAG_HIBRIDO", "1").strip().lower() in (
                 "1", "true", "yes", "on",
             )
         self._hibrido = bool(hibrido)
@@ -494,6 +513,7 @@ class RAGPipeline:
         self._namespace = namespace
         self._min_score = min_score
         self._min_overlap = min_overlap
+        self._min_score_lexical = min_score_lexical
         self._top_k = max(1, top_k)
         self._max_trechos = max(1, max_trechos)
         self._max_tokens_bloco = max(0, max_tokens_bloco)
@@ -508,6 +528,7 @@ class RAGPipeline:
             "candidatos": 0,
             "trechos": 0,
             "descartados_floor": 0,
+            "descartados_lexicais": 0,
             "descartados_visibilidade": 0,
             "descartados_orcamento": 0,
             "tokens_bloco": 0,
@@ -826,7 +847,9 @@ class RAGPipeline:
             # I2 — lado LEXICAL: o cosseno do HashEmbedding não vê termo raro;
             # o BM25 vê. A união é feita por doc_id e cada candidato lexical
             # entra com o cosseno REAL (mesmo provider da indexação), então o
-            # piso duplo abaixo continua valendo sem recalibrar.
+            # piso duplo abaixo continua valendo; candidato SÓ-lexical ainda
+            # passa por um piso de score mais alto (PISO_SCORE_LEXICAL).
+            lexicais_adicionados: set[str] = set()
             if self._hibrido and self._bm25 is not None and len(self._bm25):
                 from core.hybrid_search import tokenizar
                 from memory.vector import SearchResult, cosine_similarity
@@ -857,7 +880,8 @@ class RAGPipeline:
                             score=score,
                             metadata=dict(doc.get("metadata") or {}),
                         ))
-                self._metricas["lexicais"] += len(candidatos) - len(vistos)
+                        lexicais_adicionados.add(doc_id)
+                self._metricas["lexicais"] += len(lexicais_adicionados)
             resultado.candidatos = len(candidatos)
             self._metricas["candidatos"] += len(candidatos)
 
@@ -877,10 +901,17 @@ class RAGPipeline:
                     continue
                 overlap = sum(self._idf(t) for t in (qt & dt)) / soma_idf
                 combinado_score = combinado(float(cand.score), overlap)
+                piso_score = (
+                    self._min_score_lexical
+                    if cand.doc_id in lexicais_adicionados
+                    else self._min_score
+                )
                 if (
-                    combinado_score < self._min_score
+                    combinado_score < piso_score
                     or overlap < self._min_overlap
                 ):
+                    if cand.doc_id in lexicais_adicionados:
+                        self._metricas["descartados_lexicais"] += 1
                     resultado.descartados_floor += 1
                     continue
                 aprovados.append(
@@ -988,8 +1019,10 @@ class RAGPipeline:
             "docs": self._n_docs,
             "termos_df": len(self._df),
             "janela": self._janela,
+            "hibrido": self._hibrido,
             "min_score": self._min_score,
             "min_overlap": self._min_overlap,
+            "min_score_lexical": self._min_score_lexical,
             "sync": self.sync_status(),
             "metricas": self.metricas(),
         }

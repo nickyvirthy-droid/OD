@@ -713,7 +713,9 @@ def rag_real(tmp_path_factory) -> RAGPipeline:
         provider=ProviderSemStopwords(HashEmbeddingProvider()),
         top_k=32,  # coerente com TOP_K_CANDIDATOS (14/11: alvo caía no 26º)
     )
-    rag = RAGPipeline(store, fontes=fontes_padrao(REPO))
+    # Gate DENSO explícito: o padrão do RAG passou a ser híbrido (25/11);
+    # esta régua mede o modo sem BM25, e TestCalibracaoHibrida mede o ligado.
+    rag = RAGPipeline(store, fontes=fontes_padrao(REPO), hibrido=False)
     rag.sync()
     return rag
 
@@ -793,6 +795,73 @@ class TestRecallParafrases:
             f"parafrase sem trecho: {pergunta!r} "
             f"(floor={r.descartados_floor}, candidatos={r.candidatos})"
         )
+
+
+# ===========================================================================
+# Gate do I2 LIGADO — o mesmo gate, com o BM25 somando candidatos (25/11)
+# ===========================================================================
+
+
+@pytest.fixture(scope="module")
+def rag_real_hibrido(tmp_path_factory) -> RAGPipeline:
+    """RAG híbrido (BM25 ligado) sobre o corpus REAL, store temporário."""
+    store_dir = tmp_path_factory.mktemp("rag_calibracao_hibrida") / "store"
+    store = VectorStore(
+        store_dir=store_dir,
+        provider=ProviderSemStopwords(HashEmbeddingProvider()),
+        top_k=32,
+    )
+    rag = RAGPipeline(store, fontes=fontes_padrao(REPO), hibrido=True)
+    rag.sync()
+    return rag
+
+
+class TestCalibracaoHibrida:
+    """Gate medido em 25/11 para o I2 LIGADO (piso só-lexical 0,47).
+
+    A recalibração (`tools/recalibrar_piso_hibrido.py`, 4104 chunks) mostrou
+    que nenhum par (score, overlap) do piso denso separa as irrelevantes: os
+    trechos falsos são as NOSSAS transcrições que citam a pergunta do gate
+    ("previsão do tempo", "basquete"), com overlap-IDF saturado e comb
+    (0,439/0,447) acima do relevante mais fraco (0,410). O piso próprio do
+    candidato só-lexical (0,47 = 0,447 + margem 0,023) mantém o gate nos
+    dois modos e deixa entrar os resgates reais (eval 0,636, Registro
+    Mestre 0,628). Falhou = o corpus ou a fórmula mudou → recalibrar com
+    medição, nunca afrouxar no escuro.
+    """
+
+    @pytest.mark.parametrize("pergunta", RELEVANTES)
+    def test_relevante_passa_pelo_floor(self, rag_real_hibrido, pergunta):
+        r = rag_real_hibrido.consult(pergunta, papel="admin")
+        assert r.trechos, (
+            f"relevante sem trecho (híbrido): {pergunta!r} "
+            f"(floor={r.descartados_floor}, candidatos={r.candidatos})"
+        )
+
+    @pytest.mark.parametrize("pergunta", IRRELEVANTES)
+    def test_irrelevante_e_bloqueada(self, rag_real_hibrido, pergunta):
+        r = rag_real_hibrido.consult(pergunta, papel="admin")
+        assert r.trechos == [], (
+            f"irrelevantes passaram (híbrido): {pergunta!r} → "
+            f"{[t.source for t in r.trechos]}"
+        )
+        assert r.descartados_floor >= 1
+
+    @pytest.mark.parametrize("pergunta", PARAFRASES_PASSAM)
+    def test_parafrase_passa_pelo_floor(self, rag_real_hibrido, pergunta):
+        r = rag_real_hibrido.consult(pergunta, papel="admin")
+        assert r.trechos, (
+            f"parafrase sem trecho (híbrido): {pergunta!r} "
+            f"(floor={r.descartados_floor}, candidatos={r.candidatos})"
+        )
+
+    def test_resgate_lexical_entra_no_bloco(self, rag_real_hibrido):
+        """Evidência de que o I2 ligado agrega, não só passa o gate."""
+        r = rag_real_hibrido.consult(
+            "como é feito o eval do assistente com goldens", papel="admin"
+        )
+        titulos = " ".join(t.titulo for t in r.trechos)
+        assert "EVAL DO ASSISTENTE" in titulos.upper()
 
 
 # ===========================================================================
@@ -987,24 +1056,44 @@ class TestOrcamentoDeHistorico:
 # ===========================================================================
 
 class TestHibrido:
-    """Fiação do I2 no RAG — e por que ela fica DESLIGADA por padrão.
+    """Fiação do I2 no RAG — LIGADA por padrão desde 25/11.
 
-    Medido com `tools/medir_rag_hibrido.py` no corpus real (3815 chunks):
+    Medido com `tools/medir_rag_hibrido.py` no corpus real (4104 chunks):
     ligar o BM25 adiciona candidatos que o cosseno não via (o alvo do eval
-    do assistente passou a entrar no bloco), MAS derruba o gate de
-    calibração — 2 irrelevantes passaram a injetar trecho porque o overlap
-    IDF satura (\"basquete\" existe num chunk de release → overlap 1.0) sem
-    o chunk responder à pergunta. Sem recalibrar o piso com evidência, a
-    opção segura é: fiação pronta, env OD_RAG_HIBRIDO, padrão OFF.
+    do assistente passou a entrar no bloco), MAS com o piso denso aplicado
+    à união 2 irrelevantes passavam: os trechos são as NOSSAS transcrições
+    que citam a própria pergunta do gate (auto-referência), com overlap
+    IDF saturado (\"basquete\" → overlap 1.0). A recalibração de 25/11
+    (`tools/recalibrar_piso_hibrido.py`) provou que nenhum par
+    (score, overlap) separa e criou o piso só-lexical
+    `PISO_SCORE_LEXICAL` (0,47 = pior irrelevante 0,447 + margem): gate
+    8/8 relevantes, 0/8 irrelevantes, 6/6 paráfrases e 2/2 estruturais nos
+    dois modos, com os resgates reais (eval 0,636, Registro Mestre 0,628)
+    intactos. O piso denso (0,399/0,036) não foi tocado.
     """
 
-    def test_desligado_por_padrao(self, tmp_path, monkeypatch):
+    def test_ligado_por_padrao(self, tmp_path, monkeypatch):
         monkeypatch.delenv("OD_RAG_HIBRIDO", raising=False)
         rag = _pipeline(tmp_path)
-        assert rag._hibrido is False
+        assert rag._hibrido is True
+        rag.sync()
+        assert rag._bm25 is not None
+
+    def test_desligado_explicito(self, tmp_path):
+        rag = _pipeline(tmp_path, hibrido=False)
         rag.sync()
         assert rag._bm25 is None
         assert rag.metricas()["lexicais"] == 0
+
+    def test_env_zero_desliga(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("OD_RAG_HIBRIDO", "0")
+        rag = _pipeline(tmp_path)
+        assert rag._hibrido is False
+
+    def test_piso_lexical_e_maior_que_o_denso(self):
+        from memory.rag import PISO_SCORE, PISO_SCORE_LEXICAL
+
+        assert PISO_SCORE_LEXICAL > PISO_SCORE
 
     def test_ligado_constroi_indice_com_os_mesmos_chunks(self, tmp_path):
         rag = _pipeline(tmp_path, hibrido=True)
@@ -1028,6 +1117,18 @@ class TestHibrido:
         r = rag.consult("orçamento de contexto descartado métrica", papel="admin")
         assert r.candidatos > 0
         assert rag.metricas()["lexicais"] > 0
+
+    def test_piso_lexical_descarta_candidato_so_lexical(
+        self, tmp_path, monkeypatch
+    ):
+        """Candidato só-lexical abaixo do piso próprio é descartado."""
+        rag = _pipeline(tmp_path, hibrido=True, min_score_lexical=1.1)
+        rag.sync()
+        monkeypatch.setattr(rag._store, "search", lambda *a, **k: [])
+        r = rag.consult("orçamento de contexto descartado métrica", papel="admin")
+        assert r.candidatos > 0
+        assert r.trechos == []
+        assert rag.metricas()["descartados_lexicais"] > 0
 
     def test_desligado_nao_tem_candidato_sem_denso(self, tmp_path, monkeypatch):
         rag = _pipeline(tmp_path, hibrido=False)

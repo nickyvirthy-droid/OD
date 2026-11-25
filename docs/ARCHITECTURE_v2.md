@@ -62,16 +62,16 @@
 
 **Isolamento**: todo nó tem `user_id`; leitura sempre filtra por usuário.
 
-### 2.3 RAG Pipeline (I1, I2 — MÓDULOS PRONTOS, NÃO LIGADOS 13/11)
+### 2.3 RAG Pipeline (I1 módulo; I2 LIGADO 25/11)
 
 | Item | Arquivo | Status |
 |------|---------|--------|
 | I1 Semantic Cache | `memory/semantic_cache.py` | ✅ Módulo + testes (threshold 0.95, sem Redis) |
-| I2 Hybrid Search | `core/hybrid_search.py` | ✅ BM25 + cross-encoder + testes |
+| I2 Hybrid Search | `core/hybrid_search.py` + `memory/rag.py` | ✅ **LIGADO por padrão 25/11**: BM25 une candidatos ao denso com cosseno real, piso denso 0,399/0,036 intocado e piso **só-lexical 0,47** medido (`tools/recalibrar_piso_hibrido.py`); gate 8/8 · 0/8 · 6/6 · 2/2 nos dois modos |
 | I4 Query Router | `core/query_router.py` | ✅ Entregue (integrado no grafo + intenções) |
 | I5 Streaming SSE | `integrations/api/server.py` | ✅ `GET /api/v1/chat/stream` |
 
-**Decisão pendente**: ligar I1/I2 na produção — `memory/rag.py` não usa hybrid; orquestrador passa `semantic_cache=None`. Risco: resposta parecida em ≥0.95.
+**Decisão pendente**: I1 (Semantic Cache) na produção — o orquestrador passa `semantic_cache=None`; risco de resposta parecida em ≥0.95. I2 já está ligado (25/11).
 
 ### 2.4 LLM Chain (Regra 19 — ENTREGUE 11/11)
 
@@ -227,7 +227,7 @@ dmesg -T | grep -i bluetooth
 
 ### Semana 9-10: RAG Otimizado
 - [ ] **I1**: Ligar Semantic Cache na produção (decisão: risco ≥0.95)
-- [ ] **I2**: Ligar Hybrid Search no `memory/rag.py`
+- [x] **I2**: Hybrid Search ligado no `memory/rag.py` — **FEITO 25/11** (piso só-lexical 0,47 medido; gate 8/8 · 0/8 · 6/6 · 2/2 nos dois modos)
 - [ ] **I3**: KV-Cache optimization (prefix reuse) — opcional
 
 ### Semana 11-12: Resiliência + Eval

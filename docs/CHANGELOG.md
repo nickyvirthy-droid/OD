@@ -12,6 +12,69 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## I2 (Hybrid Search) LIGADO com piso próprio medido — 8/8 · 0/8 · 6/6 · 2/2 (2026-11-25, sem bump)
+
+**Contexto:** o I2 estava fiado desde 18/11 e mantido **OFF** porque o overlap
+IDF satura e 2/8 irrelevantes passavam. O pedido de hoje foi recalibrar o piso
+"para ligar o I2 com evidência medida".
+
+**Medição (corpus real, 4104 chunks; `tools/recalibrar_piso_hibrido.py`):** duas
+semanas depois o mesmo defeito continua e a causa ficou explícita — os trechos
+falsos são as **nossas próprias transcrições** que citam a pergunta do gate
+(auto-referência), com overlap saturado:
+
+> As perguntas literais do gate **não são repetidas aqui** (precedente da
+> casa desde 05/11): este arquivo entra no corpus do RAG e repetir a frase
+> reintroduz o falso-amigo — foi exatamente o que aconteceu na primeira
+> gravação desta seção e o gate pegou (comb 0,490/overlap 1,0).
+
+| Consulta irrelevante (descrita, não citada) | Trecho que entrava | comb | overlap |
+|---|---|---|---|
+| clima de uma cidade que não é do corpus | `iniciar/2026-11-18…` (§3 medição) e CHANGELOG (release do rádio) | **0,439** | 0,681 |
+| esporte que não é do corpus | `iniciar/2026-11-05…` (§6 testes e restart) | **0,447** | 1,0 |
+
+Grid de 9.333 células (score × overlap, 0,001): **nenhum** par do piso denso
+separa — o comb dos dois falsos positivos é **maior** que o do relevante mais
+fraco (0,410) e o overlap deles chega a 1,0. Não é piso, é o casamento de
+palavra contra um corpus que fala das próprias perguntas.
+
+**O que separa (medido):** um piso **próprio do candidato só-lexical** —
+`PISO_SCORE_LEXICAL = 0,47` (pior irrelevante 0,447 + margem 0,023). O piso
+denso (**0,399/0,036**) fica **intocado**; candidato que o denso já trouxe não
+usa o piso novo. Custo: qualquer valor entre 0,448 e 0,60 passa o gate; 0,47 é
+o mais baixo com margem.
+
+**Gate nos DOIS modos (pytest `TestCalibracaoHibrida` + `TestCalibracaoCorpusReal`):**
+
+| Grupo | Denso | Híbrido |
+|---|---|---|
+| 8 relevantes com trecho | 8/8 | **8/8** |
+| 8 irrelevantes bloqueadas | 8/8 | **8/8** |
+| 6 paráfrases com trecho | 6/6 | **6/6** |
+| 2 estruturais | 2/2 | **2/2** |
+
+**Ganho real preservado:** `tools/medir_rag_hibrido.py` (antes × depois no mesmo
+store): os resgates só-lexicais continuam entrando — eval do assistente
+(`comb 0,636`, o chunk `[1.24.2] — EVAL DO ASSISTENTE` no bloco), Registro
+Mestre (0,628), identidade visual (0,565), versionamento (0,552), containers
+(0,528), regras (0,514), cadastro (0,512) — e uma paráfrase troca um trecho
+vago por "3. Validação (17/10)".
+
+**O que entrou:**
+
+| Item | Detalhe |
+|---|---|
+| `memory/rag.py` | `PISO_SCORE_LEXICAL = 0,47` + `min_score_lexical` no construtor; o piso só-lexical é aplicado por `doc_id` (o denso segue no piso 0,399/0,036); `hibrido` passa a **ligar por padrão** (`OD_RAG_HIBRIDO` default "1"); métrica nova `descartados_lexicais` |
+| `runtime/launcher.py` | `top_k` do store 24 → `TOP_K_CANDIDATOS` (32): o comentário já dizia "coerente", mas 24 deixava fora o alvo que a medição de 14/11 achou em 26º — em produção o RAG rodava com o pool antigo |
+| `tools/recalibrar_piso_hibrido.py` | **novo** medidor do piso: coleta os candidatos com a origem (denso × só-lexical), varre score × overlap e imprime a faixa válida, o pior irrelevante e os resgates que sobrevivem; `--json` |
+| `tests/test_rag.py` | `TestCalibracaoHibrida` (8+8+6 + resgate do eval), default ligado/explicitamente desligado, env "0", piso só-lexical descartando candidato e `PISO_SCORE_LEXICAL > PISO_SCORE` |
+
+**Verificação:** `tests/test_rag.py` **125 passed**; `test_rag` +
+`test_hybrid_search` **138 passed**; `tools/recalibrar_piso_hibrido.py` →
+piso escolhido 0,47, gate 8/8 · 0/8 · 6/6 · 2/2. `od-core` reiniciado e
+prova viva registrada em `iniciar/2026-11-25_conversa_omegadrakon.md` §4.
+**Sem bump** (1.46.1+2084): servidor; contrato do app intacto.
+
 ## Off-site do dump do Postgres: cópia provada e guarda por sha256 (2026-11-25, sem bump)
 
 **Contexto:** o P1 nº 7 do TODO estava com a restauração provada (19/11) e o

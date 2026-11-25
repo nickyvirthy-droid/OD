@@ -1,4 +1,27 @@
 {
+  "rag_hibrido_ligado_2026_11_25": {
+    "pedido": "Dono (25/11 ~15:45): 'Recalibre o piso do RAG híbrido para ligar o I2 com evidência medida' + 'leia também o txt. existem atualizações do sistema operacional, OD possui algum action ou ferramenta para resolver isso, se não então crie'.",
+    "medido": "Medidor de 18/11 reproduzido no corpus de 4104 chunks: com o piso denso aplicado à união do BM25, 2/8 irrelevantes injetavam trecho. Causa apurada: os trechos falsos são as NOSSAS transcrições que citam as perguntas do gate (auto-referência), overlap 0.68 e 1.0; comb 0.439/0.447 — MAIOR que o relevante mais fraco (0.410). Grid de 9.333 células (score × overlap, passo 0.001): nenhum par separa.",
+    "decisao": "Piso próprio do candidato SÓ-lexical: PISO_SCORE_LEXICAL=0.47 (pior irrelevante 0.447 + margem 0.023); faixa válida medida 0.448–0.60. Piso denso 0.399/0.036 intocado; candidato vindo do denso não usa o piso novo. I2 ligado por padrão (OD_RAG_HIBRIDO default 1).",
+    "codigo": "memory/rag.py (constante + min_score_lexical + piso por doc_id só-lexical + métrica descartados_lexicais + dump com hibrido/min_score_lexical), runtime/launcher.py (top_k 24→TOP_K_CANDIDATOS=32), tools/recalibrar_piso_hibrido.py (novo), tests/test_rag.py (TestCalibracaoHibrida + default/off/env/piso lexical).",
+    "gate": "Denso e híbrido: 8/8 relevantes · 0/8 irrelevantes · 6/6 paráfrases · 2/2 estruturais. Escolhido 0.47: resgates mantidos (eval 0.636, Registro Mestre 0.628, identidade 0.565, versionamento 0.552, containers 0.528, regras 0.514, cadastro 0.512).",
+    "validacao": "tests/test_rag.py 125 passed; test_rag+test_hybrid_search 138 passed; tools/recalibrar_piso_hibrido.py exit 0; tools/medir_rag_hibrido.py 8/8 · 0/8 · 6/6 · 2/2.",
+    "prova_viva": "restart 25/11 16:03:10 — MainPID 1862532, NRestarts=0, active; /health ok=true 32 checks (MQTT conectou ~5 s após o boot, transitório); journal 'RAG corpus sincronizado | chunks=4122' e 'Orchestrator real montado | rag={hibrido: True, min_score: 0.399, min_overlap: 0.036, min_score_lexical: 0.47}'; POST /message 'como é feito o eval do assistente com goldens' -> route=llm, llm_used=groq, 16.152 ms, resposta descreve os goldens JSONL (chunk [1.24.2] do corpus); journal -p err: 0 entradas.",
+    "licao": "A primeira gravação do CHANGELOG repetiu as perguntas do gate e o próprio gate caiu (comb 0.490 no chunk novo). Reescrito sem as frases literais; precedente da casa confirmado: texto novo em docs/ ou iniciar/ mexe na calibragem do RAG.",
+    "sem_bump": "1.46.1+2084 (servidor; contrato do app intacto).",
+    "telegram": "resumo enviado ao dono (regra 15) — ok=true msg_id=4224.",
+    "arquivos": "memory/rag.py, runtime/launcher.py, tools/recalibrar_piso_hibrido.py (novo), tests/test_rag.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, docs/ARCHITECTURE_v2.md, iniciar/session.json, iniciar/2026-11-25_conversa_omegadrakon.md (§4 e §5), iniciar/ATRIBUICOES.md.",
+    "updated_at": "2026-11-25T16:05:00-03:00"
+  },
+  "os_updater_verificado_2026_11_25": [
+    {
+      "pedido": "Dono: o txt aponta atualizações do SO; verificar se o OD tem action/ferramenta (e criar se não houver).",
+      "medido": "core/os_updater.py --status: kernel 6.8.0-147, precisa_reboot=true, upgradable=56, firmware_upgrades=51; última execução registrada 09/11 22:15 foi DRY-RUN (nada aplicado) apesar de sucessos_consecutivos=1. systemctl is-enabled od-os-updater.timer/service -> not-found: units existem em systemd/ mas não estão instaladas; nada dispara o ciclo (a 'proxima_execucao' do status é só conta de agendamento).",
+      "existe": "Sim: core/os_updater.py (apt update/full-upgrade/autoremove + fwupdmgr refresh/update + reboot pendente + Telegram + estado JSON), CLI --status/--executar/--forcar/--dry-run, 19 testes (tests/test_os_updater.py), 3 rotas /admin/os-updater/*, units systemd od-os-updater.service/.timer.",
+      "falta": "Ação do dono com sudo: copiar as units para /etc/systemd/system, daemon-reload e enable --now do timer (ou 'systemctl start od-os-updater.service' para aplicar já; o ciclo agenda reboot +5min se /var/run/reboot-required). Reboot pendente na máquina.",
+      "sem_bump": "nenhum código alterado nesta parte."
+    }
+  ],
   "offsite_pg_provado_2026_11_25": {
     "pedido": "Dono (25/11 ~14:38): 'Feche o offsite físico do backup do Postgres fora da máquina'.",
     "medido": "O dump ja saia por DOIS caminhos: snapshot diario das 2 HDs (core/hd_backup.py, /home/alex/dados em /dev/sdb1 — disco separado — e /mnt/Arquivos) e o tar diario enviado ao canal privado do Telegram (core/offsite.py). Nao havia prova de que o arquivo que CHEGOU e o gerado, nem guarda.",
@@ -6620,6 +6643,24 @@
       "commit": "229b5ba",
       "branch": "master",
       "iniciado_em": "2026-11-25T14:27:34-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 1855967,
+      "commit": "1f3a2a8",
+      "branch": "master",
+      "iniciado_em": "2026-11-25T15:56:28-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 1862532,
+      "commit": "1f3a2a8",
+      "branch": "master",
+      "iniciado_em": "2026-11-25T16:03:10-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
