@@ -7,6 +7,8 @@
     "codigo": "tools/checar_offsite_pg.py (novo): confere o dump mais novo no snapshot mais recente de cada HD e dentro do tar que o estado do offsite diz ter enviado; compara sha256 (nao tamanho nem nome); HD fora/snapshot anterior ao dump = ausente/aguardando (nao derruba); divergencia real = exit 1; --json; tests/test_checar_offsite_pg.py (novo, 14 testes).",
     "validacao": "python3 tools/checar_offsite_pg.py -> OFFSITE OK (exit 0), canal + as 2 HDs em ok; pytest tests/test_checar_offsite_pg.py -> 14 passed.",
     "limite": "As 2 HDs ficam na mesma casa e o canal e nuvem; a midia fisica que sai do local (pendrive/SSD criptografado com dump + data/) continua acao do dono.",
+    "telegram": "resumo enviado ao dono (regra 15) — ok=true (msg_id nao capturado no script).",
+    "commit": "a499f5a publicado em origin/master.",
     "sem_bump": "1.46.1+2084 (ferramenta de verificacao; servico e app intactos).",
     "arquivos": "tools/checar_offsite_pg.py (novo), tests/test_checar_offsite_pg.py (novo), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/session.json, iniciar/2026-11-25_conversa_omegadrakon.md (§3), iniciar/ATRIBUICOES.md.",
     "updated_at": "2026-11-25T14:50:00-03:00"
