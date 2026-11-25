@@ -1,4 +1,15 @@
 {
+  "retomada_leitura_iniciar_2026_11_25": {
+    "pedido": "Dono (25/11 ~14:22): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
+    "lido": "README/RULES (24 regras)/session.json (entrada mais recente: reconhecimento_seguranca_vigia_2026_11_23)/ATRIBUICOES/transcricao de 23/11, git e servico.",
+    "estado_encontrado": "Arvore LIMPA; HEAD == origin/master == a909040 (23/11 09:29). od-core active, MainPID 3986249, NRestarts=0, no ar desde 21/11 05:38 — roda o codigo de 1db5e6a: o lote de 23/11 NAO esta no ar. /health ok=true com 32 checks, nenhum fora de up; /app/version 1.46.1/2084 (size 72488590, sha ac60b136...); journal -p err desde 23/11 = 0 entradas; txt.txt so com o despejo de terminal do login de 21/11, sem pedido novo.",
+    "achados": "(1) lote de 23/11 publicado (87384c2, a909040) e com gate verde registrado (5641 passed / 19 skipped / 0 falha, 241,82 s), faltando apenas o restart; (2) pendentes_seguranca e pendentes_novos ja zerados em 23/11 — os avisos pararam, falta o comando de chat existir no processo novo; (3) nada pela metade na arvore alem do restart.",
+    "decisao": "Turno de leitura + registro: nenhum codigo alterado, sem gate novo, SEM restart (processo vivo intocado) e sem bump. Restart segue como proximo passo (regra 7.3 o autoriza com validacao verde).",
+    "proximo_passo": "systemctl --user restart od-core; registrar MainPID/NRestarts//health/journal em iniciar/ e provar ao vivo 'reconhece a segurança' -> network_conhecer {alvo: seguranca}.",
+    "sem_bump": "1.46.1+2084 mantido",
+    "transcricao": "iniciar/2026-11-25_conversa_omegadrakon.md (§1)",
+    "updated_at": "2026-11-25T14:25:00-03:00"
+  },
   "inversao_cadeia_ia_2026_11_14": {
     "pedido": "Dono (14/11 ~17:20): 'inverta o chamado, coloque o Groq antes do Gemini. Quais as proximas atualizações, deixa eu ver esse TODO. No Caderno também tem algumas listas TODO, esta uma bagunça... Essa nova aba chamada Tarefas faz o que? achei que seria o TODO?'",
     "cadeia": "OD_CHAT_PROVIDERS=groq,gemini,local novo no .env — runtime/launcher.py::build_llm_providers() é o único construtor vivo (default gemini,groq,local); OD_IA_ORDEM invertido por consistência (dormante, só musica.py de .od_sandbox lia).",

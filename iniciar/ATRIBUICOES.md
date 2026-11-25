@@ -9,6 +9,37 @@
 
 ---
 
+## 25/11/2026 — Retomada "leia iniciar": lote de 23/11 publicado, mas fora do ar
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).
+
+### Criados
+
+- `iniciar/2026-11-25_conversa_omegadrakon.md` (§1 — transcrição).
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `retomada_leitura_iniciar_2026_11_25`.
+- `docs/ANALISE_SISTEMA_TODO.md` — §4: 3 sugestões deste turno como checkbox
+  (regra 21).
+- `iniciar/ATRIBUICOES.md`, transcrição de 25/11.
+
+### Intenção e estado
+
+- **Intenção:** cumprir as regras 3 e 4 (ler antes de assumir contexto e
+  registrar a troca) e dizer onde a sessão está de fato.
+- **Medido:** árvore limpa, `HEAD == origin/master == a909040`, `/health`
+  `ok=true` com **32 checks** (nenhum fora de `up`), journal `-p err` desde
+  23/11 com **0 entradas**, `/app/version` 1.46.1/2084, `od-core` MainPID
+  **3986249** desde **21/11 05:38** — logo o lote de 23/11 (gate verde,
+  publicado) **não está no processo**.
+- **Estado:** nada alterado em código; sem restart e sem bump (leitura pura).
+- **Pela metade (de outra autoria, herdado):** o restart do `od-core` para o
+  comando de chat "reconhece a segurança" existir. Próximo passo exato:
+  `systemctl --user restart od-core` + registro e prova viva.
+
+---
+
 ## 23/11/2026 — Reconhecimento de eventos de segurança do Vigia via chat e action
 
 **Autor:** Antigravity (Gemini 3.8 Flash High) — pedido do dono no `txt.txt`.

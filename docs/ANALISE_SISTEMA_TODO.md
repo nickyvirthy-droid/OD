@@ -636,6 +636,17 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Restart do `od-core` para ativar o reconhecimento de segurança pelo chat**
+      (sugestão de 25/11) — o lote de 23/11 está publicado e com gate verde,
+      mas o processo é de 21/11; sem o restart o comando "reconhece a
+      segurança" não existe ao vivo.
+- [ ] **Fechar o offsite físico do backup** (sugestão de 25/11) — dump do
+      Postgres e snapshot já existem e a restauração foi provada em 19/11; falta
+      a cópia fora da máquina (P1 nº 7, metade que depende do dono/HD).
+- [ ] **Recalibrar o piso do RAG híbrido para poder ligar o I2 com evidência**
+      (sugestão de 25/11) — o medidor de 18/11 reprovou o default (irrelevantes
+      0/8 → 2/8 passaram por saturação do overlap IDF); falta um piso que
+      mantenha 8/8 de relevantes e pare as irrelevantes.
 - [x] **Hook de pré-commit com a trava de reescrita maciça** — **FEITO 18/11:**
       `tools/trava_reescrita.py` virou a fonte única da régua (o orquestrador
       passou a delegar nele) e `tools/instalar_hooks.sh` instala o hook
