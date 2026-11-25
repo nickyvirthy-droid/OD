@@ -101,6 +101,16 @@ herdavam o ambiente). Fila de eventos vivos conferida zerada em
 entra no ar no próximo restart do `od-core` (serviço segue rodando o de 21/11
 05:38) — restart fica registrado em `iniciar/` quando autorizado.
 
+**No ar desde 25/11 14:27 (restart do `od-core`):** MainPID **1768401**,
+`NRestarts=0`, commit `229b5ba`, `/health` `ok=true` com **32 checks** e
+journal `-p err` com **0 entradas**. Prova viva pelo chat (`POST /message`):
+"reconhece a segurança" → `route=action_intent`,
+`llm_used=fastpath:network_conhecer`, **29,1 ms**, resposta
+"✅ Nenhum evento de segurança pendente — nada a reconhecer." (sem LLM).
+Lote afetado revalidado antes do restart: **444 passed** em
+`test_intents` + `test_network_watchdog` + `test_notifier` +
+`test_actions_catalog`. Sem bump (1.46.1+2084).
+
 ## Falha controlada do restore: aviso de verdade chegou no Telegram (2026-11-19, sem bump)
 
 **Contexto (ordem do dono):** *"Force uma falha controlada num dump de teste

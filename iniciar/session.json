@@ -1,4 +1,17 @@
 {
+  "restart_seguranca_no_ar_2026_11_25": {
+    "pedido": "Dono (25/11 ~14:26): 'Reinicie o od-core para ativar o reconhecimento de segurança pelo chat, com registro e prova viva'.",
+    "antes": "MainPID 3986249 desde 21/11 05:38 (commit 1db5e6a) — lote de 23/11 publicado e fora do ar.",
+    "validacao_previa": "444 passed em test_intents + test_network_watchdog + test_notifier + test_actions_catalog (11,36 s). Gate completo do lote: 5641 passed / 19 skipped / 0 falha (23/11).",
+    "restart": "systemctl --user restart od-core 14:27:34 — MainPID 1768401, NRestarts=0, active; auto-registro em restarts_od_core (pid 1768401, commit 229b5ba, modo all).",
+    "health": "/health ok=true com 32 checks, nenhum fora de up; journal -p err nos 10 min do restart: 0 entradas.",
+    "prova_viva": "POST /message 'reconhece a segurança' (X-API-Key, user_id=app) -> route=action_intent, llm_used=fastpath:network_conhecer, latency_ms=29,062, fallback_used=false, message='✅ Nenhum evento de segurança pendente — nada a reconhecer.'; journal: 'Message processed | route=action_intent | llm=fastpath:network_conhecer | latency_ms=29.062'.",
+    "arquivos": "docs/CHANGELOG.md (nota 'No ar desde 25/11'), iniciar/session.json, iniciar/2026-11-25_conversa_omegadrakon.md (§2), iniciar/ATRIBUICOES.md.",
+    "sem_bump": "1.46.1+2084 mantido (servidor; contrato do app intacto).",
+    "telegram": "resumo enviado ao dono (regra 15) — ok=true msg_id=4222.",
+    "proximo": "Nada pendente deste lote. Fila de próximos do TODO: P1 nº 7 (offsite físico do backup) e recalibração do piso do RAG híbrido (I2).",
+    "updated_at": "2026-11-25T14:30:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_25": {
     "pedido": "Dono (25/11 ~14:22): 'leia iniciar' — recarregar o checkpoint antes de retomar.",
     "lido": "README/RULES (24 regras)/session.json (entrada mais recente: reconhecimento_seguranca_vigia_2026_11_23)/ATRIBUICOES/transcricao de 23/11, git e servico.",
@@ -6584,6 +6597,15 @@
       "commit": "1db5e6a",
       "branch": "master",
       "iniciado_em": "2026-11-21T05:38:21-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 1768401,
+      "commit": "229b5ba",
+      "branch": "master",
+      "iniciado_em": "2026-11-25T14:27:34-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

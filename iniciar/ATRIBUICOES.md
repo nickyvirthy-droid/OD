@@ -9,6 +9,36 @@
 
 ---
 
+## 25/11/2026 — Restart do `od-core`: reconhecimento de segurança do Vigia no ar
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Reinicie o od-core para ativar o
+reconhecimento de segurança pelo chat, com registro e prova viva"*).
+
+### Modificados
+
+- `docs/CHANGELOG.md` — nota "No ar desde 25/11 14:27" na seção de 23/11.
+- `iniciar/session.json` — checkpoint `restart_seguranca_no_ar_2026_11_25`
+  (o auto-registro do serviço também gravou em `restarts_od_core`).
+- `iniciar/2026-11-25_conversa_omegadrakon.md` — §2.
+- `iniciar/ATRIBUICOES.md` — esta entrada.
+
+### Intenção e estado
+
+- **Intenção:** tirar do papel o comando que o dono pediu em 23/11 (reconhecer
+  eventos de segurança pelo chat) — o código estava publicado desde 23/11 mas o
+  processo era de 21/11.
+- **Pronto/validado:** lote afetado **444 passed** (11,36 s) antes do restart;
+  restart 14:27:34 com MainPID **1768401**, `NRestarts=0`, commit `229b5ba`;
+  `/health` `ok=true` com **32 checks** (nenhum fora de `up`), journal `-p err`
+  **0 entradas**; prova viva `POST /message "reconhece a segurança"` →
+  `route=action_intent`, `fastpath:network_conhecer`, **29,1 ms**, sem LLM.
+- **Pela metade:** nada deste lote. Limite declarado: a prova foi com fila
+  vazia ("nada a reconhecer"); o ack com eventos reais foi provado em 23/11 e
+  nos testes, não fabricado agora.
+- **Sem bump:** 1.46.1+2084.
+
+---
+
 ## 25/11/2026 — Retomada "leia iniciar": lote de 23/11 publicado, mas fora do ar
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).

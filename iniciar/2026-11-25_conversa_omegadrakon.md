@@ -52,3 +52,59 @@ no processo vivo durante um turno que só pediu leitura.
 `systemctl --user restart od-core` (regra 7.3), registrar MainPID/NRestarts/
 `/health`/journal em `iniciar/` e provar ao vivo: "reconhece a segurança" →
 `network_conhecer` com `alvo="seguranca"`.
+
+## §2 — Restart executado: o reconhecimento de segurança está vivo (25/11 14:27)
+
+### Ordem do Dono
+
+> Reinicie o od-core para ativar o reconhecimento de segurança pelo chat, com
+> registro e prova viva
+
+### Validação antes do restart (regra 7.3 / 10)
+
+Lote afetado, direto no código do HEAD: `pytest -q tests/test_intents.py
+tests/test_network_watchdog.py tests/test_notifier.py
+tests/test_actions_catalog.py tests/conftest.py` → **444 passed em 11,36 s**,
+exit 0. O gate completo do próprio lote era **5641 passed / 19 skipped /
+0 falha** (23/11, 241,82 s) e desde então só entraram `.md`/`.json`.
+
+### Antes e depois
+
+| | Antes | Depois |
+|---|---|---|
+| MainPID | 3986249 | **1768401** |
+| Início | 21/11 05:38 | **25/11 14:27:34** |
+| Commit em execução | `1db5e6a` | **`229b5ba`** |
+| NRestarts | 0 | 0 |
+| `/health` | ok, 32 checks | **ok, 32 checks, nenhum fora de `up`** |
+| journal `-p err` (10 min) | — | **0 entradas** |
+
+O auto-registro (regra 4, `core/registro_restart.py`) gravou sozinho em
+`restarts_od_core`: `{pid: 1768401, commit: 229b5ba, branch: master,
+iniciado_em: 2026-11-25T14:27:34-03:00, host: nicky-server, modo: all,
+usuario: alex}`.
+
+### Prova viva (chat, processo novo)
+
+```
+POST /message  {"text": "reconhece a segurança", "user_id": "app"}
+→ route=action_intent | llm_used=fastpath:network_conhecer
+  latency_ms=29,062 | fallback_used=false | cached=false
+  message="✅ Nenhum evento de segurança pendente — nada a reconhecer."
+```
+
+Journal, mesma requisição: `Message processed | route=action_intent |
+user=alex | profile=guardian | llm=fastpath:network_conhecer |
+latency_ms=29.062`. Ou seja: **29 ms e nenhuma chamada de LLM** — o comando do
+chat que faltava agora existe no processo, e sem pendência ele responde isso
+em vez de inventar.
+
+### Estado e limites
+
+- Sem bump (1.46.1+2084): mudança de servidor, contrato do app intacto.
+- Nada apagado; `logs/network_watchdog_estado.json` segue com
+  `pendentes_seguranca=[]` e `pendentes_novos=[]`.
+- Limitação honesta: a prova foi com a fila **vazia** (resposta "nada a
+  reconhecer"). O ack com eventos de verdade foi provado em 23/11 no processo
+  antigo e nos testes (`TestNetworkConhecerSeguranca`), não agora — não fabriquei
+  evento de segurança falso só para ver a mensagem de sucesso.
