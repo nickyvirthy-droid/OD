@@ -11,7 +11,8 @@
     "sem_bump": "1.46.1+2084 (servidor; contrato do app intacto).",
     "telegram": "resumo enviado ao dono (regra 15) — ok=true msg_id=4224.",
     "arquivos": "memory/rag.py, runtime/launcher.py, tools/recalibrar_piso_hibrido.py (novo), tests/test_rag.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, docs/ARCHITECTURE_v2.md, iniciar/session.json, iniciar/2026-11-25_conversa_omegadrakon.md (§4 e §5), iniciar/ATRIBUICOES.md.",
-    "updated_at": "2026-11-25T16:05:00-03:00"
+    "updated_at": "2026-11-25T16:05:00-03:00",
+    "commit": "0f38290 publicado em origin/master."
   },
   "os_updater_verificado_2026_11_25": [
     {
