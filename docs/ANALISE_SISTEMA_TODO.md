@@ -636,10 +636,16 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Restart do `od-core` para ativar o reconhecimento de segurança pelo chat**
-      (sugestão de 25/11) — o lote de 23/11 está publicado e com gate verde,
-      mas o processo é de 21/11; sem o restart o comando "reconhece a
-      segurança" não existe ao vivo.
+- [x] **Restart do `od-core` para ativar o reconhecimento de segurança pelo chat**
+      (sugestão de 25/11) — **FEITO 25/11 14:27:** MainPID 1768401, `NRestarts=0`,
+      `/health` ok com 32 checks, journal `-p err` 0; prova viva `POST /message`
+      "reconhece a segurança" → `fastpath:network_conhecer` em **29,1 ms**
+      ("nada a reconhecer", fila vazia). Lote afetado 444 passed antes do
+      restart.
+- [ ] **Comparador de modelos lado a lado (P1 nº 8)** (sugestão de 25/11) — hoje
+      "usar a melhor IA" é decidido por log/benchmark antigo (05/11); falta a
+      comparação ao vivo, mesmo prompt em dois modelos, com a resposta e a
+      latência lado a lado no painel.
 - [ ] **Fechar o offsite físico do backup** (sugestão de 25/11) — dump do
       Postgres e snapshot já existem e a restauração foi provada em 19/11; falta
       a cópia fora da máquina (P1 nº 7, metade que depende do dono/HD).
