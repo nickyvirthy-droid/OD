@@ -9,6 +9,39 @@
 
 ---
 
+## 26/11/2026 — Streaming no grafo unificado ao caminho direto
+
+**Autor:** Antigravity (Gemini 4 Hydrogen) — pedido do dono (*"1"*, resolver a
+divergência de streaming grafo × caminho direto).
+
+### Modificados
+
+- `core/orchestrator.py` — extraídos `_executar_stream_llm()` (compartilhado
+  entre caminho direto e grafo) e `_estado_de_tool_results()` (compartilhado
+  entre `_executar_grafo` e `_process_stream_grafo`); `_process_stream_grafo`
+  agora roda `grafo.astream()` com `asyncio.Queue` para streaming real
+  token-a-token, remove dupla contagem de métricas e `_post_process`
+  duplicado, e emite `{"type": "error", "message": "rate_limited" | ...}` e
+  `_record_terminal`/`_finish` em paridade com o caminho direto.
+- `tests/test_orchestrator_graph_integration.py` — nova classe
+  `TestStreamingGrafoParidade` (7 casos cobrindo `OD_ORCHESTRATOR_GRAPH=0` e `1`).
+- `docs/ANALISE_SISTEMA_TODO.md` (checkbox marcado `[x]`), `docs/CHANGELOG.md`,
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§26),
+  `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** alinhar o streaming em produção (`OD_ORCHESTRATOR_GRAPH=1`) ao
+  contrato do caminho direto e do app (`app/lib/services/od_ws.dart`).
+- **Pronto/validado:** suíte completa **5820 passed, 16 skipped, 0 falhas**
+  (`248.51s`) e gate do RAG híbrido **4433 chunks · 8/8 · 0/8 · 6/6 · 2/2**
+  (exit `0`).
+- **Estado:** sem bump (`1.47.0+2085`, servidor apenas; APK já trata `type:
+  "error"` / `rate_limited`). Seguindo para commit/push e restart verde do
+  `od-core` (regra 7.3).
+
+---
+
 ## 26/11/2026 — Validação e publicação do lote "Gate em zero" + retomada
 
 **Autor:** Antigravity (Gemini 4 Hydrogen) — pedido do dono (*"leia iniciar"* e

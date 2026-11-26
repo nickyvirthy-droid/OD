@@ -1,4 +1,15 @@
 {
+  "streaming_grafo_unificado_2026_11_26": {
+    "pedido": "Dono (26/11 14:55): '1' — resolver a divergencia de streaming entre o caminho do grafo (OD_ORCHESTRATOR_GRAPH=1 em producao) e o caminho direto.",
+    "causa": "Em core/orchestrator.py, _process_stream_grafo() chamava _gerar_com_contexto() (nao-streaming, emitia um unico token inteiro), tratava caminhos terminais no bloco else emitindo type 'done' para rate_limited (o app em od_ws.dart so traduz rate_limited no case 'error'), deixava llm_unavailable cair em token/done + _post_process, somava _metrics.llm/_metrics.fallback duas vezes, chamava _post_process duas vezes (no no post_process e ao final), nao chamava _record_terminal/_finish nos terminais (datetime/quick/cache) e ignorava tool_results no no gerar.",
+    "feito": "core/orchestrator.py: extraidos _executar_stream_llm() (async generator compartilhado entre caminho direto e grafo: generate_stream real, fallback para _generate_one, anti-recusa, anti-falso-sucesso e metrica unica) e _estado_de_tool_results() (compartilhado entre _executar_grafo e _process_stream_grafo). _process_stream_grafo agora roda grafo.astream em background com asyncio.Queue encaminhando tokens em tempo real, remove a chamada duplicada a _post_process e fecha rotas terminais com o mesmo contrato do caminho direto (error para rate_limited e llm_unavailable; _record_terminal + _finish + token/done para datetime/quick/cache/action_intent).",
+    "testes": "tests/test_orchestrator_graph_integration.py ganhou TestStreamingGrafoParidade (7 casos cobrindo OD_ORCHESTRATOR_GRAPH=0 e 1: rate_limited, streaming token-a-token real com contagem unica em metricas e historico, llm_unavailable, atalho datetime e ferramenta action_intent sem LLM). Suite completa: 5820 passed / 16 skipped / 0 falhas em 248.51s. Gate RAG hibrido: 4433 chunks, relevantes 8/8 -> 8/8, irrelevantes 0/8 -> 0/8, parafrases 6/6 -> 6/6, estruturais 2/2 -> 2/2 (exit 0).",
+    "sem_bump": "1.47.0+2085 (servidor apenas; o APK ja trata type 'error' com message 'rate_limited').",
+    "arquivos": "core/orchestrator.py, tests/test_orchestrator_graph_integration.py, docs/ANALISE_SISTEMA_TODO.md, docs/CHANGELOG.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (S26), iniciar/session.json, txt.txt.",
+    "proximo": "Executar restart verde do od-core (regra 7.3) e registrar prova viva.",
+    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (S26)",
+    "updated_at": "2026-11-26T16:06:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_26_14h42": {
     "pedido": "Dono (26/11 14:42): 'leia iniciar', seguido de '1' (14:46): validar e fechar commit/push do lote pendente gate_zero_2026_11_26.",
     "lido": "tools/brief_multi_ia.py, iniciar/README.md, iniciar/RULES.md (24 regras), iniciar/session.json (topo: gate_zero_2026_11_26), iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (S1-S4 e S23-S24), txt.txt, docs/ANALISE_SISTEMA_TODO.md (revisao 17/11 e S4), instrucoes_projeto.txt, git status/diff.",

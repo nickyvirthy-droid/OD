@@ -730,18 +730,22 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       o trio a cada teste. Gate **5772 passed / 19 skipped / 0 falha** (antes
       5770/19/**2**) e **0 vazamentos** com o mesmo plugin. Ver
       `docs/CHANGELOG.md`.
-- [ ] **Caminho do grafo e caminho direto divergem no protocolo de streaming** —
-      achado em 26/11 ao fechar as 2 falhas de `test_websocket`: com
-      `OD_ORCHESTRATOR_GRAPH=1` (o valor do `.env`, ou seja, **produção**),
-      `process_stream` usa `_process_stream_grafo`, que rende `type: "token"`
-      com a resposta **inteira** ("tokens simulados") e o rate limit chega como
-      `type: "done"` + `route: "rate_limited"` — nunca como `type: "error"`.
-      O app (`app/lib/services/od_ws.dart`) só traduz `rate_limited` para
-      "Muitas mensagens em pouco tempo…" no `case 'error'`; no `case 'done'` o
-      texto ainda aparece (é o `finalText`), só que como resposta normal, sem
-      erro. Os testes de streaming cobrem o caminho DIRETO (desligado no gate
-      pelo conftest). Resolver: decidir se o grafo emite o mesmo frame de erro
-      do caminho direto (ou os testes passam a cobrir os dois caminhos).
+- [x] **Caminho do grafo e caminho direto divergem no protocolo de streaming** —
+      **FEITO 26/11:** `_process_stream_grafo` e o caminho direto de
+      `process_stream` em `core/orchestrator.py` agora compartilham
+      `_executar_stream_llm()` (async generator com `provider.generate_stream`,
+      fallback para `_generate_one`, anti-recusa e anti-falso-sucesso) e
+      `_estado_de_tool_results()`:
+      (1) tokens reais do LLM são encaminhados por `asyncio.Queue` em tempo
+      real (em vez de resposta inteira em um `token`);
+      (2) `rate_limited` e `llm_unavailable` no grafo emitem `{"type": "error",
+      "message": "rate_limited" | "providers_indisponiveis" | ...}` e chamam
+      `_finish()`, casando com o `case 'error'` de `app/lib/services/od_ws.dart`;
+      (3) encerradas a dupla contagem de `_metrics.llm`/`fallback` e a dupla
+      chamada de `_post_process` no grafo, além da ausência de `_record_terminal`/
+      `_finish` nas rotas terminais (`datetime`, `quick`, `cache`, `action_intent`).
+      7 novos casos em `tests/test_orchestrator_graph_integration.py`
+      (`TestStreamingGrafoParidade`) cobrem os dois caminhos (`0` e `1`).
 - [ ] **`xdg-desktop-portal[-gtk]` falhando na sessão do usuário** — achado na
       retomada de 26/11 11:0x: `journalctl --user -p err` mostra os dois units
       `Failed to start` a cada poucos minutos desde 10:32 (portal de desktop

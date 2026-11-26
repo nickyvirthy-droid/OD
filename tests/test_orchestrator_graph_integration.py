@@ -636,3 +636,242 @@ class TestFerramentasNoGrafo:
         assert result.route == "action_intent"
         assert "52.5" in result.message or "52,5" in result.message
         assert "70 graus" not in result.message  # não é a prosa do modelo
+
+
+@pytest.mark.asyncio
+class TestStreamingGrafoParidade:
+    """Paridade de `process_stream` com `OD_ORCHESTRATOR_GRAPH=1` vs direto."""
+
+    @pytest.mark.parametrize("flag", ["0", "1"])
+    async def test_rate_limit_emite_error_e_registra_nos_dois_caminhos(
+        self, tmp_path, monkeypatch, flag
+    ):
+        from core.event_bus import EventBus
+        from core.orchestrator import OrchestratorConfig
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", flag)
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / f"ck-{flag}.db"))
+
+        bus = EventBus()
+        await bus.start()
+        eventos = []
+
+        async def _on_ev(e):
+            eventos.append(e)
+
+        bus.subscribe_handler("orchestrator.responded", _on_ev)
+        try:
+            orch = Orchestrator(
+                providers=[StaticProvider("stub", "ok")],
+                event_bus=bus,
+                config=OrchestratorConfig(rate_limit_max=1, rate_window_seconds=60.0),
+            )
+            async for _ in orch.process_stream("alex", "guardian", "m1", session_id="s1"):
+                pass
+            segundo = [
+                c
+                async for c in orch.process_stream(
+                    "alex", "guardian", "m2", session_id="s2"
+                )
+            ]
+
+            assert {"type": "error", "message": "rate_limited"} in segundo
+            assert not [c for c in segundo if c.get("type") == "done"]
+            assert not [c for c in segundo if c.get("type") == "token"]
+            assert orch.metrics.rate_limited == 1
+            assert orch.metrics.processed == 2
+            assert len(eventos) == 2
+            assert eventos[1].data["route"] == "rate_limited"
+        finally:
+            await bus.stop()
+
+    async def test_llm_token_a_token_real_e_contagem_unica_no_grafo(
+        self, tmp_path, monkeypatch
+    ):
+        from core.event_bus import EventBus
+        from core.orchestrator import OrchestratorConfig
+        from memory.history import ConversationHistory
+
+        class _StreamFake:
+            name = "stream-fake"
+
+            def __init__(self) -> None:
+                self.stream_calls = 0
+                self.generate_calls = 0
+
+            async def generate_stream(self, prompt: str, **kwargs):
+                self.stream_calls += 1
+                for tok in ("Oi", ", ", "tudo", " bem?"):
+                    yield tok
+
+            async def generate(self, prompt: str, **kwargs):  # pragma: no cover
+                self.generate_calls += 1
+                return "nao deveria rodar"
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck-stream.db"))
+
+        bus = EventBus()
+        await bus.start()
+        eventos = []
+
+        async def _on_ev(e):
+            eventos.append(e)
+
+        bus.subscribe_handler("orchestrator.responded", _on_ev)
+        history = ConversationHistory(base_dir=tmp_path / "hist")
+        provider = _StreamFake()
+        try:
+            orch = Orchestrator(
+                providers=[provider],
+                history=history,
+                event_bus=bus,
+                config=OrchestratorConfig(
+                    inject_datetime=False, enable_action_intents=False
+                ),
+            )
+            chunks = [
+                c
+                async for c in orch.process_stream(
+                    "alex", "guardian", "conte algo", session_id="s-tok"
+                )
+            ]
+
+            tokens = [c["content"] for c in chunks if c.get("type") == "token"]
+            assert tokens == ["Oi", ", ", "tudo", " bem?"]
+            done = [c for c in chunks if c.get("type") == "done"]
+            assert len(done) == 1
+            assert done[0]["content"] == "Oi, tudo bem?"
+            assert done[0]["route"] == "llm"
+            assert done[0]["llm_used"] == "stream-fake"
+            assert provider.stream_calls == 1
+            assert provider.generate_calls == 0
+            assert orch.metrics.llm == 1
+            assert orch.metrics.processed == 1
+            msgs = history.get_history("alex", "guardian")
+            assert [(m.role, m.content) for m in msgs] == [
+                ("user", "conte algo"),
+                ("assistant", "Oi, tudo bem?"),
+            ]
+            assert len(eventos) == 1
+            assert eventos[0].data["route"] == "llm"
+        finally:
+            await bus.stop()
+
+    @pytest.mark.parametrize("flag", ["0", "1"])
+    async def test_sem_providers_emite_error_nos_dois_caminhos(
+        self, tmp_path, monkeypatch, flag
+    ):
+        from core.event_bus import EventBus
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", flag)
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / f"ck-unav-{flag}.db"))
+
+        bus = EventBus()
+        await bus.start()
+        eventos = []
+
+        async def _on_ev(e):
+            eventos.append(e)
+
+        bus.subscribe_handler("orchestrator.responded", _on_ev)
+        try:
+            orch = Orchestrator(providers=[], event_bus=bus)
+            chunks = [
+                c
+                async for c in orch.process_stream(
+                    "alex", "guardian", "oi", session_id="s-unav"
+                )
+            ]
+
+            assert chunks[-1] == {"type": "error", "message": "providers_indisponiveis"}
+            assert not [c for c in chunks if c.get("type") == "token"]
+            assert not [c for c in chunks if c.get("type") == "done"]
+            assert orch.metrics.unavailable == 1
+            assert orch.metrics.llm == 0
+            assert orch.metrics.processed == 1
+            assert len(eventos) == 1
+            assert eventos[0].data["route"] == "llm_unavailable"
+        finally:
+            await bus.stop()
+
+    async def test_datetime_atalho_registra_e_finaliza_no_grafo(
+        self, tmp_path, monkeypatch
+    ):
+        from core.event_bus import EventBus
+        from core.orchestrator import OrchestratorConfig
+        from memory.history import ConversationHistory
+
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck-dt.db"))
+
+        bus = EventBus()
+        await bus.start()
+        eventos = []
+
+        async def _on_ev(e):
+            eventos.append(e)
+
+        bus.subscribe_handler("orchestrator.responded", _on_ev)
+        history = ConversationHistory(base_dir=tmp_path / "hist-dt")
+        try:
+            orch = Orchestrator(
+                providers=[StaticProvider("stub", "x")],
+                history=history,
+                event_bus=bus,
+                config=OrchestratorConfig(inject_datetime=True),
+            )
+            chunks = [
+                c
+                async for c in orch.process_stream(
+                    "alex", "guardian", "que horas são?", session_id="s-dt"
+                )
+            ]
+
+            assert [c["content"] for c in chunks if c.get("type") == "token"]
+            assert chunks[-1]["type"] == "done"
+            assert chunks[-1]["route"] == "datetime"
+            assert orch.metrics.datetime == 1
+            assert orch.metrics.processed == 1
+            assert len(history.get_history("alex", "guardian")) == 2
+            assert len(eventos) == 1
+            assert eventos[0].data["route"] == "datetime"
+        finally:
+            await bus.stop()
+
+    async def test_ferramenta_no_stream_do_grafo_nao_chama_llm(
+        self, tmp_path, monkeypatch
+    ):
+        monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", "1")
+        monkeypatch.setenv("OD_GRAPH_CHECKPOINT_DB", str(tmp_path / "ck-tool.db"))
+        monkeypatch.delenv("OD_HUMAN_APPROVAL_ACTIONS", raising=False)
+        import core.intents as intents_mod
+
+        monkeypatch.setattr(
+            intents_mod,
+            "detect_action_intent",
+            lambda texto: ("cpu_temp", {}) if "temperatura" in texto else None,
+        )
+        provider = StaticProvider("stub", "uns 70 graus")
+        orch = Orchestrator(providers=[provider], action_registry=object())
+
+        async def fake_execute(nome, params=None, user_id="", role=""):
+            return {"celsius": 52.5, "hottest": {"type": "x86_pkg_temp", "celsius": 52.5}}
+
+        monkeypatch.setattr(orch, "execute_action", fake_execute)
+
+        chunks = [
+            c
+            async for c in orch.process_stream(
+                "alex", "guardian", "qual a temperatura da cpu",
+                role="admin", session_id="s-cpu-stream",
+            )
+        ]
+
+        assert chunks[-1]["type"] == "done"
+        assert chunks[-1]["route"] == "action_intent"
+        assert chunks[-1]["llm_used"] == "fastpath:cpu_temp"
+        assert "52.5" in chunks[-1]["content"] or "52,5" in chunks[-1]["content"]
+        assert "70 graus" not in chunks[-1]["content"]
+        assert orch.metrics.intents == 1
+        assert orch.metrics.processed == 1

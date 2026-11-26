@@ -12,6 +12,47 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Streaming no grafo: tokens reais e frames de erro alinhados ao caminho direto (2026-11-26, sem bump)
+
+**Contexto:** ao fechar o gate em zero (entrada abaixo), ficou exposto que em
+produção (`OD_ORCHESTRATOR_GRAPH=1`) `Orchestrator.process_stream()` seguia por
+`_process_stream_grafo()`, que: (1) chamava `_generate` (não-streaming) e
+emitia um único frame `token` com a resposta inteira; (2) rendia `rate_limited`
+como `type: "done"` em vez de `type: "error"` (o app em
+`app/lib/services/od_ws.dart` só traduz `rate_limited` no `case 'error'`);
+(3) deixava `llm_unavailable` cair no ramo de `token`/`done` + `_post_process`;
+(4) somava `_metrics.llm`/`fallback` e rodava `_post_process` duas vezes por
+turno; (5) não chamava `_record_terminal`/`_finish` nem emitia `token` nas
+rotas terminais (`datetime`, `quick`, `cache`), além de ignorar `tool_results`
+no nó `gerar`.
+
+**Feito (`core/orchestrator.py`):**
+
+- Extraído `_executar_stream_llm()` (async generator compartilhado entre o
+  caminho direto e o grafo): streaming real via `provider.generate_stream`,
+  fallback para `_generate_one`, anti-recusa, anti-falso-sucesso e incremento
+  único de métricas.
+- Extraído `_estado_de_tool_results()` compartilhado entre `_executar_grafo()` e
+  `_process_stream_grafo()` para formatar resultados de ferramentas executadas
+  sem chamar o LLM.
+- `_process_stream_grafo()` executa `grafo.astream()` em tarefa com
+  `asyncio.Queue`, emitindo `token` em tempo real à medida que chegam do
+  provider, removendo o `_post_process` duplicado, e encerrando rotas terminais
+  com o mesmo contrato do caminho direto (`{"type": "error", ...}` para
+  `rate_limited`/`llm_unavailable`, e `_record_terminal` + `_finish` +
+  `token`/`done` para `datetime`/`quick`/`cache`/`action_intent`).
+
+**Testes:** `tests/test_orchestrator_graph_integration.py` ganhou
+`TestStreamingGrafoParidade` (7 casos cobrindo `OD_ORCHESTRATOR_GRAPH=0` e `1`:
+`rate_limited`, streaming token-a-token real com contagem única de métricas e
+histórico, `llm_unavailable`, atalho `datetime` e ferramenta `action_intent` sem
+LLM).
+
+**Limites declarados:** sem bump (`1.47.0+2085`, servidor apenas; o APK já
+trata `type: "error"` com `message: "rate_limited"`).
+
+---
+
 ## Gate em zero: os 2 testes de `test_websocket` deixam de falhar por ordem (2026-11-26, sem bump)
 
 **Contexto:** o gate completo fechava com `2 failed` —

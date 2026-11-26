@@ -1023,39 +1023,29 @@ class Orchestrator:
                 return await self.execute_action(action_name, params, user_id, role)
             return None
 
-        # Função de geração de resposta (LLM) - retorna completo para o grafo
-        # O streaming de tokens é feito fora do grafo
+        # Função de geração de resposta (LLM) com streaming real via fila
         async def gerar(estado: dict[str, Any]) -> dict[str, Any]:
-            message, llm_used, fallback_used, prompt = await self._gerar_com_contexto(
+            from_tools = self._estado_de_tool_results(estado)
+            if from_tools is not None:
+                return from_tools
+
+            router_strategy = estado.get("router_strategy", "chat")
+            use_rag = router_strategy not in ("llm_only", "direct")
+            resultado: dict[str, Any] = {}
+            async for kind, payload in self._executar_stream_llm(
                 user_id=estado.get("user_id", ""),
                 profile=estado.get("profile", ""),
                 text=estado.get("text", ""),
                 system_prompt=estado.get("system_prompt", ""),
                 role=estado.get("role", "admin"),
                 extra_history=estado.get("extra_history"),
-            )
-            if message is None:
-                self._metrics.unavailable += 1
-                return {
-                    "terminal": True,
-                    "route": ROUTE_UNAVAILABLE,
-                    "message": self._config.unavailable_message,
-                    "error": DEFAULT_UNAVAILABLE_ERROR,
-                    "prompt": prompt,
-                    "registrar": None,
-                }
-            if fallback_used:
-                self._metrics.fallback += 1
-            else:
-                self._metrics.llm += 1
-            return {
-                "terminal": False,
-                "route": ROUTE_FALLBACK if fallback_used else ROUTE_LLM,
-                "message": message,
-                "llm_used": llm_used,
-                "fallback_used": fallback_used,
-                "prompt": prompt,
-            }
+                use_rag=use_rag,
+            ):
+                if kind == "token":
+                    queue.put_nowait(("token", payload))
+                else:
+                    resultado = payload
+            return resultado
 
         # Nó de decisão humana
         async def humano(estado: dict[str, Any]) -> dict[str, Any]:
@@ -1186,84 +1176,150 @@ class Orchestrator:
             "messages": [{"role": "user", "content": text}],
         }
 
-        # Executa o grafo com streaming de supersteps
+        # Executa o grafo em background para encaminhar tokens em tempo real.
         config = {"configurable": {"thread_id": thread_id}, "recursion_limit": 50}
-        
-        full_response = ""
-        route = ROUTE_LLM
-        llm_used = ""
-        fallback_used = False
-        prompt = ""
+        queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
 
-        async for update in grafo.astream(entrada, config, resume=retomar):
-            # Rende progresso do superstep
-            yield {
-                "type": "progress",
-                "step": update.get("passo", 0),
-                "nodes": update.get("nos", []),
-                "next": update.get("proximos", []),
-            }
+        async def _rodar_grafo() -> None:
+            try:
+                async for update in grafo.astream(entrada, config, resume=retomar):
+                    await queue.put(("update", update))
+            except Exception as exc:
+                await queue.put(("exc", exc))
+            finally:
+                await queue.put(("end", None))
 
-            estado = update.get("estado", {})
-            
-            # Se chegou ao generate e tem resposta completa, faz streaming de tokens
-            if estado.get("message") and not full_response:
-                full_response = estado["message"]
-                route = estado.get("route", ROUTE_LLM)
-                llm_used = estado.get("llm_used", "")
-                fallback_used = estado.get("fallback_used", False)
-                prompt = estado.get("prompt", "")
-                
-                # Rende tokens simulados (o LLM já gerou completo no nó)
-                # Para streaming real, precisaríamos modificar o nó gerar
+        task = asyncio.create_task(_rodar_grafo())
+        estado_final: dict[str, Any] = {}
+        tokens_emitidos = False
+        try:
+            while True:
+                kind, payload = await queue.get()
+                if kind == "token":
+                    tokens_emitidos = True
+                    yield {"type": "token", "content": payload}
+                elif kind == "update":
+                    update = payload
+                    estado_final = update.get("estado", {})
+                    yield {
+                        "type": "progress",
+                        "step": update.get("passo", 0),
+                        "nodes": update.get("nos", []),
+                        "next": update.get("proximos", []),
+                    }
+                    if (
+                        estado_final.get("pending_human_input")
+                        and not estado_final.get("human_decision")
+                    ):
+                        yield {
+                            "type": "human_loop_pending",
+                            "thread_id": thread_id,
+                            "pending_human_input": estado_final["pending_human_input"],
+                        }
+                        return
+                elif kind == "exc":
+                    raise payload
+                elif kind == "end":
+                    break
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except (asyncio.CancelledError, Exception):
+                    pass
+
+        # Desfecho único: garante mesma telemetria, eventos e frames de erro
+        # (`rate_limited`, `llm_unavailable`) que o caminho direto.
+        if estado_final.get("terminal"):
+            route = str(estado_final.get("route") or ROUTE_ERROR)
+            msg = str(estado_final.get("message") or "")
+            if route == ROUTE_RATE_LIMITED:
+                result = self._stream_result(
+                    user_id,
+                    profile,
+                    text,
+                    ROUTE_RATE_LIMITED,
+                    msg or RATE_LIMITED_MESSAGE,
+                )
+                await self._finish(result, started)
+                yield {"type": "error", "message": "rate_limited"}
+                return
+            if route == ROUTE_UNAVAILABLE:
+                result = self._stream_result(
+                    user_id,
+                    profile,
+                    text,
+                    ROUTE_UNAVAILABLE,
+                    msg or self._config.unavailable_message,
+                    prompt=str(estado_final.get("prompt") or ""),
+                    error=str(estado_final.get("error") or DEFAULT_UNAVAILABLE_ERROR),
+                )
+                await self._finish(result, started)
                 yield {
-                    "type": "token",
-                    "content": limpa_etiquetas_resposta(full_response,
-                                                        strip=False),
-                }
-
-            # Verifica pausa humana
-            if estado.get("pending_human_input") and not estado.get("human_decision"):
-                yield {
-                    "type": "human_loop_pending",
-                    "thread_id": thread_id,
-                    "pending_human_input": estado["pending_human_input"],
+                    "type": "error",
+                    "message": str(
+                        estado_final.get("stream_error") or "todos_providers_falharam"
+                    ),
                 }
                 return
 
-        # Finalização
-        if full_response:
-            # Anti-recusa e anti-falso-sucesso (igual ao processo direto)
-            refusal = self._refusal_reason(full_response, role, text)
-            if refusal:
-                log.warn("Recusa indevida detectada — refazendo", reason=refusal)
-                # Em streaming, não refazemos — logamos e seguimos
-            else:
-                # 14/11: etiqueta de log no MEIO sai daqui (histórico/cache).
-                # Em RECUSA a resposta fica CRUA de propósito: é ela que
-                # `_cacheable`/`cache_failure_reason` banem — limpada, a
-                # falha viraria "resposta normal" e entraria no cache
-                # (prova: test_falha_nao_e_cacheada).
-                full_response = limpa_etiquetas_resposta(full_response)
-
-            fake = fake_action_reason(full_response)
-            if fake:
-                log.warn("Resposta do LLM fingia executar ação — substituída", reason=fake)
-                full_response = FAKE_ACTION_MESSAGE
-
-            if fallback_used:
-                self._metrics.fallback += 1
-            else:
-                self._metrics.llm += 1
-
-            await self._post_process(user_id, profile, text, full_response, llm_used)
-
+            llm_used = str(estado_final.get("llm_used") or "")
+            cached = bool(estado_final.get("cached", False))
+            fallback_used = bool(estado_final.get("fallback_used", False))
             result = self._stream_result(
-                user_id, profile, text, route, full_response,
-                llm_used=llm_used, fallback_used=fallback_used, prompt=prompt,
+                user_id,
+                profile,
+                text,
+                route,
+                msg,
+                llm_used=llm_used,
+                cached=cached,
+                fallback_used=fallback_used,
+                prompt=str(estado_final.get("prompt") or ""),
+            )
+            registrar = estado_final.get("registrar")
+            if registrar is not None:
+                await self._record_terminal(result, text, persist=bool(registrar))
+            await self._finish(result, started)
+            if not tokens_emitidos and msg:
+                yield {"type": "token", "content": msg}
+            done_frame: dict[str, Any] = {
+                "type": "done",
+                "profile_name": _profile_display_name(profile),
+                "content": msg,
+                "route": route,
+                "llm_used": llm_used,
+                "fallback_used": fallback_used,
+                "cached": cached,
+                "latency_ms": result.latency_ms,
+            }
+            yield done_frame
+            return
+
+        full_response = str(estado_final.get("message") or "")
+        if full_response:
+            route = str(estado_final.get("route") or ROUTE_LLM)
+            llm_used = str(estado_final.get("llm_used") or "")
+            fallback_used = bool(estado_final.get("fallback_used", False))
+            prompt = str(estado_final.get("prompt") or "")
+            if not tokens_emitidos:
+                yield {
+                    "type": "token",
+                    "content": limpa_etiquetas_resposta(full_response, strip=False),
+                }
+            # O nó `post_process` já persistiu cache/histórico uma vez.
+            result = self._stream_result(
+                user_id,
+                profile,
+                text,
+                route,
+                full_response,
+                llm_used=llm_used,
+                fallback_used=fallback_used,
+                prompt=prompt,
             )
             await self._finish(result, started)
-
             yield {
                 "type": "done",
                 "profile_name": _profile_display_name(profile),
@@ -1272,21 +1328,8 @@ class Orchestrator:
                 "llm_used": llm_used,
                 "fallback_used": fallback_used,
                 "cached": False,
+                "latency_ms": result.latency_ms,
             }
-        else:
-            # Caminhos terminais (rate_limit, datetime, quick, infra, cache)
-            # O estado final deve ter a resposta
-            estado_final = estado
-            if estado_final.get("terminal"):
-                yield {
-                    "type": "done",
-                    "profile_name": _profile_display_name(profile),
-                    "content": estado_final.get("message", ""),
-                    "route": estado_final.get("route", ROUTE_ERROR),
-                    "llm_used": estado_final.get("llm_used", ""),
-                    "fallback_used": estado_final.get("fallback_used", False),
-                    "cached": estado_final.get("cached", False),
-                }
 
     async def process_stream(
         self,
@@ -1659,181 +1702,44 @@ class Orchestrator:
             }
             return
 
-        # Etapa 4.5 — RAG (Parte B NOMAD): mesmo caminho do REST (reescrita
-        # com histórico, floor duplo, reranker, orçamento) — os dois
-        # transportes enxergam o MESMO contexto, senão o app e o chat
-        # responderiam com bagagens diferentes.
-        contexto = self._contexto_msgs(user_id, profile, None)
-        system_efetivo = self._resolve_system(system_prompt, profile, role)
-        # Etapas 4.5 (RAG) + 4.6 (enciclopédia) + 4.6b (nota de fonte):
-        # UMA fonte por prompt — duas fontes de verdade brigando no mesmo
-        # prompt é receita para alucinação. Em pergunta de FATO a ordem é
-        # a nova (régua do dono, 26/10): fonte verificada primeiro.
-        rag_block = self._bloco_de_referencia(
-            text, contexto, role, system_efetivo
-        )
+        # Etapas 4.5–6.7 — RAG, prompt, LLM com streaming e guardas
+        estado_llm: dict[str, Any] = {}
+        async for kind, payload in self._executar_stream_llm(
+            user_id=user_id,
+            profile=profile,
+            text=text,
+            system_prompt=system_prompt,
+            role=role,
+        ):
+            if kind == "token":
+                yield {"type": "token", "content": payload}
+            else:
+                estado_llm = payload
 
-        # Etapa 5 — Histórico: monta contexto ChatML
-        prompt = self._build_prompt(
-            user_id, profile, text, system_efetivo,
-            contexto=contexto, rag_block=rag_block,
-        )
-
-        # Etapas 6 e 7 — LLM com streaming
-        if not self._providers:
-            self._metrics.unavailable += 1
+        if estado_llm.get("terminal"):
             result = self._stream_result(
                 user_id,
                 profile,
                 text,
                 ROUTE_UNAVAILABLE,
-                self._config.unavailable_message,
-                error=DEFAULT_UNAVAILABLE_ERROR,
+                str(estado_llm.get("message") or self._config.unavailable_message),
+                prompt=str(estado_llm.get("prompt") or ""),
+                error=str(estado_llm.get("error") or DEFAULT_UNAVAILABLE_ERROR),
             )
             await self._finish(result, started)
-            yield {"type": "error", "message": "providers_indisponiveis"}
+            yield {
+                "type": "error",
+                "message": str(
+                    estado_llm.get("stream_error") or "todos_providers_falharam"
+                ),
+            }
             return
 
-        # Tentar streaming com fallback para non-streaming
-        full_response = ""
-        llm_used = ""
-        fallback_used = False
-        route = ROUTE_LLM
-
-        for index, provider in enumerate(self._providers):
-            # Pula provider sem cota disponível
-            if not self._provider_tem_quota(provider.name):
-                log.info("Provider sem cota — pulando", provider=provider.name)
-                continue
-            # Modo colapso: só a IA local responde (P1 nº 6).
-            if self._provider_bloqueado(provider):
-                log.info("Modo colapso — nuvem bloqueada", provider=provider.name)
-                continue
-            try:
-                llm_used = provider.name
-                fallback_used = index > 0
-                if fallback_used:
-                    route = ROUTE_FALLBACK
-
-                # Tentar streaming
-                async for chunk in provider.generate_stream(
-                    prompt, timeout=self._config.llm_timeout_s
-                ):
-                    full_response += chunk
-                    yield {
-                        "type": "token",
-                        "content": limpa_etiquetas_resposta(chunk,
-                                                            strip=False),
-                    }
-                # Registra uso bem-sucedido
-                try:
-                    obter_quota_tracker().record_usage(provider.name)
-                except Exception:
-                    pass
-                self._registrar_sucesso_colapso(provider)
-                break  # Sucesso, sair do loop
-            except Exception as exc:
-                log.warn(
-                    "LLM provider streaming failed",
-                    provider=provider.name,
-                    error=f"{type(exc).__name__}: {exc}",
-                )
-                self._registrar_falha_colapso(provider)
-                # Fallback para non-streaming NESTE provider, com a mesma
-                # tolerância do `_generate` (provider sync também vale).
-                try:
-                    message = await self._generate_one(provider, prompt)
-                except Exception:
-                    continue
-                if message:
-                    # O CRU vai para `full_response` — a Etapa 6.5 precisa
-                    # ver a etiqueta no início para acionar o refaz. O
-                    # cliente recebe já limpo.
-                    full_response = message
-                    yield {
-                        "type": "token",
-                        "content": limpa_etiquetas_resposta(message,
-                                                            strip=False),
-                    }
-                    # Registra uso bem-sucedido no fallback
-                    try:
-                        obter_quota_tracker().record_usage(provider.name)
-                    except Exception:
-                        pass
-                    break
-        else:
-            # Todos os providers falharam
-            self._metrics.unavailable += 1
-            result = self._stream_result(
-                user_id,
-                profile,
-                text,
-                ROUTE_UNAVAILABLE,
-                self._config.unavailable_message,
-                error=DEFAULT_UNAVAILABLE_ERROR,
-            )
-            await self._finish(result, started)
-            yield {"type": "error", "message": "todos_providers_falharam"}
-            return
-
-        if not full_response:
-            self._metrics.unavailable += 1
-            result = self._stream_result(
-                user_id,
-                profile,
-                text,
-                ROUTE_UNAVAILABLE,
-                self._config.unavailable_message,
-                error=DEFAULT_UNAVAILABLE_ERROR,
-            )
-            await self._finish(result, started)
-            yield {"type": "error", "message": "resposta_vazia"}
-            return
-
-        # Etapa 6.5 — Anti-recusa do dono: o gemma às vezes recusa dados
-        # operacionais ignorando o system prompt. Para o ADMIN, refaz UMA vez
-        # com reforço; persistindo, o chat cai para a action real (etapa 6.6).
-        refusal = self._refusal_reason(full_response, role, text)
-        if refusal:
-            log.warn(
-                "Recusa indevida detectada — refazendo",
-                reason=refusal,
-                role=role,
-            )
-            retry = await self._resolve_refusal(prompt, role, text)
-            if retry is not None:
-                full_response, llm_used = retry[0], retry[1]
-                fallback_used = True
-                route = ROUTE_FALLBACK
-                yield {
-                    "type": "token",
-                    "content": limpa_etiquetas_resposta(full_response,
-                                                        strip=False),
-                }
-        if not refusal:
-            # 14/11: etiqueta de log no meio da resposta sai daqui — antes
-            # do histórico, do cache e do evento `done` (sem 2ª chamada de
-            # LLM). Em RECUSA a resposta segue crua para o `_cacheable` banir.
-            full_response = limpa_etiquetas_resposta(full_response)
-
-        # Etapa 6.7 — Anti-FALSO-SUCESSO (08/10, IDs 769-782): a gemma
-        # emitiu '✍️ Confirmar: …' e 'Compromisso criado com sucesso' sem
-        # executar nada (a agenda seguia vazia). Trocado ANTES do cache e
-        # do histórico: nunca um sucesso inventado no chat do dono.
-        fake = fake_action_reason(full_response)
-        if fake:
-            log.warn(
-                "Resposta do LLM fingia executar ação — substituída",
-                reason=fake,
-                route=route,
-            )
-            full_response = FAKE_ACTION_MESSAGE
-
-        # Atualizar métricas
-        if fallback_used:
-            self._metrics.fallback += 1
-        else:
-            self._metrics.llm += 1
+        full_response = str(estado_llm.get("message") or "")
+        llm_used = str(estado_llm.get("llm_used") or "")
+        fallback_used = bool(estado_llm.get("fallback_used", False))
+        route = str(estado_llm.get("route") or ROUTE_LLM)
+        prompt = str(estado_llm.get("prompt") or "")
 
         # Etapa 8 — Pós-processamento
         await self._post_process(user_id, profile, text, full_response, llm_used)
@@ -1860,6 +1766,209 @@ class Orchestrator:
             "llm_used": llm_used,
             "latency_ms": result.latency_ms,
         }
+
+    async def _executar_stream_llm(
+        self,
+        *,
+        user_id: str,
+        profile: str,
+        text: str,
+        system_prompt: str,
+        role: str,
+        extra_history: Optional[list[dict[str, str]]] = None,
+        use_rag: bool = True,
+    ):
+        """Gera resposta LLM em streaming (compartilhado entre direto e grafo).
+
+        Rende `("token", conteudo)` em tempo real e termina com
+        `("estado", dict)` contendo o estado final (ou `terminal=True` em
+        `ROUTE_UNAVAILABLE`).
+        """
+        contexto = self._contexto_msgs(user_id, profile, extra_history)
+        system_efetivo = self._resolve_system(system_prompt, profile, role)
+        rag_block = (
+            self._bloco_de_referencia(text, contexto, role, system_efetivo)
+            if use_rag
+            else ""
+        )
+        prompt = self._build_prompt(
+            user_id,
+            profile,
+            text,
+            system_efetivo,
+            contexto=contexto,
+            rag_block=rag_block,
+        )
+
+        if not self._providers:
+            self._metrics.unavailable += 1
+            yield (
+                "estado",
+                {
+                    "terminal": True,
+                    "route": ROUTE_UNAVAILABLE,
+                    "message": self._config.unavailable_message,
+                    "error": DEFAULT_UNAVAILABLE_ERROR,
+                    "stream_error": "providers_indisponiveis",
+                    "prompt": prompt,
+                    "registrar": None,
+                },
+            )
+            return
+
+        full_response = ""
+        llm_used = ""
+        fallback_used = False
+        route = ROUTE_LLM
+
+        for index, provider in enumerate(self._providers):
+            if not self._provider_tem_quota(provider.name):
+                log.info("Provider sem cota — pulando", provider=provider.name)
+                continue
+            if self._provider_bloqueado(provider):
+                log.info("Modo colapso — nuvem bloqueada", provider=provider.name)
+                continue
+            try:
+                llm_used = provider.name
+                fallback_used = index > 0
+                if fallback_used:
+                    route = ROUTE_FALLBACK
+
+                async for chunk in provider.generate_stream(
+                    prompt, timeout=self._config.llm_timeout_s
+                ):
+                    full_response += chunk
+                    yield (
+                        "token",
+                        limpa_etiquetas_resposta(chunk, strip=False),
+                    )
+                try:
+                    obter_quota_tracker().record_usage(provider.name)
+                except Exception:
+                    pass
+                self._registrar_sucesso_colapso(provider)
+                break
+            except Exception as exc:
+                log.warn(
+                    "LLM provider streaming failed",
+                    provider=provider.name,
+                    error=f"{type(exc).__name__}: {exc}",
+                )
+                self._registrar_falha_colapso(provider)
+                try:
+                    message = await self._generate_one(provider, prompt)
+                except Exception:
+                    continue
+                if message:
+                    full_response = message
+                    yield (
+                        "token",
+                        limpa_etiquetas_resposta(message, strip=False),
+                    )
+                    try:
+                        obter_quota_tracker().record_usage(provider.name)
+                    except Exception:
+                        pass
+                    self._registrar_sucesso_colapso(provider)
+                    break
+        else:
+            self._metrics.unavailable += 1
+            yield (
+                "estado",
+                {
+                    "terminal": True,
+                    "route": ROUTE_UNAVAILABLE,
+                    "message": self._config.unavailable_message,
+                    "error": DEFAULT_UNAVAILABLE_ERROR,
+                    "stream_error": "todos_providers_falharam",
+                    "prompt": prompt,
+                    "registrar": None,
+                },
+            )
+            return
+
+        if not full_response:
+            self._metrics.unavailable += 1
+            yield (
+                "estado",
+                {
+                    "terminal": True,
+                    "route": ROUTE_UNAVAILABLE,
+                    "message": self._config.unavailable_message,
+                    "error": DEFAULT_UNAVAILABLE_ERROR,
+                    "stream_error": "resposta_vazia",
+                    "prompt": prompt,
+                    "registrar": None,
+                },
+            )
+            return
+
+        refusal = self._refusal_reason(full_response, role, text)
+        if refusal:
+            log.warn(
+                "Recusa indevida detectada — refazendo",
+                reason=refusal,
+                role=role,
+            )
+            retry = await self._resolve_refusal(prompt, role, text)
+            if retry is not None:
+                full_response, llm_used = retry[0], retry[1]
+                fallback_used = True
+                route = ROUTE_FALLBACK
+                yield (
+                    "token",
+                    limpa_etiquetas_resposta(full_response, strip=False),
+                )
+        if not refusal:
+            full_response = limpa_etiquetas_resposta(full_response)
+
+        fake = fake_action_reason(full_response)
+        if fake:
+            log.warn(
+                "Resposta do LLM fingia executar ação — substituída",
+                reason=fake,
+                route=route,
+            )
+            full_response = FAKE_ACTION_MESSAGE
+
+        if fallback_used:
+            self._metrics.fallback += 1
+        else:
+            self._metrics.llm += 1
+
+        yield (
+            "estado",
+            {
+                "terminal": False,
+                "route": route,
+                "message": full_response,
+                "llm_used": llm_used,
+                "fallback_used": fallback_used,
+                "prompt": prompt,
+            },
+        )
+
+    def _estado_de_tool_results(self, estado: dict[str, Any]) -> Optional[dict[str, Any]]:
+        """Converte o resultado já executado de ferramenta em estado terminal."""
+        from core.intents import format_intent_result
+
+        for item in reversed(estado.get("tool_results") or []):
+            acao = str(item.get("tool") or "")
+            saida = item.get("output")
+            if not acao or not isinstance(saida, dict):
+                continue
+            texto = format_intent_result(acao, saida)
+            if not texto:
+                continue
+            self._metrics.intents += 1
+            return {
+                "terminal": True,
+                "route": ROUTE_INTENT,
+                "message": texto,
+                "llm_used": f"fastpath:{acao}",
+                "registrar": estado.get("persist", True),
+            }
+        return None
 
     async def process_stream_sse(
         self,
@@ -2543,24 +2652,9 @@ class Orchestrator:
             # do LLM. Sem isto o `execute_parallel` rodava a action e o modelo
             # reescrevia por cima — dado medido (câmbio, CPU, clima) virava
             # paráfrase/ invenção. Mesmo formatador do fast path direto.
-            from core.intents import format_intent_result
-
-            for item in reversed(estado.get("tool_results") or []):
-                acao = str(item.get("tool") or "")
-                saida = item.get("output")
-                if not acao or not isinstance(saida, dict):
-                    continue
-                texto = format_intent_result(acao, saida)
-                if not texto:
-                    continue
-                self._metrics.intents += 1
-                return {
-                    "terminal": True,
-                    "route": ROUTE_INTENT,
-                    "message": texto,
-                    "llm_used": f"fastpath:{acao}",
-                    "registrar": estado.get("persist", True),
-                }
+            from_tools = self._estado_de_tool_results(estado)
+            if from_tools is not None:
+                return from_tools
 
             router_strategy = estado.get("router_strategy", "chat")
             

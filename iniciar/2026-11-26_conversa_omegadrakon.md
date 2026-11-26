@@ -1254,3 +1254,27 @@ streaming grafo × direto (`OD_ORCHESTRATOR_GRAPH=1`),
 `xdg-desktop-portal[-gtk]` na sessão de usuário, P3 sob demanda (cache de
 embedding no RAG, OTel/Grafana, Eval no CI, reteste IA local) e decisões P2
 (nobreak USB, 2º nó/LoRa, app por papel, OpenAI/I1, Projeti).
+
+## §26 — Streaming no grafo unificado ao caminho direto (26/11 ~14:55–16:06)
+
+**Dono:** *"1"* (resolver a divergência de streaming entre grafo e caminho direto).
+
+### Problemas medidos em `_process_stream_grafo()` (`core/orchestrator.py`)
+
+1. Chamava `_gerar_com_contexto()` (não-streaming) e emitia um único `token` com a resposta inteira.
+2. Rotas terminais no bloco `else` emitiam `type: "done"` para `rate_limited` (enquanto `app/lib/services/od_ws.dart` só traduz `rate_limited` no `case 'error'`).
+3. `llm_unavailable` caía no ramo de `token`/`done` + `_post_process` por não checar `terminal`.
+4. `_metrics.llm`/`_metrics.fallback` e `_post_process` eram executados duas vezes por turno.
+5. Rotas terminais (`datetime`, `quick`, `cache`) não chamavam `_record_terminal`/`_finish` nem emitiam `token`, e `gerar` ignorava `tool_results`.
+
+### Mudanças
+
+- `core/orchestrator.py`: extraídos `_executar_stream_llm()` (async generator compartilhado entre caminho direto e grafo) e `_estado_de_tool_results()` (compartilhado entre `_executar_grafo` e `_process_stream_grafo`). `_process_stream_grafo` passa a rodar `grafo.astream` com `asyncio.Queue` para encaminhar tokens em tempo real, remove o `_post_process` duplicado e encerra rotas terminais com o mesmo contrato do caminho direto (`error` para `rate_limited` e `llm_unavailable`; `_record_terminal` + `_finish` + `token`/`done` para `datetime`/`quick`/`cache`/`action_intent`).
+- `tests/test_orchestrator_graph_integration.py`: adicionada `TestStreamingGrafoParidade` (7 casos cobrindo `OD_ORCHESTRATOR_GRAPH=0` e `1`).
+- `docs/ANALISE_SISTEMA_TODO.md` (`[x]` na divergência de streaming) e `docs/CHANGELOG.md`.
+
+### Validação
+
+- Suíte completa (`.venv/bin/python -m pytest -q`): **5820 passed, 16 skipped, 0 falhas** (18 warnings, `248.51s`).
+- Gate do RAG híbrido (`.venv/bin/python tools/medir_rag_hibrido.py`): `4433 chunks` — relevantes `8/8 -> 8/8`, irrelevantes `0/8 -> 0/8`, paráfrases `6/6 -> 6/6`, estruturais `2/2 -> 2/2` (`exit 0`).
+- Sem bump (`1.47.0+2085`, mudança apenas no servidor; o app já trata `type: "error"` / `rate_limited`).
