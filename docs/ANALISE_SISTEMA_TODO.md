@@ -636,6 +636,10 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Relatório de simulação completa do ciclo do SO** (sugestão de 26/11) —
+      `--dry-run` roda o ciclo inteiro e imprime o JSON, mas não mostra o que
+      cada seção faria (pacotes/firmwares por nome, reboot previsto): falta um
+      resumo legível para o dono conferir antes de aplicar de verdade.
 - [ ] **Janela de aplicação do SO com prova de retorno** (sugestão de 26/11) —
       o timer já aplica sozinho aos domingos e agenda reboot em +5 min, mas
       ninguém verifica se o `od-core`, o Postgres e o painel voltaram depois do
