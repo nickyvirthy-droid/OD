@@ -1113,3 +1113,144 @@ falhas de `test_websocket` por ordem — isolar o estado global que vaza);
 **(b)** P3 de ganho local — cache de embedding de documento no RAG; **(c)**
 decisões do **P2** do dono (quarentena do acervo, app por papel, nobreak com
 USB, OpenAI com crédito, `Projeti`).
+
+## §24 — Fila do gate: os 2 `test_websocket` fechados, gate em 0 (26/11 ~13:5x–14:0x)
+
+**Dono:** *"a, fechar o gate"* (escolha **(a)** da §23).
+
+### Reprodução
+
+`python3 -m pytest -q` (gate completo) → **2 failed, 5770 passed, 19
+skipped** em 261 s: `TestOrchestratorStreaming::test_process_stream_rate_limit`
+e `::test_process_stream_llm_token_a_token` — passam sozinhos e no arquivo
+inteiro, falham só na suíte (comportamento declarado no §4 do TODO).
+
+### Causa raiz — medida, não deduzida
+
+Plugin de diagnóstico (`/tmp/opencode/envwatch.py`) que guardava o ambiente
+antes e comparava depois de **cada teste** acusou **um único vazador**:
+
+```
+[ENV-LEAK] tests/test_verificar_restauracao_pg.py::test_producao_passa_a_guarda_no_main
+  antes={OD_ORCHESTRATOR_GRAPH: None, OD_CHAT_PROVIDERS: None, OD_IA_ORDEM: None, …}
+  depois={OD_ORCHESTRATOR_GRAPH: '1', OD_CHAT_PROVIDERS: 'groq,gemini,local',
+          OD_IA_ORDEM: 'groq,gemini,local', …}
+```
+
+**Mecanismo:** o teste chama `runtime.verificar_restauracao_pg.main()` em
+processo; sem `TELEGRAM_*` no ambiente esse `main()` executa
+`load_dotenv(RAIZ / ".env")`, e o python-dotenv escreve as variáveis do
+`.env` no `os.environ` da suíte (só as que faltam — as três faltavam porque o
+conftest as remove no import).
+
+**Efeito:** `core.orchestrator_graph.habilitado_por_env()` passa a responder
+verdadeiro, `process_stream` sai por `_process_stream_grafo` e esse caminho
+(a) rende o rate limit como `type: "done"` + `route: "rate_limited"`, nunca
+`type: "error"`, e (b) entrega a resposta em **um único token** ("tokens
+simulados"). Exatamente o que as duas asserções negavam — a prova está no
+stdout do teste: `route=llm_unavailable` e depois `route=rate_limited`, com o
+teste esperando o frame de erro do caminho direto.
+
+### Correção (só arquivos de teste)
+
+1. `tests/test_verificar_restauracao_pg.py` — o teste vazador neutraliza o
+   `load_dotenv` com `monkeypatch` no atributo do módulo (`from dotenv import
+   load_dotenv` dentro do `main` lê o atributo na hora da chamada). Ele não
+   quer o `.env`: o canal é `None` em `--dry-run` e o `rodar` é fake.
+2. `tests/conftest.py` — `VARS_RUNTIME` virou constante e a fixture autouse
+   **`_runtime_sempre_limpo`** apaga o trio **no início de cada teste**: o
+   `pop` do import protegia só o começo da suíte, e agora um teste que vaze
+   não passa do próprio teste. Ordem garantida (autouse do conftest roda antes
+   do `monkeypatch` do teste): `monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", …)`
+   legítimo continua valendo e é desfeito normalmente.
+
+Nenhum `.py` de produção alterado: não era defeito de código, era estado
+global vazando.
+
+### Validação
+
+| verificação | antes | depois |
+|---|---|---|
+| gate completo | 5770 / 19 / **2 falhas** (261 s) | **5772 / 19 / 0 falha** (244 s) |
+| plugin de vazamento | 1 teste vazando | **0** |
+| gate do RAG híbrido | 8/8 · 0/8 · 6/6 · 2/2 | **8/8 · 0/8 · 6/6 · 2/2** (exit 0), medido também **depois** de escrever o CHANGELOG |
+
+### Achado novo (virou checkbox no §4)
+
+Com `OD_ORCHESTRATOR_GRAPH=1` (o valor do `.env`, ou seja, **produção**) o
+streaming sai do grafo: token único e rate limit como `done`. O app
+(`app/lib/services/od_ws.dart`) só traduz `rate_limited` para "Muitas
+mensagens em pouco tempo…" no `case 'error'`; no `case 'done'` o texto ainda
+chega (como `finalText`), só que como resposta normal. Os testes cobrem o
+caminho direto (desligado no gate). Registrado como pendência de decisão, não
+corrigido por conta própria.
+
+### Decisão do turno
+
+Só testes + registro: **sem restart** (nada de produção mudou) e **sem bump**
+(`1.47.0+2085`). Escritos: seção no `docs/CHANGELOG.md`, checkbox do gate
+fechado + checkbox novo do contrato de streaming no `docs/ANALISE_SISTEMA_TODO.md`,
+entrada em `iniciar/ATRIBUICOES.md`, este §24, `session.json`, `txt.txt` e
+resumo no Telegram (regra 15).
+
+### Próximo passo
+
+Gate fechado em 0. Restam do lado técnico os itens já anotados no TODO (cache
+de embedding de documento no RAG, R1/R5 quando houver demanda) e as decisões
+do **P2** (quarentena do acervo, app por papel, nobreak com USB, OpenAI com
+crédito, `Projeti`) — além do novo checkbox do contrato de streaming.
+
+## §25 — Retomada "leia iniciar" (26/11 14:42)
+
+**Dono:** *"leia iniciar"*.
+
+### O que foi lido
+
+`tools/brief_multi_ia.py`, `iniciar/README.md`, `iniciar/RULES.md` (24 regras),
+`iniciar/session.json` (topo: `gate_zero_2026_11_26`), `iniciar/ATRIBUICOES.md`,
+`iniciar/2026-11-26_conversa_omegadrakon.md` (§1–§4 e §23–§24), `txt.txt`,
+`docs/ANALISE_SISTEMA_TODO.md` (revisão 17/11 e §4), `instrucoes_projeto.txt`
+e `git status`/`git diff`.
+
+### Estado medido (`date -Is` = **2026-11-26T14:42:53-03:00**, `uptime` 12:06)
+
+- **`HEAD == origin/master == 9ec9fe1`**, versão `1.47.0` (`1.47.0+2085`).
+- **Árvore suja (7 arquivos modificados do lote `gate_zero_2026_11_26`, ainda não
+  commitados nem publicados):** `docs/ANALISE_SISTEMA_TODO.md`,
+  `docs/CHANGELOG.md`, `iniciar/2026-11-26_conversa_omegadrakon.md`,
+  `iniciar/ATRIBUICOES.md`, `iniciar/session.json`, `tests/conftest.py`,
+  `tests/test_verificar_restauracao_pg.py` (atribuído a `Freebuff (Buffy)` em
+  `ATRIBUICOES.md`, ~14:01–14:05).
+- **Teste direcionado rodado neste turno:** `.venv/bin/python -m pytest -q
+  tests/test_verificar_restauracao_pg.py tests/test_websocket.py` → **61 passed**
+  em 2,57 s (gate completo e gate RAG não foram reexecutados neste turno).
+- **`od-core.service`:** `active (running)` desde `10:29:20`, MainPID **488071**;
+  `journalctl --user -u od-core --since today -p err` → **0 entradas**.
+- **`GET /health`:** `200`, `ok=True`, **34 checks**, nenhum fora de `up`,
+  `transitorios=[]`; `os_updater` com `upgradable=0`, `precisa_reboot=False`,
+  `falhas_consecutivas=0`, `sucessos_consecutivos=3`, kernel
+  `6.8.0-151-generic`.
+- **Timer:** `od-os-updater.timer` agendado para domingo `2026-11-29`.
+
+### Validação e publicação do lote `gate_zero_2026_11_26` (26/11 14:46–14:52)
+
+**Dono:** *"1"* (validar e fechar commit/push do lote pendente).
+
+- **Suíte completa (`.venv/bin/python -m pytest -q`):** **5813 passed,
+  16 skipped, 0 falhas** (18 warnings, `257.62s`).
+- **Gate do RAG híbrido (`.venv/bin/python tools/medir_rag_hibrido.py`):**
+  `4427 chunks`; relevantes `8/8 -> 8/8`, irrelevantes `0/8 -> 0/8`, paráfrases
+  `6/6 -> 6/6`, estruturais `2/2 -> 2/2` (`exit 0`).
+- **Decisão e fechamento:** lote publicado em `origin/master` por
+  `Antigravity (Gemini 4 Hydrogen)` (preservando autoria original de
+  `Freebuff (Buffy)` em `ATRIBUICOES.md`), sem restart e sem bump
+  (`1.47.0+2085`), com resumo enviado ao Telegram (regra 15) e aviso curto no
+  `txt.txt` (regra 20).
+
+### Próximo passo
+
+Árvore limpa e sincronizada. Restam os itens abertos no TODO: divergência de
+streaming grafo × direto (`OD_ORCHESTRATOR_GRAPH=1`),
+`xdg-desktop-portal[-gtk]` na sessão de usuário, P3 sob demanda (cache de
+embedding no RAG, OTel/Grafana, Eval no CI, reteste IA local) e decisões P2
+(nobreak USB, 2º nó/LoRa, app por papel, OpenAI/I1, Projeti).

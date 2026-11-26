@@ -231,6 +231,15 @@ def test_producao_passa_a_guarda_no_main(monkeypatch) -> None:
 
     monkeypatch.setattr(v, "rodar", fake_rodar)
     monkeypatch.setattr(v, "montar_enviar", lambda: None)
+    # Sem TELEGRAM_* no ambiente, o `main()` carrega o `.env` real — e o
+    # python-dotenv derrama `OD_ORCHESTRATOR_GRAPH=1`, `OD_CHAT_PROVIDERS` e
+    # `OD_IA_ORDEM` no `os.environ` do processo, mudando a rota de TODOS os
+    # testes que vêm depois (26/11: foi o que deixou os 2 de streaming de
+    # `test_websocket` vermelhos por ordem). Este teste não quer o `.env`:
+    # o canal é `None` (--dry-run) e o `rodar` é fake.
+    import dotenv
+
+    monkeypatch.setattr(dotenv, "load_dotenv", lambda *args, **kwargs: None)
     v.main(["--dry-run"])
 
     assert chamadas["offsite"] is v.verificar_offsite

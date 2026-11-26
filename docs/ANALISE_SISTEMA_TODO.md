@@ -715,12 +715,33 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       agregado (lista `transitorios` no `/health`); o notifier ignora esses
       itens. Falha real continua derrubando na hora. 10 casos novos; restart
       26/11 com MainPID 61637 e `-p err` 0.
-- [ ] **2 testes de `test_websocket` falham na suíte completa por ordem** —
-      `test_process_stream_rate_limit` e `test_process_stream_llm_token_a_token`
-      passam sozinhos e no arquivo inteiro, mas falham no gate completo; o
-      mesmo par falha no HEAD sem o lote de 26/11 (reproduzido com `git stash`:
-      5768 passed + as 2). Resolve: isolar o estado global que vaza (limiter/
-      cache de LLM compartilhado entre arquivos) — hoje o gate não fecha 0.
+- [x] **2 testes de `test_websocket` falham na suíte completa por ordem** —
+      **FEITO 26/11: gate em 0.** Causa raiz medida com um plugin que comparava
+      o ambiente antes/depois de cada teste: `test_producao_passa_a_guarda_no_main`
+      (em `tests/test_verificar_restauracao_pg.py`) roda
+      `runtime.verificar_restauracao_pg.main()` em processo e, sem `TELEGRAM_*`
+      no ambiente, esse `main()` chama `load_dotenv(.env)` — derramando
+      `OD_ORCHESTRATOR_GRAPH=1`, `OD_CHAT_PROVIDERS` e `OD_IA_ORDEM` no
+      `os.environ` da suíte. Com o grafo ligado, `process_stream` sai pelo
+      `_process_stream_grafo`, que rende o rate limit como `done` e a resposta
+      em um token só: exatamente o que os 2 testes (caminho direto) negavam.
+      Corrigido nos **testes**: `load_dotenv` neutralizado no teste vazador +
+      fixture autouse `_runtime_sempre_limpo` no `tests/conftest.py` que apaga
+      o trio a cada teste. Gate **5772 passed / 19 skipped / 0 falha** (antes
+      5770/19/**2**) e **0 vazamentos** com o mesmo plugin. Ver
+      `docs/CHANGELOG.md`.
+- [ ] **Caminho do grafo e caminho direto divergem no protocolo de streaming** —
+      achado em 26/11 ao fechar as 2 falhas de `test_websocket`: com
+      `OD_ORCHESTRATOR_GRAPH=1` (o valor do `.env`, ou seja, **produção**),
+      `process_stream` usa `_process_stream_grafo`, que rende `type: "token"`
+      com a resposta **inteira** ("tokens simulados") e o rate limit chega como
+      `type: "done"` + `route: "rate_limited"` — nunca como `type: "error"`.
+      O app (`app/lib/services/od_ws.dart`) só traduz `rate_limited` para
+      "Muitas mensagens em pouco tempo…" no `case 'error'`; no `case 'done'` o
+      texto ainda aparece (é o `finalText`), só que como resposta normal, sem
+      erro. Os testes de streaming cobrem o caminho DIRETO (desligado no gate
+      pelo conftest). Resolver: decidir se o grafo emite o mesmo frame de erro
+      do caminho direto (ou os testes passam a cobrir os dois caminhos).
 - [ ] **`xdg-desktop-portal[-gtk]` falhando na sessão do usuário** — achado na
       retomada de 26/11 11:0x: `journalctl --user -p err` mostra os dois units
       `Failed to start` a cada poucos minutos desde 10:32 (portal de desktop

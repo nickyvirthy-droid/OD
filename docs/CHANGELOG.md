@@ -12,6 +12,56 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Gate em zero: os 2 testes de `test_websocket` deixam de falhar por ordem (2026-11-26, sem bump)
+
+**Contexto:** o gate completo fechava com `2 failed` —
+`TestOrchestratorStreaming::test_process_stream_rate_limit` e
+`::test_process_stream_llm_token_a_token`. Os dois passavam sozinhos e no
+arquivo inteiro, e falhavam só na suíte completa: era o último item do §4 do
+TODO que impedia o `0 falha`.
+
+**Causa raiz (medida, não deduzida):** um plugin de diagnóstico que comparava
+o ambiente **antes e depois de cada teste** achou um único vazador —
+`tests/test_verificar_restauracao_pg.py::test_producao_passa_a_guarda_no_main`
+chama `runtime.verificar_restauracao_pg.main()` em processo e, sem
+`TELEGRAM_*` no ambiente, esse `main()` executa `load_dotenv(.env)`. O
+python-dotenv escrevia `OD_ORCHESTRATOR_GRAPH=1`, `OD_CHAT_PROVIDERS` e
+`OD_IA_ORDEM` no `os.environ` da suíte. A partir dali
+`core.orchestrator_graph.habilitado_por_env()` respondia verdadeiro:
+`process_stream` ia para `_process_stream_grafo`, que rende o rate limit como
+`type: "done"` + `route: "rate_limited"` (nunca `type: "error"`) e a resposta
+em **um único token** — exatamente o que os 2 testes do caminho direto
+negavam.
+
+**Feito (só arquivos de teste — nenhum `.py` de produção):**
+
+- `tests/test_verificar_restauracao_pg.py` — o teste neutraliza o
+  `load_dotenv` com `monkeypatch` no atributo do módulo: ele não quer o
+  `.env` (o canal é `None` em `--dry-run` e o `rodar` é fake).
+- `tests/conftest.py` — fixture autouse `_runtime_sempre_limpo` que apaga o
+  trio **no início de cada teste** (o `pop` do import protegia só o começo da
+  suíte) e `VARS_RUNTIME` virou constante compartilhada. A ordem é garantida:
+  autouse do conftest roda antes do `monkeypatch` do teste, então
+  `monkeypatch.setenv("OD_ORCHESTRATOR_GRAPH", …)` legítimo continua valendo e
+  é desfeito normalmente ao terminar.
+
+**Prova:**
+
+| | antes | depois |
+|---|---|---|
+| gate completo | 5770 passed / 19 skipped / **2 failed** (251 s) | **5772 passed / 19 skipped / 0 falha** (244 s) |
+| vazamentos de ambiente (plugin) | 1 (`OD_ORCHESTRATOR_GRAPH=1` + os 2 companions) | **0** |
+| gate do RAG híbrido | 8/8 · 0/8 · 6/6 · 2/2 | 8/8 · 0/8 · 6/6 · 2/2 |
+
+**Limites declarados:** nada de código de produção mudou — **sem restart** e
+**sem bump** (`1.47.0+2085`). Achado de caminho registrado como pendência
+própria (não é defeito do gate): com `OD_ORCHESTRATOR_GRAPH=1` (o valor do
+`.env`, ou seja, produção) o streaming sai do grafo, com tokens inteiros e o
+rate limit como `done` — e o app só traduz `rate_limited` para a mensagem
+amigável no `case 'error'`. Detalhe e decisão no §4 do TODO.
+
+---
+
 ## Comparador: custo de máquina medido durante cada chamada (2026-11-26, sem bump)
 
 **Contexto:** o comparador (item 5) mostrava latência e texto, mas não o custo

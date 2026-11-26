@@ -9,6 +9,84 @@
 
 ---
 
+## 26/11/2026 — Validação e publicação do lote "Gate em zero" + retomada
+
+**Autor:** Antigravity (Gemini 4 Hydrogen) — pedido do dono (*"leia iniciar"* e
+*"1"* para validar e fechar commit/push do lote `gate_zero_2026_11_26` deixado
+na árvore por Freebuff (Buffy)).
+
+### Modificados (só registro da retomada e validação)
+
+- `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§25),
+  `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+- Mantidas integralmente as alterações do lote `gate_zero_2026_11_26` em
+  `tests/conftest.py`, `tests/test_verificar_restauracao_pg.py`,
+  `docs/CHANGELOG.md` e `docs/ANALISE_SISTEMA_TODO.md`.
+
+### Intenção e estado
+
+- **Intenção:** validar em definitivo a suíte completa e o gate do RAG sobre o
+  lote pendente na árvore antes de commitar e publicar em `origin/master`.
+- **Pronto/validado:**
+  - Suíte completa (`.venv/bin/python -m pytest -q`): **5813 passed, 16 skipped,
+    0 falhas** (18 warnings, em 257,62 s).
+  - Gate do RAG híbrido (`.venv/bin/python tools/medir_rag_hibrido.py`): 4427
+    chunks; relevantes `8/8 -> 8/8`, irrelevantes `0/8 -> 0/8`, paráfrases
+    `6/6 -> 6/6`, estruturais `2/2 -> 2/2` (exit 0).
+- **Estado:** nenhum `.py` de produção alterado — sem restart e sem bump
+  (`1.47.0+2085`). Commit e `git push origin master` feitos; resumo enviado ao
+  Telegram (regra 15).
+
+---
+
+## 26/11/2026 — Gate em zero: os 2 `test_websocket` deixam de falhar por ordem
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"a, fechar o gate"*, escolha (a)
+da retomada da manhã).
+
+### Modificados (só testes e documentação)
+
+- `tests/test_verificar_restauracao_pg.py` — `test_producao_passa_a_guarda_no_main`
+  neutraliza o `load_dotenv` com `monkeypatch` (era o teste que vazava).
+- `tests/conftest.py` — constante `VARS_RUNTIME` + fixture autouse
+  `_runtime_sempre_limpo` (apaga `OD_ORCHESTRATOR_GRAPH`, `OD_CHAT_PROVIDERS` e
+  `OD_IA_ORDEM` no início de **cada** teste; o `pop` do import cobria só o
+  começo da suíte).
+- `docs/CHANGELOG.md` — seção "Gate em zero" com causa raiz, correção e prova.
+- `docs/ANALISE_SISTEMA_TODO.md` — checkbox do `test_websocket` **fechado** com
+  a evidência; checkbox **novo**: contrato de streaming grafo × caminho direto.
+- `iniciar/2026-11-26_conversa_omegadrakon.md` (§24), `iniciar/session.json`,
+  `iniciar/ATRIBUICOES.md` (esta entrada), `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** o gate não fechava `0` por causa de 2 falhas por ordem; a
+  hipótese do TODO ("estado global que vaza") era genérica — a causa tinha que
+  ser **medida**, não chutada.
+- **Causa raiz (medida):** plugin que comparava o ambiente antes/depois de
+  **cada teste** acusou um único vazador:
+  `tests/test_verificar_restauracao_pg.py::test_producao_passa_a_guarda_no_main`
+  chama `runtime.verificar_restauracao_pg.main()` em processo e, sem
+  `TELEGRAM_*` no ambiente, esse `main()` roda `load_dotenv(.env)` — derramando
+  `OD_ORCHESTRATOR_GRAPH=1` + `OD_CHAT_PROVIDERS` + `OD_IA_ORDEM` no
+  `os.environ`. Com o grafo ligado, `process_stream` sai pelo
+  `_process_stream_grafo`, que rende o rate limit como `done` (não `error`) e a
+  resposta em um token só: exatamente o que os 2 testes do caminho direto
+  negavam.
+- **Pronto/validado:** gate completo **5772 passed / 19 skipped / 0 falha**
+  (244 s) contra 5770/19/**2** antes; o mesmo plugin acusou **0 vazamentos**;
+  gate do RAG híbrido **8/8 · 0/8 · 6/6 · 2/2** (exit 0), medido antes e
+  depois do texto novo no CHANGELOG; diff revisado (46 linhas, tudo em `tests/`
+  e docs).
+- **Estado:** **nenhum `.py` de produção alterado** — sem restart e sem bump
+  (`1.47.0+2085`).
+- **Achado registrado (não corrigido por conta própria):** em produção
+  (`OD_ORCHESTRATOR_GRAPH=1`) o streaming sai do grafo, com token único e rate
+  limit como `done`; o app só traduz `rate_limited` no `case 'error'`. Virou
+  checkbox no §4 do TODO para o dono decidir.
+
+---
+
 ## 26/11/2026 — Retomada "leia iniciar": fila 1–11 fechada e estado medido
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).

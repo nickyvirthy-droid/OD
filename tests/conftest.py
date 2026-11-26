@@ -51,11 +51,12 @@ os.environ["OD_QUOTA_FILE"] = str(
 # ANTES dos módulos de teste: quem precisa do grafo ligado ou de outra ordem
 # liga por `monkeypatch.setenv` dentro do próprio teste
 # (`tests/test_orchestrator_graph_integration.py`, `tests/test_llm.py`).
-for _variavel_de_runtime in (
+VARS_RUNTIME = (
     "OD_ORCHESTRATOR_GRAPH",
     "OD_CHAT_PROVIDERS",
     "OD_IA_ORDEM",
-):
+)
+for _variavel_de_runtime in VARS_RUNTIME:
     os.environ.pop(_variavel_de_runtime, None)
 
 # Janela de boot do /health (26/11/2026): `build_health()` marca `tool_*`/`mqtt`
@@ -64,6 +65,28 @@ for _variavel_de_runtime in (
 # status de `/health` em todo teste que simula `mqtt`/tool fora do ar. Desligada
 # por padrão; o teste da janela liga com `monkeypatch.setenv`.
 os.environ["OD_HEALTH_JANELA_BOOT_S"] = "0"
+
+
+@pytest.fixture(autouse=True)
+def _runtime_sempre_limpo():
+    """Apaga o trio de runtime no início de CADA teste (26/11/2026).
+
+    O `pop` do import protege só o começo da suíte: um teste que rode uma CLI
+    em processo reabria as três variáveis no meio da rodada e todos os
+    testes seguintes mudavam de rota. Caso real medido em 26/11:
+    `tests/test_verificar_restauracao_pg.py` chama
+    `runtime.verificar_restauracao_pg.main()`, que chama `load_dotenv(.env)`
+    quando não há `TELEGRAM_*` no ambiente — o python-dotenv escrevia
+    `OD_ORCHESTRATOR_GRAPH=1` no `os.environ` e os 2 testes de streaming de
+    `tests/test_websocket.py` (que esperam o caminho DIRETO) falhavam por
+    ordem, sem nenhum defeito de código.
+
+    Ordem: esta fixture é autouse e do conftest da suíte, então roda ANTES do
+    `monkeypatch` do teste — quem precisa do grafo (`setenv`) continua
+    funcionando e o `monkeypatch` devolve o ambiente limpo ao terminar.
+    """
+    for _variavel in VARS_RUNTIME:
+        os.environ.pop(_variavel, None)
 
 
 @pytest.fixture(autouse=True)
