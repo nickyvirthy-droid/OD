@@ -777,3 +777,51 @@ SECURITY_LAYER_ARCHITECTURE.md na frente NV"*.
 ### Bump
 
 Nenhum (`1.47.0+2085`).
+
+---
+
+## §17 — Fila item 7: Projeti (26/11 ~09:50)
+
+**Dono:** *"Siga para o item 7 da fila: Projeti (google-services.json, APK de
+51 MB × backups, leitura do Orion)"*.
+
+### Estado encontrado
+
+- `analise/Projeti/` já foi esvaziada em 13/11 (zip na HD do dono). No
+  servidor restam só as referências gitignored `data/refs_todo/Projeti/Cod/`
+  (10 arquivos, 200 KB).
+- `google-services.json` oficial em `app/android/app/` conferido hoje:
+  sha256 `5e64634c…` — o mesmo registrado para a cópia de Projeti.
+- Trilha `backups/apk-*` conferida com `aapt`: furo real (abaixo).
+
+### Feito
+
+- `docs/PROJETI_REFERENCIA.md` (novo): estado dos 4 sub-itens, formato real
+  da escala do Orion com **exemplos sintéticos** (14 colunas; blocos por
+  unidade do `MapaForcaTudo.txt`; CSV com o cabeçalho inteiro entre aspas;
+  CRLF + linha em branco no `Mapa.txt`), decisão de **não portar o RPA** e a
+  régua de dado pessoal de terceiro.
+- **Achado medido:** `backups/apk-v1.44.0-2080/` guarda **1.45.0/2081**
+  (idêntico a `apk-v1.45.0-2081/`); 1.44.0 não existe arquivado; faltavam
+  1.46.0/2083, 1.46.1/2084 e 1.47.0/2085.
+- **1.47.0/2085 arquivado** em `backups/apk-v1.47.0-2085/` (completo
+  `4fa3bb88…`, arm64 `e096d1fd…`) e conferido com `aapt`.
+- `docs/VERSIONAMENTO.md` §5 ganhou o **passo 9**: arquivar o par publicado e
+  conferir o `versionCode` com `aapt` (nome da pasta = versão de dentro).
+- TODO: os 5 checkboxes do Projeti e o item 7 da fila fechados.
+
+### Verificação
+
+- Nenhum `.py` alterado: sem gate completo e sem restart.
+- Gate do RAG híbrido (texto novo em `docs/`): **8/8 relevantes · 0/8
+  irrelevantes · 6/6 paráfrases**, idêntico ao baseline.
+
+### Pendente do dono
+
+Renomear/apagar a pasta duplicada `backups/apk-v1.44.0-2080/` (regra 7) e
+podar o zip de Projeti na HD, se quiser. O 1.44.0/2080 não está arquivado em
+lugar nenhum do servidor.
+
+### Bump
+
+Nenhum (`1.47.0+2085`).

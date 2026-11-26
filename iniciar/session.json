@@ -1,4 +1,15 @@
 {
+  "projeti_referencia_2026_11_26": {
+    "pedido": "Dono (26/11 ~09:4x): 'Siga para o item 7 da fila: Projeti (google-services.json, APK de 51 MB x backups, leitura do Orion)'.",
+    "estado_encontrado": "analise/Projeti ja esvaziada em 13/11 (zip na HD do dono); no servidor so data/refs_todo/Projeti/Cod (10 arquivos, 200 KB, gitignored). google-services.json oficial em app/android/app com sha256 5e64634c... (o mesmo da copia de Projeti).",
+    "feito": "docs/PROJETI_REFERENCIA.md (novo): estado dos 4 sub-itens, formato real da escala do Orion com exemplos SINTETICOS (14 colunas inicio..func2; blocos por unidade no MapaForcaTudo.txt; armadilhas medidas: Mapa.csv com o cabecalho inteiro entre aspas virando UMA coluna no csv.reader, e Mapa.txt com CRLF + linha em branco final), decisao de NAO portar o RPA e regra de dado pessoal de terceiro. Achado medido com aapt (build-tools 36.0.0): backups/apk-v1.44.0-2080/ guarda 1.45.0/2081 (byte a byte igual a apk-v1.45.0-2081/), 1.44.0/2080 nao existe arquivado, faltavam 1.46.0/2083, 1.46.1/2084 e 1.47.0/2085. O 1.47.0/2085 foi arquivado em backups/apk-v1.47.0-2085/ (completo 4fa3bb88..., arm64 e096d1fd...) e conferido com aapt. docs/VERSIONAMENTO.md SS5 ganhou o passo 9 (arquivar o par publicado e conferir versionCode com aapt; nome da pasta = versao de dentro). TODO: 5 checkboxes do Projeti e item 7 da fila fechados.",
+    "verificacao": "Nenhum .py alterado: sem gate completo e sem restart. Gate do RAG hibrido (texto novo em docs/): 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, identico ao baseline.",
+    "pendente_dono": "Renomear/apagar backups/apk-v1.44.0-2080/ (duplicata; regra 7) e podar o zip de Projeti na HD. O binario 1.44.0/2080 nao esta arquivado no servidor.",
+    "sem_bump": "1.47.0+2085.",
+    "arquivos": "docs/PROJETI_REFERENCIA.md (novo), docs/VERSIONAMENTO.md, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS17), txt.txt; backups/apk-v1.47.0-2085/ (fora do git).",
+    "proximo": "Item 8 da fila: mapas offline (proximo do inventario).",
+    "updated_at": "2026-11-26T09:50:00-03:00"
+  },
   "referencias_nv_2026_11_26": {
     "pedido": "Dono (26/11 ~09:1x): 'Siga para o item 6 da fila: referencia de DAG/scheduler e SECURITY_LAYER_ARCHITECTURE.md na frente NV'.",
     "estado_encontrado": "docs/NV_DAG_SCHEDULER_REFERENCE.md ja existia desde 13/11 (7,2 KB, commit af8a961; DAG 347 linhas + scheduler 413 linhas + 8 testes). SECURITY_LAYER_ARCHITECTURE.md so existia como original de 24 linhas em data/refs_todo/NV/NV v1.7.X/ (fora do git).",

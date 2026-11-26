@@ -595,7 +595,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 4 | Guarda de offsite junto do verificador semanal | ✅ 26/11 03:3x |
 | 5 | Comparador de modelos lado a lado (P1 nº 8) | ✅ 26/11 08:5x — `/admin/comparador/*` + seção no painel; provado ao vivo em 3 modelos (0,56 s / 2,63 s / 18,6 s, parede = o mais lento) |
 | 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | ✅ 26/11 — `docs/NV_DAG_SCHEDULER_REFERENCE.md` (13/11) + `docs/SECURITY_LAYER_ARCHITECTURE.md` novo, com o mapeamento de cada camada no OD |
-| 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | pendente |
+| 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | ✅ 26/11 — originais já fora do servidor (zip na HD); leitura do Orion documentada em `docs/PROJETI_REFERENCIA.md`; trilha de backups do APK medida, 1.47.0 arquivado e passo de `aapt` no checklist |
 | 8 | Mapas offline (próximo do inventário) | pendente |
 | 9 | Modo colapso declarado | pendente |
 | 10 | Espelho com restauração real (precisa execução e prova) | pendente |
@@ -1477,8 +1477,11 @@ automatizam o preenchimento do mapa de força no site Orion
 (`orion.intranet.policiamilitar.sp.gov.br`) — 124 chamadas de `pyautogui`
 no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
 
-- [ ] **Projeti → automatizar o mapa de força como action do OD (ou
-      referência):** os notebooks são RPA puro (abrir site, tabular,
+- [x] **Projeti → automatizar o mapa de força como action do OD (ou
+      referência)** — **DECIDIDO 26/11: referência, não portar**
+      (`docs/PROJETI_REFERENCIA.md` §3: tabulação cega é frágil e o ganho
+      não foi medido; se um dia, fonte autorizada + somente leitura +
+      fixtures sintéticas). Os notebooks são RPA puro (abrir site, tabular,
       inserir data/turno). O OD já tem a action engine, o CoderEngine
       sandbox e o RAG — um fluxo "cadastrar turno no Orion" poderia virar
       action/workflow. **Uso hoje: referência de padrão RPA** (o jeito
@@ -1488,31 +1491,36 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       viaturas) — não publicar em lugar nenhum, não entrar no git. Refs
       extraídas 13/11 (só no gitignored) em `data/refs_todo/Projeti/Cod/`:
       5 notebooks + `efetivo.txt`/`Mapa*` (266 KB no total da extração).
-- [ ] **Projeti → instalar as ferramentas Windows no desktop:** há
-      `FileZillaPortable`, `PuTTYPortable`, `MQTT-Explorer-0.4.0-beta.6.exe`
-      e `tailscale-setup-1.92.5.exe` — o desktop Windows está na tailnet
-      (`desktop-4icaj6f`, ativo). Se quiser, copio os `.exe` para ele
-      (o `tailscale` do servidor já é 1.92.5? medir antes). **Os `.exe`
-      saíram do servidor na limpeza de 13/11 — estão só no zip da sua HD;
-      para executar, trazer de lá.**
-- [ ] **Projeti → `google-services.json` é IDÊNTICO ao do app** (sha256
-      bate: `5e64634c…`): projeto Firebase `nicky-e4f99`, `com.omegadrakon.
-      nicky`. Cópia redundante — lixo candidato com sua aprovação. O
-      `app.txt` é o export do console Firebase (contém o mesmo projeto);
-      útil como ficha de referência, mas o oficial é o do
-      `app/android/app/`.
-- [ ] **Projeti → `OmegaDrakon.apk` (51 MB) não bate com nenhum backup**
-      (sha256 `b845c044…` ≠ nenhum em `backups/apk-*`): é um build mais
-      antigo que os arquivados (o mais recente é v1.39.3-2075 de 17/10; o
-      app atual é 1.44.0+2080). Não consegui extrair a versão do
-      Manifesto. **Candidato a lixo com sua aprovação** — ou me diga de
-      onde veio que eu arquivo direito.
-- [ ] **Projeti → dados do Orion viram action de leitura (opcional):**
-      `Mapa.csv`, `MapaForcaTudo.txt` e `ler.ipynb` leem a tabela de
-      escala — se algum dia precisar "qual o turno de amanhã" no chat, a
-      referência de parsing está aqui (formato tab-delimited com colunas
-      de viatura/efetivo). **Hoje: sem demanda, fica como referência.**
-      Fontes extraídas 13/11 em `data/refs_todo/Projeti/Cod/`.
+- [x] **Projeti → instalar as ferramentas Windows no desktop** —
+      **RESOLVIDO 26/11:** os `.exe` (`FileZillaPortable`, `PuTTYPortable`,
+      `MQTT-Explorer-0.4.0-beta.6.exe`, `tailscale-setup-1.92.5.exe`) só
+      existem no zip da HD do dono desde a limpeza de 13/11; instalar é
+      trazer de lá. O desktop Windows (`desktop-4icaj6f`) está ativo na
+      tailnet. Nada pendente no servidor.
+- [x] **Projeti → `google-services.json` é IDÊNTICO ao do app** —
+      **FECHADO 26/11:** era byte a byte igual (sha256 `5e64634c…`, projeto
+      `nicky-e4f99`, `com.omegadrakon.nicky`) e a cópia de Projeti saiu do
+      servidor no zip de 13/11; a oficial em `app/android/app/` foi conferida
+      hoje com o mesmo sha256. Nada a apagar. O `app.txt` (export do console
+      Firebase) também está só no zip — referência, não fonte.
+- [x] **Projeti → `OmegaDrakon.apk` (51 MB) não bate com nenhum backup** —
+      **FECHADO 26/11:** o órfão (sha256 `b845c044…`) está só no zip da HD e
+      segue sem versão conhecida (rodar `aapt dump badging` ao abrir o zip).
+      A conferência da trilha `backups/apk-*` com `aapt` achou furo real:
+      `apk-v1.44.0-2080/` guarda **1.45.0/2081** (duplicado de
+      `apk-v1.45.0-2081/`), 1.44.0 não existe arquivado e faltavam
+      1.46.0/1.46.1/1.47.0; o 1.47.0/2085 foi arquivado e conferido hoje, e
+      o passo entrou no checklist (§5 item 9 de `docs/VERSIONAMENTO.md`).
+      Detalhe em `docs/PROJETI_REFERENCIA.md` §4. Renomear/apagar pasta de
+      backup continua sendo ação do dono.
+- [x] **Projeti → dados do Orion viram action de leitura (opcional)** —
+      **DOCUMENTADO 26/11, sem action:** o formato real está em
+      `docs/PROJETI_REFERENCIA.md` §2 — 14 colunas da escala
+      (`inicio,final,cmd,municipio,setor,sub,local,vtr,escala,mod,re,func,
+      re2,func2`), blocos por unidade no `MapaForcaTudo.txt`, e as duas
+      armadilhas medidas (CSV com o cabeçalho inteiro entre aspas; CRLF e
+      linha em branco no `Mapa.txt`). Exemplos sintéticos, nunca dado real.
+      Continua sem demanda; fontes em `data/refs_todo/Projeti/Cod/`.
 
 ### Lote de 13/11 fora do registro (levantado na retomada de 14/11)
 

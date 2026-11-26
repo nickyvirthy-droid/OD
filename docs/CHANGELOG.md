@@ -12,6 +12,45 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Projeti fechado: referência do Orion e furo na trilha de backups do APK (2026-11-26, sem bump)
+
+**Contexto:** o item 7 da fila pedia `google-services.json`, o APK órfão de
+51 MB × backups e a leitura do Orion. Os originais de Projeti já saíram do
+servidor em 13/11 (zip na HD do dono); o que restou são as referências em
+`data/refs_todo/Projeti/Cod/` (200 KB, fora do git).
+
+**Novo `docs/PROJETI_REFERENCIA.md`:**
+
+- estado medido dos 4 sub-itens (duplicata de `google-services.json` com o
+  mesmo sha256 `5e64634c…` do app, órfão sem versão, `.exe` só no zip,
+  Orion como referência);
+- **formato real da escala do Orion**, com exemplos **sintéticos**: as 14
+  colunas (`inicio,final,cmd,municipio,setor,sub,local,vtr,escala,mod,re,
+  func,re2,func2`), os blocos por unidade do `MapaForcaTudo.txt` e as duas
+  armadilhas medidas — `Mapa.csv` com o cabeçalho inteiro entre aspas (vira
+  UMA coluna no `csv.reader`) e `Mapa.txt` com CRLF + linha em branco final;
+- decisão registrada: **não portar o RPA** (tabulação cega é frágil, ganho
+  não medido); se um dia, fonte autorizada + somente leitura + fixtures
+  sintéticas. Dado pessoal de terceiro nunca vai para Git/log/teste.
+
+**Achado colateral (APK × backups), medido com `aapt` (build-tools 36.0.0):
+
+- `backups/apk-v1.44.0-2080/` guarda **1.45.0/2081**, byte a byte igual a
+  `backups/apk-v1.45.0-2081/` — o binário 1.44.0/2080 não existe arquivado;
+- faltavam 1.46.0/2083, 1.46.1/2084 e 1.47.0/2085. O **1.47.0/2085** foi
+  arquivado agora em `backups/apk-v1.47.0-2085/` (completo `4fa3bb88…`,
+  arm64 `e096d1fd…`) e conferido com `aapt`;
+- `docs/VERSIONAMENTO.md` §5 ganhou o passo 9: arquivar o par publicado e
+  conferir o `versionCode` com `aapt` — o nome da pasta passa a ser a
+  versão que está DENTRO do APK. Renomear/apagar pasta de backup é ação do
+  dono (regra 7): a duplicata foi deixada intacta.
+
+**Verificação:** nenhum `.py` alterado (sem gate/restart). Gate do RAG
+híbrido rodado por causa do texto novo em `docs/`: **8/8 relevantes · 0/8
+irrelevantes · 6/6 paráfrases**, idêntico ao baseline.
+
+---
+
 ## Security Layer do NV vira referência mapeada no repo (2026-11-26, sem bump)
 
 **Contexto:** o item 6 da fila pedia as duas referências do NV no repositório.

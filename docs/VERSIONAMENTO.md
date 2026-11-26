@@ -78,6 +78,12 @@ versão congelada recebendo features por baixo do pano.
    dentro da seção vigente, quando o bump é retroativo/lote)
 7. `docs/README_VERSAO.md`: relatório §2.1 da versão (§2.1.1)
 8. Suíte verde + prova viva da versão no ar (regra 10 das Regras)
+9. **Arquivar o par publicado em `backups/apk-vX-<code>/` e conferir com
+   `aapt dump badging`** (build-tools do `ANDROID_HOME`). O nome da pasta
+   tem que ser a versão que está DENTRO do APK — em 26/11 o `aapt` pegou
+   `backups/apk-v1.44.0-2080/` guardando 1.45.0/2081 (duplicado) e a trilha
+   sem 1.46.0, 1.46.1 e 1.47.0; o 1.47.0/2085 foi arquivado e conferido
+   nessa data. Sem este passo o rollback do app fica sem binário confiável.
 
 ## 6. Guardas de coerência (2026-09-26)
 

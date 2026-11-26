@@ -9,6 +9,38 @@
 
 ---
 
+## 26/11/2026 — Projeti fechado: referência do Orion + trilha de APK (fila item 7)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 7 da fila:
+Projeti (google-services.json, APK de 51 MB × backups, leitura do Orion)"*).
+
+### Criados
+
+- `docs/PROJETI_REFERENCIA.md` — estado dos 4 sub-itens, formato real da
+  escala do Orion (exemplos sintéticos, sem dado pessoal), decisão de não
+  portar o RPA e o achado da trilha de backups do APK.
+- `backups/apk-v1.47.0-2085/` — par publicado (completo + arm64) arquivado e
+  conferido com `aapt` (completo `4fa3bb88…`, arm64 `e096d1fd…`).
+
+### Modificados
+
+- `docs/VERSIONAMENTO.md` — §5 ganhou o passo 9 (arquivar e conferir o
+  `versionCode` com `aapt`).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (5 checkboxes do
+  Projeti e item 7 da fila ✅), `iniciar/2026-11-26_conversa_omegadrakon.md`
+  (§17), `iniciar/session.json`, `txt.txt`.
+
+### Intenção e estado
+
+Fechar o item 7 sem tocar no que exige aprovação: os originais de Projeti já
+estão fora do servidor, então “apagar duplicata” virou decisão do dono sobre
+um zip na HD dele. A conferência com `aapt` achou furo real na trilha de
+backups (v1.44.0 ausente, 1.45.0 duplicado, 1.46.x/1.47.0 sem backup); o
+1.47.0 foi arquivado e o checklist passou a exigir a conferência. Nenhum
+`.py` alterado, sem restart. `1.47.0+2085`.
+
+---
+
 ## 26/11/2026 — Referências do NV: security layer mapeada + DAG/scheduler (fila item 6)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 6 da fila:
