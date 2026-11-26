@@ -2,6 +2,8 @@
 
 > Extraído de `data/refs_todo/NV/NV v1.9.X/workflows/` (nested-workflows.tar.gz, v1.9.2)
 > Data: 2026-11-13
+> Ver também: `docs/SECURITY_LAYER_ARCHITECTURE.md` (a outra metade da
+> referência do NV — security layer mapeada ao código vivo do OD).
 
 ---
 

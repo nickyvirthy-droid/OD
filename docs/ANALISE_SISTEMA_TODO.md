@@ -594,7 +594,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 3 | Relatório de simulação completa do ciclo (`--relatorio`) | ✅ 26/11 02:4x |
 | 4 | Guarda de offsite junto do verificador semanal | ✅ 26/11 03:3x |
 | 5 | Comparador de modelos lado a lado (P1 nº 8) | ✅ 26/11 08:5x — `/admin/comparador/*` + seção no painel; provado ao vivo em 3 modelos (0,56 s / 2,63 s / 18,6 s, parede = o mais lento) |
-| 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | pendente |
+| 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | ✅ 26/11 — `docs/NV_DAG_SCHEDULER_REFERENCE.md` (13/11) + `docs/SECURITY_LAYER_ARCHITECTURE.md` novo, com o mapeamento de cada camada no OD |
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | pendente |
 | 8 | Mapas offline (próximo do inventário) | pendente |
 | 9 | Modo colapso declarado | pendente |
@@ -1441,7 +1441,8 @@ mais novos** (v1.11.0-security-enforcement, homologação de agosto); o
 `analise/NV` tem os mesmos docs em versões antigas (v1.7.0) **mais o código
 das 11 versões, que não existe em mais lugar nenhum**.
 
-- [ ] **NV → referência de DAG/scheduler para o grafo:** o
+- [x] **NV → referência de DAG/scheduler para o grafo** — **FEITO 13/11 e
+      confirmado 26/11:** o
       `nested-workflows.tar.gz` (v1.9.2) traz `dag_engine.py` (347 linhas,
       execução em grafo com paralelismo), `scheduler_engine.py` (413 linhas,
       cron/interval com persistência) e **8 testes** de scheduler — o
@@ -1457,13 +1458,18 @@ das 11 versões, que não existe em mais lugar nenhum**.
       (`nested-workflows.tar.gz`, bootstrap v1.9.2 e
       `SECURITY_LAYER_ARCHITECTURE.md`). Docs duplicados com o Legado não
       foram tocados (mapa: camadas geológicas).
-- [ ] **NV → `SECURITY_LAYER_ARCHITECTURE.md` (v1.7.0):** resumo executivo
-      da security layer (fluxo Action→SecurityManager→Policy→Permission→
-      Scope→Approval→Execute→Audit). O OD já implementou tudo isso em
-      `core/security/` (1.742 linhas) — o doc serve como **referência de
-      intenção** para revisitar a arquitetura, não como código a
-      incorporar. Extraído 13/11 para
-      `data/refs_todo/NV/NV v1.7.X/SECURITY_LAYER_ARCHITECTURE.md`.
+- [x] **NV → `SECURITY_LAYER_ARCHITECTURE.md` (v1.7.0)** — **FEITO 26/11:**
+      resumo executivo da security layer (fluxo Action→SecurityManager→Policy→
+      Permission→Scope→Approval→Execute→Audit) no original, camada por
+      camada apontando o código vivo do OD (`core/security/policy.py`,
+      `permissions.py`, `scope.py`, `approval.py`, `audit.py`, `models.py`,
+      `manager.py`), a tabela de diferenças (papéis, policies em código em vez
+      de YAML, `CheckResult`/`SecurityDecision` em vez de exceção, auditoria
+      antes do handler, modos de enforcement) e as 4 lacunas reais (policies
+      só por código; nomes ponto × underscore; `dump()` não exposto; aprovação
+      humana desligada). Doc novo: `docs/SECURITY_LAYER_ARCHITECTURE.md`.
+      Nenhum código portado — a decisão de 13/11 continua: referência de
+      intenção, não incorporação.
 
 **`analise/Projeti/` — 235 MB, 953 arquivos: material de trabalho seu
 (PMESP — 42.BPM/I) + ferramentas Windows.** Notebooks `pyautogui` que

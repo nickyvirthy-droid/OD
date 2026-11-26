@@ -9,6 +9,32 @@
 
 ---
 
+## 26/11/2026 — Referências do NV: security layer mapeada + DAG/scheduler (fila item 6)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 6 da fila:
+referência de DAG/scheduler e SECURITY_LAYER_ARCHITECTURE.md na frente NV"*).
+
+### Criados
+
+- `docs/SECURITY_LAYER_ARCHITECTURE.md` — contrato do NV v1.7.0 + mapeamento
+  camada por camada no código vivo do OD + diferenças + 4 lacunas.
+
+### Modificados
+
+- `docs/NV_DAG_SCHEDULER_REFERENCE.md` — link cruzado para o doc novo.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (fila item 6 ✅ e os
+  dois checkboxes do NV), `iniciar/2026-11-26_conversa_omegadrakon.md` (§16),
+  `iniciar/session.json`, `txt.txt`.
+
+### Intenção e estado
+
+Fechar o item 6 sem portar código: a metade DAG/scheduler já estava entregue
+em 13/11; a da security layer só existia num arquivo fora do git. Agora a
+intenção original e o que o OD já tem estão no mesmo lugar, com as lacunas
+nomeadas. Nenhum .py tocado, sem restart. `1.47.0+2085`.
+
+---
+
 ## 26/11/2026 — Comparador de modelos lado a lado no painel (fila item 5)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"continue"*, retomando a fila

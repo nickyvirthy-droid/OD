@@ -12,6 +12,43 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Security Layer do NV vira referência mapeada no repo (2026-11-26, sem bump)
+
+**Contexto:** o item 6 da fila pedia as duas referências do NV no repositório.
+A de DAG/scheduler já existia desde 13/11
+(`docs/NV_DAG_SCHEDULER_REFERENCE.md`, commit `af8a961`); a da security layer
+só estava no original de 24 linhas em `data/refs_todo/NV/` (fora do git).
+
+**Novo `docs/SECURITY_LAYER_ARCHITECTURE.md`:**
+
+- reproduz o contrato original (componentes, fluxo
+  `Action → SecurityManager → Policy → Permission → Scope → Approval →
+  Execute → Audit`, `policies.yaml`, papéis `guest/operator/admin`,
+  exceções) e destaca as três intenções que ele carrega;
+- mapeia **camada por camada** no código vivo: `core/security/policy.py`
+  (deny patterns + tokens destrutivos + allowlist), `permissions.py`
+  (papéis `admin/user/familia/agent/router`, hierarquia por código,
+  `UNKNOWN_ROLE_POLICY=deny`), `scope.py` (raízes/protegidos, classificação
+  da operação), `approval.py` (token/TTL), `audit.py` (`AuditEngine` + sink
+  JSONL), `models.py` e `manager.py` (`PIPELINE_ORDER`, modos
+  `compatibility/soft/strict`);
+- tabela de diferenças com o NV e o motivo de cada uma (papéis de conta,
+  policies em código em vez de YAML, decisão em vez de exceção, auditoria
+  antes do handler, modos de enforcement);
+- **4 lacunas reais**: policies só por código, armadilha ponto × underscore
+  nos nomes de ação, `SecurityManager.dump()` não exposto e aprovação
+  humana pronta mas desligada.
+
+Nenhum código portado — a decisão de 13/11 continua: referência de intenção.
+O `docs/NV_DAG_SCHEDULER_REFERENCE.md` ganhou o link cruzado.
+
+**Verificação:** `tests/test_rag.py + tests/test_hybrid_search.py` **138
+passed**; gate do RAG híbrido rodado por causa do texto novo em `docs/`:
+**8/8 relevantes · 0/8 irrelevantes · 6/6 paráfrases** — idêntico ao baseline
+(`antes` = `depois` em todas as linhas). Sem restart: só documentação.
+
+---
+
 ## Comparador de modelos lado a lado no painel (2026-11-26, sem bump)
 
 **Contexto:** a escolha de "qual IA responde melhor" vinha de log e de um

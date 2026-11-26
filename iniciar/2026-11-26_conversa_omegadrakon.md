@@ -730,3 +730,50 @@ daquele provider, igual aconteceria numa mensagem.
 ### Bump
 
 Nenhum (`1.47.0+2085`; servidor/painel, contrato do app intacto).
+
+---
+
+## §16 — Fila item 6: referências do NV (26/11 ~09:20)
+
+**Dono:** *"Siga para o item 6 da fila: referência de DAG/scheduler e
+SECURITY_LAYER_ARCHITECTURE.md na frente NV"*.
+
+### Estado encontrado
+
+- `docs/NV_DAG_SCHEDULER_REFERENCE.md` já existia desde 13/11 (7,2 KB, commit
+  `af8a961`): DAG (`dag_engine.py`, 347 linhas) + scheduler
+  (`scheduler_engine.py`, 413 linhas) + 8 testes, com o mapa do que o OD já
+  cobre (RetryPolicy/paralelismo) e o gap (workflow como entidade).
+- `SECURITY_LAYER_ARCHITECTURE.md` só existia como o original de **24 linhas**
+  em `data/refs_todo/NV/NV v1.7.X/` — fora do git. O TODO pedia o resumo
+  executivo no repo.
+
+### Feito
+
+- `docs/SECURITY_LAYER_ARCHITECTURE.md` (novo): contrato original na íntegra,
+  fluxo, e o mapeamento camada por camada no código vivo (`core/security/`,
+  1.763 linhas): policy (deny/tokens/allowlist), permissions (5 papéis +
+  hierarquia + `UNKNOWN_ROLE_POLICY=deny`), scope (raízes/protegidos),
+  approval (token/TTL), audit (sink JSONL) e manager (`PIPELINE_ORDER`, 3
+  modos de enforcement).
+- Tabela de diferenças NV × OD com o motivo (papéis de conta em vez de
+  guest/operator; policies em código em vez de YAML; `CheckResult`/
+  `SecurityDecision` em vez de exceção; auditoria antes do handler; modos).
+- 4 lacunas honestas: policies só por código; nomes ponto × underscore
+  (armadilha de `weather_city`/`role_list`); `dump()` não exposto; aprovação
+  humana desligada.
+- `docs/NV_DAG_SCHEDULER_REFERENCE.md` ganhou link cruzado; TODO: os dois
+  checkboxes do NV e o item 6 da fila fechados.
+
+### Verificação
+
+- `tests/test_rag.py + tests/test_hybrid_search.py`: **138 passed**.
+- Gate do RAG híbrido rodado (texto novo em `docs/` mexe no corpus):
+  **8/8 relevantes · 0/8 irrelevantes · 6/6 paráfrases**, `antes == depois` em
+  todas as linhas — sem regressão de calibragem.
+- Sem restart e sem gate completo: mudança só de documentação (nenhum .py
+  alterado).
+
+### Bump
+
+Nenhum (`1.47.0+2085`).

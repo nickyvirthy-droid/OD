@@ -1,4 +1,14 @@
 {
+  "referencias_nv_2026_11_26": {
+    "pedido": "Dono (26/11 ~09:1x): 'Siga para o item 6 da fila: referencia de DAG/scheduler e SECURITY_LAYER_ARCHITECTURE.md na frente NV'.",
+    "estado_encontrado": "docs/NV_DAG_SCHEDULER_REFERENCE.md ja existia desde 13/11 (7,2 KB, commit af8a961; DAG 347 linhas + scheduler 413 linhas + 8 testes). SECURITY_LAYER_ARCHITECTURE.md so existia como original de 24 linhas em data/refs_todo/NV/NV v1.7.X/ (fora do git).",
+    "feito": "docs/SECURITY_LAYER_ARCHITECTURE.md (novo): contrato original na integra (componentes, fluxo Action->SecurityManager->Policy->Permission->Scope->Approval->Execute->Audit, policies.yaml, papeis guest/operator/admin, excecoes), mapeamento camada por camada no codigo vivo (core/security/policy.py deny+tokens+allowlist; permissions.py 5 papeis + hierarquia + UNKNOWN_ROLE_POLICY=deny; scope.py raizes/protegidos; approval.py token/TTL; audit.py sink JSONL; manager.py PIPELINE_ORDER + 3 modos), tabela de diferencas NV x OD com motivo e 4 lacunas reais (policies so por codigo; ponto x underscore nos nomes de acao; dump() nao exposto; aprovacao humana desligada). docs/NV_DAG_SCHEDULER_REFERENCE.md ganhou link cruzado. Nenhum codigo portado.",
+    "testes": "tests/test_rag.py + tests/test_hybrid_search.py: 138 passed. Gate do RAG hibrido (texto novo em docs/): 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, antes == depois em todas as linhas. Sem gate completo e sem restart: mudanca so de documentacao, nenhum .py tocado.",
+    "sem_bump": "1.47.0+2085.",
+    "arquivos": "docs/SECURITY_LAYER_ARCHITECTURE.md (novo), docs/NV_DAG_SCHEDULER_REFERENCE.md, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS16), txt.txt.",
+    "proximo": "Item 7 da fila: Projeti (google-services.json, APK de 51 MB x backups, leitura do Orion).",
+    "updated_at": "2026-11-26T09:20:00-03:00"
+  },
   "comparador_modelos_2026_11_26": {
     "pedido": "Dono (26/11 ~08:4x): 'continue' — retomada da fila; proximo item combinado era o 5 (comparador de modelos lado a lado, P1 no 8).",
     "codigo": "core/comparador_modelos.py (novo): modelos_disponiveis() = cadeia real do chat via runtime.launcher.build_llm_providers(); comparar(prompt, nomes, timeout_s=90) roda os modelos em PARALELO (asyncio.gather) e devolve por modelo nome/modelo/ok/resposta/latencia_ms (perf_counter)/erro. Menos de 2 modelos, prompt vazio ou >4000 chars, nome desconhecido e mais de 4 modelos = ComparadorError (400). Falha/timeout de um nao derruba os outros; timeout e teto POR modelo (asyncio.wait_for). Nada persistido. integrations/api/server.py: rotas GET /admin/comparador/modelos e POST /admin/comparador/comparar (admin, modelos aceita lista ou string por virgula, timeout_s grampeado 1-300) + secao 'Comparador de modelos' no /admin com cmpCartoesHtml (render puro, escapado), cmpLoad e cmpComparar; cmpLoad no carregarTudo.",
