@@ -184,3 +184,109 @@ class TestPainelHTML:
         assert "--forcar" in unit
         assert "DEBIAN_FRONTEND=noninteractive" in unit
         assert "EnvironmentFile=" in unit
+
+
+class TestSecoesDoCicloNoPainel:
+    """As últimas seções do ciclo (apt, fwupdmgr, reboot) na tela.
+
+    A rota de status já devolvia `secoes` (últimas 5 do estado) — o painel
+    mostrava só o resumo numérico. O render é uma função PURA
+    (`soSecoesHtml`), testada aqui no node como o `visaoCards`: assim a
+    ordem (mais recente primeiro) e o escape não dependem de olhar a tela.
+    """
+
+    @staticmethod
+    def _js() -> str:
+        html = _ADMIN_PAGE_HTML
+        return html[html.index("<script>") + len("<script>"):html.rindex("</script>")]
+
+    _HARNESS = r"""
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+function novoEl() {
+  return { style: {}, dataset: {}, _attrs: {}, innerHTML: '', textContent: '',
+    className: '', value: '', href: '', disabled: false,
+    setAttribute(k, v) { this._attrs[k] = String(v); },
+    getAttribute(k) { return k in this._attrs ? this._attrs[k] : 'href'; },
+    addEventListener() {}, appendChild() {},
+    classList: { toggle() {}, add() {}, remove() { return true; },
+                 contains() { return false; } } };
+}
+const document = { getElementById() { return novoEl(); },
+  querySelector() { return null; }, querySelectorAll() { return []; },
+  createElement() { return novoEl(); }, addEventListener() {},
+  documentElement: novoEl(), body: novoEl(), readyState: 'complete' };
+const window = { confirm() { return true; }, alert() {}, scrollTo() {},
+  matchMedia() { return { matches: true, addEventListener() {} }; } };
+const localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+const location = { href: '' };
+const fetch = () => Promise.resolve({ ok: false, status: 401,
+  json: async () => ({ ok: false }) });
+const ctx = { document, window, localStorage, location, fetch, console,
+  setInterval: () => 0, setTimeout: () => 0, clearTimeout: () => {} };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+
+console.log(JSON.stringify({
+  vazio: ctx.soSecoesHtml([]),
+  nulo: ctx.soSecoesHtml(null),
+  cheio: ctx.soSecoesHtml([
+    { timestamp: 1794273354.8, acao: 'apt_update', ok: true, detalhes: 'lido' },
+    { timestamp: 1794273356.1, acao: 'apt_upgrade', ok: false,
+      detalhes: '<b>falhou</b> & caiu' },
+  ]),
+}));
+"""
+
+    def test_secoes_ordenadas_escapadas_e_vazio_honesto(self, tmp_path: Path) -> None:
+        import json as _json
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:  # pragma: no cover - máquina sem node
+            return
+        js = tmp_path / "admin.js"
+        js.write_text(self._js(), encoding="utf-8")
+        har = tmp_path / "har.js"
+        har.write_text(self._HARNESS, encoding="utf-8")
+        r = subprocess.run([node, str(har), str(js)], capture_output=True,
+                           text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr[:800]
+        saida = _json.loads(r.stdout.strip().splitlines()[-1])
+
+        assert "nenhuma seção registrada" in saida["vazio"]
+        assert "nenhuma seção registrada" in saida["nulo"]
+
+        cheio = saida["cheio"]
+        # mais recente primeiro
+        assert cheio.index("apt_upgrade") < cheio.index("apt_update")
+        assert "falhou" in cheio and "ok" in cheio
+        # detalhe escapado (nada de HTML cru do estado no painel)
+        assert "&lt;b&gt;" in cheio and "<b>falhou</b>" not in cheio
+        assert "&amp; caiu" in cheio
+
+    def test_secao_tem_o_container_e_a_rota_alimenta(self) -> None:
+        assert 'id="so-secoes"' in _ADMIN_PAGE_HTML
+        assert "soSecoesHtml(d.secoes)" in _ADMIN_PAGE_HTML
+
+    def test_status_entrega_as_ultimas_cinco_secoes(self, monkeypatch, tmp_path: Path) -> None:
+        """A rota não inventa seções: entrega as 5 últimas do estado."""
+        from core import os_updater as osu_mod
+
+        monkeypatch.setattr(osu_mod, "_precisa_reboot", lambda: False)
+        monkeypatch.setattr(
+            osu_mod, "_contar_pacotes_e_firmware", lambda agora, intervalo: (1, 0)
+        )
+        monkeypatch.setattr(osu_mod, "_kernel_atual", lambda: "k")
+        monkeypatch.setattr(osu_mod, "unidade_em_andamento", lambda: False)
+        secoes = [
+            {"timestamp": float(i), "acao": f"passo{i}", "ok": True, "detalhes": ""}
+            for i in range(7)
+        ]
+        estado = tmp_path / "estado.json"
+        estado.write_text(
+            '{"secoes": ' + __import__("json").dumps(secoes) + "}", encoding="utf-8"
+        )
+        assert osu_mod.status_painel(estado)["secoes"] == secoes[-5:]

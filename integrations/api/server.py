@@ -1983,6 +1983,7 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       <button id="so-aplicar" class="danger">⚠ Aplicar atualizações</button>
       <span class="muted msg" id="so-msg"></span>
     </div>
+    <div id="so-secoes"></div>
   </section>
 </main>
 <script>
@@ -2559,6 +2560,43 @@ document.getElementById("vigia-refresh").onclick = vigiaLoad;
 
 // --- Atualizador de SO (26/11): status + botão "Aplicar" ---------------------
 // O ciclo real vai por systemd (root); aqui só se pede e se acompanha.
+function soEsc(s) {
+  return String(s == null ? "" : s)
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function soQuando(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }) + " " +
+    d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+}
+
+// Seções do último ciclo (apt_update, apt_upgrade, fwupdmgr, reboot...).
+// Função PURA: o node do teste chama direto, sem DOM (mesmo padrão do
+// visaoCards). O estado guarda em ordem de execução — aqui a mais recente
+// vem primeiro, que é o que o dono quer ver.
+function soSecoesHtml(secoes) {
+  const lista = Array.isArray(secoes) ? secoes.slice().reverse() : [];
+  if (!lista.length) {
+    return '<p class="muted" style="font-size:0.8rem;margin-top:8px">' +
+      'nenhuma seção registrada ainda — o ciclo ainda não rodou</p>';
+  }
+  const linhas = lista.map(function (s) {
+    const ok = s && s.ok === true;
+    return "<tr>" +
+      "<td>" + soQuando(s && s.timestamp) + "</td>" +
+      "<td><code>" + soEsc(s && s.acao) + "</code></td>" +
+      '<td class="' + (ok ? "" : "err") + '">' + (ok ? "ok" : "falhou") + "</td>" +
+      '<td class="muted">' +
+        soEsc(String((s && s.detalhes) || "").slice(0, 160)) + "</td>" +
+      "</tr>";
+  }).join("");
+  return '<table style="margin-top:10px"><thead><tr><th>Quando</th>' +
+    "<th>Seção</th><th>Resultado</th><th>Detalhe</th></tr></thead><tbody>" +
+    linhas + "</tbody></table>";
+}
+
 async function soLoad() {
   const alvo = document.getElementById("so-resumo");
   try {
@@ -2573,6 +2611,7 @@ async function soLoad() {
       d.em_andamento ? "aplicando agora…" : "parado"
     ];
     alvo.textContent = partes.join(" · ");
+    document.getElementById("so-secoes").innerHTML = soSecoesHtml(d.secoes);
     document.getElementById("so-aplicar").disabled = !!d.em_andamento;
   } catch (e) {
     alvo.textContent = "falha ao ler o status: " + e.message;
