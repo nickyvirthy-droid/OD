@@ -3,6 +3,8 @@ Description=Omega Drakon OS Updater - Aplicar atualizacoes AGORA (botao do paine
 Documentation=https://github.com/OmegaDrakon
 After=network-online.target
 Wants=network-online.target
+# Se o ciclo pedido pelo painel MORRER antes do fim, o dono é avisado.
+OnFailure=od-os-updater-falha.service
 
 [Service]
 Type=oneshot

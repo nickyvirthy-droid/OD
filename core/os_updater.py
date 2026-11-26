@@ -193,6 +193,69 @@ def iniciar_ciclo_forcado() -> tuple[bool, str]:
 _ESTADOS_EM_ANDAMENTO = ("", "active", "activating", "reloading")
 
 
+UNIDADES_CICLO = ("od-os-updater.service", "od-os-updater-forcar.service")
+
+
+def avisar_falha(unidades: tuple[str, ...] = UNIDADES_CICLO) -> dict[str, Any]:
+    """Avisa no Telegram que um ciclo MORREU antes do fim (OnFailure da unit).
+
+    O aviso final do `executar_ciclo` só sai se o processo chega ao fim. Se o
+    Python for morto (OOM, `TimeoutStartSec=3600`, crash), o dono não sabia de
+    nada — este é o caminho de `OnFailure=od-os-updater-falha.service`.
+
+    Lê `systemctl show` (estado/resultado) e as últimas linhas do journal da
+    unit que falhou. Devolve `{"ok": bool, "unidade": str, "texto": str}`.
+    """
+    falhas: list[tuple[str, str, str]] = []
+    for unidade in unidades:
+        code, out, _ = _executar(
+            ["systemctl", "show", unidade, "-p", "ActiveState", "-p", "Result"],
+            timeout=10,
+        )
+        info = dict(
+            linha.split("=", 1) for linha in out.splitlines() if "=" in linha
+        )
+        estado = info.get("ActiveState", "?")
+        resultado = info.get("Result", "?")
+        if estado == "failed" or resultado not in ("success", "", "?"):
+            falhas.append((unidade, estado, resultado))
+
+    if not falhas:
+        return {"ok": True, "unidade": "", "texto": "nenhuma unit em falha"}
+
+    unidade, estado, resultado = falhas[0]
+    _, journal, _ = _executar(
+        ["journalctl", "-u", unidade, "-n", "8", "--no-pager", "-o", "cat"],
+        timeout=20,
+    )
+    secoes = ""
+    try:
+        caminho = Path(ESTADO_ARQUIVO)
+        if caminho.exists():
+            dados = json.loads(caminho.read_text(encoding="utf-8"))
+            ultimas = (dados.get("secoes") or [])[-3:]
+            secoes = "\n".join(
+                f"• {s.get('acao')}: {'ok' if s.get('ok') else 'FALHOU'} "
+                f"{(str(s.get('detalhes') or ''))[:120]}"
+                for s in ultimas
+            )
+    except Exception:  # pragma: no cover - estado ilegível não impede o aviso
+        secoes = ""
+
+    cauda = "\n".join((journal or "").strip().splitlines()[-6:])[:1200]
+    partes = [
+        f"Ciclo do SO morreu antes do fim ({unidade}).",
+        f"systemd: estado={estado} resultado={resultado}",
+    ]
+    if secoes:
+        partes.append("Últimas seções:\n" + secoes)
+    if cauda:
+        partes.append("Journal:\n" + cauda)
+    texto = "\n".join(partes)
+    enviado = notificar_telegram("❌ OSUpdater\n" + texto)
+    return {"ok": bool(enviado), "unidade": unidade, "texto": texto}
+
+
 def unidade_em_andamento() -> bool:
     """True enquanto a unit do ciclo forçado estiver ativa (ou arrancando)."""
     code, out, _ = _executar(
@@ -646,6 +709,50 @@ class OSUpdater:
 # --- CLI ---------------------------------------------------------------------
 
 
+def relatorio_simulacao(agora: Optional[float] = None) -> dict[str, Any]:
+    """Roda o ciclo em `dry_run` e devolve um resumo LEGÍVEL (nada aplicado).
+
+    O `--dry-run` já existia, mas só imprimia o JSON cru: o dono queria ver
+    *o que* seria instalado antes de apertar o botão. Aqui as listas de
+    pacotes/firmwares (leitura real, sem escrita) viram texto.
+    O estado vai para arquivo temporário: simulação não polui as seções reais.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        up = OSUpdater(
+            estado_arquivo=Path(tmp) / "simulacao.json",
+            dry_run=True,
+            notificador_telegram=None,  # simulação não notifica (contrato)
+        )
+        r = up.executar_ciclo(forcar=True)
+
+    pacotes = list(r.get("pacotes_atualizados") or [])
+    firmwares = list(r.get("firmware_atualizados") or [])
+    reboot = bool(r.get("reboot_necessario"))
+    linhas = [
+        "Simulação do ciclo do SO (nada foi aplicado):",
+        f"• pacotes: {len(pacotes)}",
+        f"• firmwares: {len(firmwares)}",
+        f"• reboot previsto: {'sim' if reboot else 'não'}",
+    ]
+    if r.get("erros"):
+        linhas.append("• erros: " + "; ".join(str(e)[:100] for e in r["erros"]))
+    if pacotes:
+        linhas.append("Pacotes:")
+        linhas.extend(f"  - {p}" for p in pacotes)
+    if firmwares:
+        linhas.append("Firmwares:")
+        linhas.extend(f"  - {f}" for f in firmwares)
+    return {
+        "ok": not r.get("erros"),
+        "texto": "\n".join(linhas),
+        "pacotes": pacotes,
+        "firmwares": firmwares,
+        "reboot_previsto": reboot,
+    }
+
+
 def main() -> int:
     import argparse
 
@@ -653,7 +760,17 @@ def main() -> int:
     parser.add_argument("--executar", action="store_true", help="Executa ciclo agora")
     parser.add_argument("--forcar", action="store_true", help="Força execução ignorando agendamento")
     parser.add_argument("--status", action="store_true", help="Mostra status")
+    parser.add_argument(
+        "--avisar-falha",
+        action="store_true",
+        help="Avisa no Telegram que a unit do ciclo falhou (OnFailure)",
+    )
     parser.add_argument("--dry-run", action="store_true", help="Modo simulação (sem I/O real)")
+    parser.add_argument(
+        "--relatorio",
+        action="store_true",
+        help="Simula o ciclo e mostra o resumo legível (nada é aplicado)",
+    )
     parser.add_argument("--schedule", choices=["weekly", "daily"], default="weekly", help="Agendamento")
     parser.add_argument("--day", type=int, default=6, help="Dia da semana (0=seg, 6=dom)")
     parser.add_argument("--hour", type=int, default=3, help="Hora (0-23)")
@@ -667,6 +784,14 @@ def main() -> int:
         # Sem canal o ciclo das 03:00 aplicaria updates em silêncio (regra 15)
         notificador_telegram=notificar_telegram,
     )
+
+    if args.relatorio:
+        print(relatorio_simulacao()["texto"])
+        return 0
+
+    if args.avisar_falha:
+        print(json.dumps(avisar_falha(), indent=2, ensure_ascii=False))
+        return 0
 
     if args.status:
         print(json.dumps(updater.status(), indent=2, ensure_ascii=False))

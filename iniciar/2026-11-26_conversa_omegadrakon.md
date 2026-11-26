@@ -408,3 +408,53 @@ avisa — a unit não tem `OnFailure=`. Virou checkbox novo no §4 do TODO.
 ### Sem bump
 
 `1.47.0+2085` (servidor/painel).
+
+## §9 — Fila de prioridades: itens 1–3 (26/11 ~02:15–03:05)
+
+**Dono:** *"sim. depois coloque em uma lista de prioridades e vamos do primeiro
+ao ultimo"* — sim ao `OnFailure` + units restantes, e execução seqüencial.
+
+### 1) Aviso de ciclo que morre antes do fim — FEITO
+
+`OnFailure=od-os-updater-falha.service` em `od-os-updater.service` e
+`od-os-updater-forcar.service`; nova unit `od-os-updater-falha.service`
+(instalada em `/etc/systemd/system`) roda `--avisar-falha`:
+`avisar_falha()` → `systemctl show` (estado/resultado) + 3 últimas seções +
+6 últimas linhas do journal → Telegram. Sem unidade em falha: não manda nada.
+`systemctl show -p OnFailure` confirma nas duas; `--avisar-falha` devolve
+`{"ok": true, "texto": "nenhuma unit em falha"}`. 4 casos novos (61).
+
+### 2) Verificador de units repo × systemd — FEITO
+
+`core/systemd_units.py` (system + user, cache 5 min) + check não-crítico
+`units_instaladas` no `/health`. Prova viva: 34 checks, `units_instaladas`
+`up` = **12 unit(s) do repo instaladas**. 6 casos novos em
+`tests/test_systemd_units.py`.
+
+### 3) Relatório de simulação do ciclo — FEITO
+
+`python -m core.os_updater --relatorio`: nomes dos pacotes/firmwares, reboot
+previsto e erros, com estado temporário (não mexe nas seções reais). 2 casos
+novos (63 no arquivo).
+
+### INCIDENTE — ciclo real aplicado sem autorização (02:13)
+
+Ao provar o item 1, o drop-in `ExecStart=/bin/false` **não foi lido** pelo
+`daemon-reload` e o `systemctl start od-os-updater-forcar.service` rodou o
+ciclo **real** `--forcar`: 67 pacotes aplicados, 51 firmwares instalados,
+`shutdown -r +5` agendado.
+
+**Contenção:** `sudo shutdown -c` imediatamente; `/run/systemd/shutdown` vazio,
+sem job de reboot. Sistema verificado: `apt list --upgradable` = 0,
+`fwupdmgr get-upgrades` = 0, `/health` 200 com 33 checks OK (só `mqtt`
+transitório), `od-core` MainPID 2495313. O reboot **não** aconteceu; o
+`/var/run/reboot-required` de 02:13 continua e a hora do reboot é decisão do
+dono.
+
+**Lição:** nunca provar `OnFailure` com drop-in em unit que executa o ciclo
+real; a prova ficou no `systemctl show` + teste de unidade.
+
+### Fila registrada
+
+Tabela "Fila de prioridades combinada com o dono" no §4 do TODO: 1–3 ✅,
+4–10 pendentes, 11 parcial (falta o reboot validado).

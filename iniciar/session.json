@@ -1,4 +1,16 @@
 {
+  "fila_prioridades_1_3_2026_11_26": {
+    "pedido": "Dono (26/11 ~03:00): 'sim. depois coloque em uma lista de prioridades e vamos do primeiro ao ultimo'.",
+    "item1_onfailure": "FEITO: OnFailure=od-os-updater-falha.service nas duas units do ciclo; nova unit /etc/systemd/system/od-os-updater-falha.service roda `core.os_updater --avisar-falha` -> systemctl show (ActiveState/Result) + 3 ultimas secoes + 6 linhas de journal no Telegram; sem falha nao manda nada; canal caido devolve ok=false. systemctl show confirma; --avisar-falha devolve 'nenhuma unit em falha'.",
+    "item2_verificador_units": "FEITO: core/systemd_units.py compara systemd/*.service|timer com systemctl list-unit-files (system + user), cache 5 min; check nao-critico `units_instaladas` no /health. Prova viva: 34 checks, '12 unit(s) do repo instaladas'. Sem systemctl -> 'indisponivel' (nao acusa o dono). tests/test_systemd_units.py 6 casos.",
+    "item3_relatorio_simulacao": "FEITO: python -m core.os_updater --relatorio roda dry_run e imprime nomes de pacotes/firmwares, reboot previsto e erros, com estado temporario (nao polui as secoes). 2 casos novos.",
+    "incidente": "Durante a prova do item1 o drop-in ExecStart=/bin/false NAO foi lido pelo daemon-reload e systemctl start rodou o ciclo REAL --forcar: 67 pacotes + 51 firmwares aplicados 02:13 e shutdown -r +5 agendado. Contencao: shutdown -c (/run/systemd/shutdown vazio, sem job). Sistema verificado: 0 pacotes/0 firmwares pendentes, /health 33 checks ok (mqtt transitorio), od-core MainPID 2495313. Reboot NAO ocorreu; /var/run/reboot-required de 02:13 continua, hora do reboot e decisao do dono.",
+    "testes": "test_os_updater 63, test_systemd_units 6 (novo), test_api+test_health+painel: 318 passed.",
+    "fila": "Tabela 'Fila de prioridades combinada com o dono (26/11)' no inicio do §4 do TODO: 1-3 feitos, 4-10 pendentes, 11 parcial.",
+    "arquivos": "core/os_updater.py, core/systemd_units.py, runtime/launcher.py, systemd/od-os-updater-falha.service, systemd/od-os-updater.service, systemd/od-os-updater-forcar.service, tests/test_os_updater.py, tests/test_systemd_units.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§9), iniciar/ATRIBUICOES.md, txt.txt.",
+    "proximo": "Item 4 da fila: guarda de offsite junto do verificador semanal.",
+    "updated_at": "2026-11-26T03:10:00-03:00"
+  },
   "aviso_telegram_desfecho_ciclo_2026_11_26": {
     "pedido": "Dono (26/11 ~02:45): 'Faca o painel avisar no Telegram quando um ciclo aplicado terminar ou falhar'.",
     "defeito_medido": "O ciclo notificava abertura e conclusao, mas a conclusao era sempre '✅ Atualizacoes concluidas sem necessidade de reboot' MESMO com erro (apt update/full-upgrade falhando iam so para `erros`). O dono lia sucesso onde houve falha, e nao sabia que o ciclo veio do botao.",
@@ -6831,6 +6843,15 @@
       "commit": "285781b",
       "branch": "master",
       "iniciado_em": "2026-11-26T02:00:41-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2495313,
+      "commit": "4fc600b",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T02:15:50-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

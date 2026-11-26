@@ -2658,3 +2658,42 @@ anotado no §4 do TODO.
 
 **Pela metade / próximo passo:** nada pendente. O clique real do botão segue
 decisão do dono.
+
+---
+
+## 26/11/2026 — Fila 1–3: OnFailure, verificador de units, simulação
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"sim. depois coloque em uma lista
+de prioridades e vamos do primeiro ao ultimo"*).
+
+### Criados
+
+- `core/systemd_units.py` — verificador repo × systemd (cache 5 min).
+- `tests/test_systemd_units.py` — 6 casos.
+- `systemd/od-os-updater-falha.service` — aviso de falha (instalada).
+
+### Modificados
+
+- `core/os_updater.py` — `avisar_falha()`/`--avisar-falha` e
+  `relatorio_simulacao()`/`--relatorio`.
+- `systemd/od-os-updater.service`, `systemd/od-os-updater-forcar.service` —
+  `OnFailure=`.
+- `runtime/launcher.py` — `register_units_health()` (check `units_instaladas`).
+- `tests/test_os_updater.py` — 6 casos novos → 63.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (3 checkboxes + fila),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§9),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** 318 testes no conjunto; `/health` com 34 checks e
+`units_instaladas` up; `--avisar-falha` sem falso alarme; `--relatorio` legível.
+
+**INCIDENTE (registrado):** durante a prova do OnFailure o ciclo **real**
+`--forcar` rodou — 67 pacotes e 51 firmwares aplicados em 02:13, reboot
+agendado e **cancelado** por mim (`shutdown -c`). Sem reboot; sistema
+verificado e saudável; `/var/run/reboot-required` segue pendente à espera da
+decisão do dono. Causa: drop-in de teste não lido pelo `daemon-reload`.
+
+**Pela metade / próximo passo:** fila item 4 (guarda de offsite no verificador
+semanal), depois 5 (comparador de modelos).

@@ -3,6 +3,9 @@ Description=Omega Drakon OS Updater - Atualização semanal do SO
 Documentation=https://github.com/OmegaDrakon
 After=network-online.target
 Wants=network-online.target
+# Se o ciclo MORRER antes do fim (OOM, TimeoutStartSec, crash do Python) o
+# aviso final do Python não sai: esta unit manda um resumo no Telegram.
+OnFailure=od-os-updater-falha.service
 
 [Service]
 Type=oneshot

@@ -1356,3 +1356,166 @@ class TestAvisoFinalDoCiclo:
         final = notif.mensagens[-1]
         assert "⚠️" in final and "Reboot necessário" in final
         assert "pedido pelo painel" not in final
+
+
+class TestAvisoDeFalhaOnFailure:
+    """Ciclo que MORRE antes do fim também avisa (OnFailure da unit).
+
+    O aviso final de `executar_ciclo` depende de o Python chegar ao fim. Se a
+    unit for morta (OOM, TimeoutStartSec=3600, crash), o dono não sabia de nada.
+    `avisar_falha()` é o caminho da unit `od-os-updater-falha.service`.
+    """
+
+    def _fakes(self, monkeypatch, *, estado: str, resultado: str,
+               journal: str = "Traceback (most recent call last):\nMemoryError",
+               enviado: bool = True):
+        enviados: list[str] = []
+        chamadas: list[list[str]] = []
+
+        def fake(cmd, timeout=600, dry_run=False):
+            chamadas.append(list(cmd))
+            if cmd[0] == "systemctl" and "show" in cmd:
+                return 0, f"ActiveState={estado}\nResult={resultado}\n", ""
+            if cmd[0] == "journalctl":
+                return 0, journal, ""
+            return 0, "", ""
+
+        monkeypatch.setattr(os_updater, "_executar", fake)
+        monkeypatch.setattr(
+            os_updater, "notificar_telegram",
+            lambda texto: (enviados.append(texto), enviado)[1],
+        )
+        return enviados, chamadas
+
+    def test_unit_em_falha_avisa_com_estado_journal_e_secoes(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        estado = tmp_path / "estado.json"
+        estado.write_text(json.dumps({"secoes": [
+            {"timestamp": 1.0, "acao": "apt_update", "ok": True, "detalhes": "lido"},
+            {"timestamp": 2.0, "acao": "apt_upgrade", "ok": False,
+             "detalhes": "dpkg interrompido"},
+        ]}), encoding="utf-8")
+        monkeypatch.setattr(os_updater, "ESTADO_ARQUIVO", estado)
+        enviados, chamadas = self._fakes(
+            monkeypatch, estado="failed", resultado="signal"
+        )
+
+        r = os_updater.avisar_falha()
+
+        assert r["ok"] is True and r["unidade"] == "od-os-updater.service"
+        assert len(enviados) == 1
+        msg = enviados[0]
+        assert "morreu antes do fim" in msg
+        assert "estado=failed" in msg and "resultado=signal" in msg
+        assert "apt_upgrade: FALHOU" in msg and "dpkg interrompido" in msg
+        assert "MemoryError" in msg  # journal, para o dono ver a causa
+        assert any(c[0] == "journalctl" for c in chamadas)
+        # nada de apt/journal pesado: só show + journalctl
+        assert all(c[0] in ("systemctl", "journalctl") for c in chamadas)
+
+    def test_nenhuma_unit_em_falha_nao_manda_mensagem(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(os_updater, "ESTADO_ARQUIVO", tmp_path / "nao_existe.json")
+        enviados, _ = self._fakes(monkeypatch, estado="inactive", resultado="success")
+
+        r = os_updater.avisar_falha()
+
+        assert r["ok"] is True and enviados == []
+
+    def test_canal_fora_do_ar_devolve_ok_false(
+        self, monkeypatch, tmp_path: Path
+    ) -> None:
+        monkeypatch.setattr(os_updater, "ESTADO_ARQUIVO", tmp_path / "nada.json")
+        enviados, _ = self._fakes(
+            monkeypatch, estado="failed", resultado="exit-code", enviado=False
+        )
+
+        r = os_updater.avisar_falha()
+
+        assert r["ok"] is False and len(enviados) == 1
+
+    def test_unit_de_falha_instalavel_e_sem_apt(self) -> None:
+        from pathlib import Path as _P
+
+        unit = _P("systemd/od-os-updater-falha.service").read_text(encoding="utf-8")
+        assert "--avisar-falha" in unit
+        assert "EnvironmentFile" in unit
+        execstart = next(
+            l for l in unit.splitlines() if l.startswith("ExecStart=")
+        )
+        assert "apt" not in execstart  # aviso não aplica nada
+        for nome in ("systemd/od-os-updater.service",
+                     "systemd/od-os-updater-forcar.service"):
+            texto = _P(nome).read_text(encoding="utf-8")
+            assert "OnFailure=od-os-updater-falha.service" in texto
+
+
+class TestRelatorioDeSimulacao:
+    """`--relatorio`: o que seria aplicado, em texto, sem aplicar nada.
+
+    Antes o `--dry-run` só imprimia o JSON cru — o dono queria ver os nomes dos
+    pacotes/firmwares e se haveria reboot antes de apertar o botão.
+    """
+
+    def test_resumo_legivel_sem_aplicar(
+        self, monkeypatch, flag_reboot: _FlagReboot
+    ) -> None:
+        flag_reboot.pendente = True
+        chamadas: list[dict] = []
+
+        def fake(cmd, timeout=600, dry_run=False):
+            chamadas.append({"cmd": list(cmd), "dry_run": dry_run})
+            if dry_run:
+                return 0, f"[DRY-RUN] {' '.join(cmd)}", ""
+            if cmd[:2] == ["apt", "list"]:
+                return 0, (
+                    "Listing...\n"  # header: o parser pula a 1ª linha
+                    "vim/stable 2:9.0-5 amd64 [upgradable from: 2:8.2]\n"
+                    "openssl/stable 3.0.11 amd64 [upgradable from: 3.0.10]\n"
+                ), ""
+            if cmd[:2] == ["fwupdmgr", "get-upgrades"]:
+                return 0, "5678-efgh 1.2.3\n", ""
+            if cmd[0] == "uname":
+                return 0, "6.8.0-147-generic\n", ""
+            return 0, "", ""
+
+        monkeypatch.setattr(os_updater, "_executar", fake)
+
+        r = os_updater.relatorio_simulacao()
+
+        assert r["ok"] is True
+        assert len(r["pacotes"]) == 2 and len(r["firmwares"]) == 1
+        assert r["reboot_previsto"] is True
+        texto = r["texto"]
+        assert "nada foi aplicado" in texto
+        assert "pacotes: 2" in texto and "firmwares: 1" in texto
+        # o parser devolve o nome do pacote ("vim/stable" → "vim")
+        assert "- vim" in texto and "- openssl" in texto
+        assert "5678-efgh" in texto
+        assert "reboot previsto: sim" in texto
+
+        # Nenhum passo que ESCREVE foi chamado de verdade.
+        mutantes = [
+            c for c in chamadas
+            if c["cmd"][:2] in (["apt", "update"], ["apt", "full-upgrade"],
+                                ["apt", "autoremove"], ["fwupdmgr", "refresh"],
+                                ["fwupdmgr", "update"])
+        ]
+        assert mutantes and all(c["dry_run"] is True for c in mutantes)
+        assert not any(c["cmd"][0] == "shutdown" for c in chamadas)
+
+    def test_nao_polui_as_secoes_reais(self, monkeypatch, tmp_path: Path) -> None:
+        """A simulação grava estado em temporário, não no arquivo do painel."""
+        real = tmp_path / "estado_real.json"
+        real.write_text('{"secoes": []}', encoding="utf-8")
+        monkeypatch.setattr(os_updater, "ESTADO_ARQUIVO", real)
+        monkeypatch.setattr(
+            os_updater, "_executar",
+            lambda cmd, timeout=600, dry_run=False: (0, "", ""),
+        )
+
+        os_updater.relatorio_simulacao()
+
+        assert json.loads(real.read_text(encoding="utf-8")) == {"secoes": []}

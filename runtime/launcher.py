@@ -1429,6 +1429,45 @@ def register_os_updater_health(monitor: Any) -> None:
     monitor.register("os_updater", _check_os_updater, critical=False)
 
 
+def register_units_health(monitor: Any) -> None:
+    """Check `units_instaladas` (26/11): unit no repo que o systemd não vê.
+
+    Nasceu de dois casos reais no mesmo dia (`od-os-updater`, `od-io-probe`
+    `not-found` com a unit versionada): o sintoma aparecia longe da causa.
+    Não-crítico — a unit faltando degrada o `/health`, não derruba o core.
+    """
+
+    def _check_units(mon: Any) -> dict[str, Any]:
+        try:
+            from core.systemd_units import verificar
+
+            r = verificar()
+        except Exception as exc:  # verificador quebrado não derruba o monitor
+            return {
+                "ok": False,
+                "status": "degraded",
+                "detail": f"verificação de units falhou: {type(exc).__name__}",
+            }
+        if r.get("erro"):
+            return {"ok": False, "status": "degraded", "detail": r["erro"]}
+        if r["faltando"]:
+            return {
+                "ok": False,
+                "status": "degraded",
+                "detail": (
+                    f"{len(r['faltando'])} de {r['total']} unit(s) do repo não "
+                    f"instalada(s): {', '.join(r['faltando'])}"
+                ),
+            }
+        return {
+            "ok": True,
+            "status": "up",
+            "detail": f"{r['total']} unit(s) do repo instaladas",
+        }
+
+    monitor.register("units_instaladas", _check_units, critical=False)
+
+
 def _check_circuit_breakers(mon: Any) -> dict[str, Any]:
     """Check dos circuit breakers: lista todos e avisa se algum está aberto."""
     from core.resilience import status_breakers
@@ -1923,6 +1962,8 @@ async def _run_api_forever(
     # Não depende da fila e não roda apt fora do cache — pode ser registrado aqui.
     if health is not None:
         register_os_updater_health(health)
+        # Units do repo × systemd (26/11): timer esquecido vira check visível.
+        register_units_health(health)
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).

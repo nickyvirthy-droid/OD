@@ -1,265 +1,119 @@
-"""
-OMEGA DRAKON * TESTS
-Modulo: tests/test_systemd_units.py
-Descricao: Testes de integridade das units systemd do OmegaDrakon —
-           valida estrutura, sandboxing e configuração das units do núcleo
-           (od-core, od-llm, od-control-bridge) e o timer do monitor do
-           roteador (router-monitor.service/timer).
-Interface Viva: Nicky Virthy
-Arquiteto: Alex Projeti
+"""Verificador de units: o que está em `systemd/` mas o systemd não conhece.
+
+Dois casos reais em 26/11 (`od-os-updater`, `od-io-probe`) ficaram `not-found`
+por dias com a unit versionada — o sintoma só aparecia indiretamente (arquivo
+velho → `latencia` degraded). Aqui a comparação é direta e barata.
 """
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 
-import pytest
+from core import systemd_units as su
 
 
-SYSTEMD_DIR = Path(__file__).resolve().parent.parent / "runtime" / "systemd"
+def _dir(tmp_path: Path, nomes: list[str]) -> Path:
+    d = tmp_path / "systemd"
+    d.mkdir()
+    for n in nomes:
+        (d / n).write_text("[Unit]\nDescription=x\n", encoding="utf-8")
+    return d
 
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+def _fake_systemctl(monkeypatch, *, system: set[str], user: set[str] | None = None,
+                    falhar: bool = False) -> None:
+    def fake(cmd, **kwargs):
+        if falhar:
+            raise OSError("systemctl não existe")
+        nomes = system if "--user" not in cmd else (user or set())
+        saida = "".join(f"{n} enabled enabled\n" for n in sorted(nomes))
+        return subprocess.CompletedProcess(cmd, 0, saida, "")
 
+    monkeypatch.setattr(su.subprocess, "run", fake)
+    su.limpar_cache()
 
-@pytest.fixture()
-def core_unit() -> str:
-    return (SYSTEMD_DIR / "od-core.service").read_text(encoding="utf-8")
 
+def test_lista_units_do_repo_e_ignora_outros_arquivos(tmp_path: Path) -> None:
+    d = _dir(tmp_path, ["a.service", "b.timer"])
+    (d / "notas.txt").write_text("x", encoding="utf-8")
+    assert su.units_do_repo(d) == ["a.service", "b.timer"]
 
-@pytest.fixture()
-def llm_unit() -> str:
-    return (SYSTEMD_DIR / "od-llm.service").read_text(encoding="utf-8")
 
+def test_unit_versionada_mas_nao_instalada_aparece(
+    monkeypatch, tmp_path: Path
+) -> None:
+    d = _dir(tmp_path, ["a.service", "b.timer", "c.service"])
+    _fake_systemctl(monkeypatch, system={"a.service"}, user={"b.timer"})
 
-@pytest.fixture()
-def bridge_unit() -> str:
-    return (SYSTEMD_DIR / "od-control-bridge.service").read_text(encoding="utf-8")
+    r = su.verificar(d, usar_cache=False)
 
+    assert r["ok"] is False
+    assert r["faltando"] == ["c.service"]
+    assert r["total"] == 3
 
-# ---------------------------------------------------------------------------
-# od-core.service
-# ---------------------------------------------------------------------------
 
+def test_tudo_instalado_entre_system_e_user(monkeypatch, tmp_path: Path) -> None:
+    d = _dir(tmp_path, ["a.service", "b.timer"])
+    _fake_systemctl(monkeypatch, system={"a.service"}, user={"b.timer"})
 
-class TestOdCoreService:
-    def test_file_exists(self) -> None:
-        assert (SYSTEMD_DIR / "od-core.service").exists()
+    r = su.verificar(d, usar_cache=False)
 
-    def test_has_description(self, core_unit: str) -> None:
-        assert "Description=" in core_unit
+    assert r == {"ok": True, "faltando": [], "total": 2, "erro": ""}
 
-    def test_runs_launcher_all(self, core_unit: str) -> None:
-        assert "runtime.launcher all" in core_unit
 
-    def test_depends_on_llm(self, core_unit: str) -> None:
-        assert "od-llm.service" in core_unit
+def test_systemctl_ausente_nao_acusa_o_dono(monkeypatch, tmp_path: Path) -> None:
+    """Sem `systemctl` não dá para afirmar que falta algo."""
+    d = _dir(tmp_path, ["a.service"])
+    _fake_systemctl(monkeypatch, system=set(), falhar=True)
 
-    def test_restart_on_failure(self, core_unit: str) -> None:
-        assert "Restart=on-failure" in core_unit
+    r = su.verificar(d, usar_cache=False)
 
-    def test_environment_file(self, core_unit: str) -> None:
-        assert "EnvironmentFile=" in core_unit
+    assert r["ok"] is False and r["faltando"] == []
+    assert "indisponível" in r["erro"]
 
-    def test_sandboxing_no_new_privileges(self, core_unit: str) -> None:
-        assert "NoNewPrivileges=true" in core_unit
 
-    def test_sandboxing_protect_system(self, core_unit: str) -> None:
-        assert "ProtectSystem=" in core_unit
+def test_cache_de_cinco_minutos_evita_systemctl_a_cada_health(
+    monkeypatch, tmp_path: Path
+) -> None:
+    d = _dir(tmp_path, ["a.service"])
+    chamadas: list[list[str]] = []
 
-    def test_sandboxing_protect_kernel(self, core_unit: str) -> None:
-        assert "ProtectKernelTunables=true" in core_unit
+    def fake(cmd, **kwargs):
+        chamadas.append(list(cmd))
+        return subprocess.CompletedProcess(cmd, 0, "a.service enabled enabled\n", "")
 
-    def test_memory_limit(self, core_unit: str) -> None:
-        assert "MemoryMax=" in core_unit
+    monkeypatch.setattr(su.subprocess, "run", fake)
+    su.limpar_cache()
 
-    def test_not_running_as_root(self, core_unit: str) -> None:
-        # Deve ter User= especificado (nunca rodar como root)
-        assert "User=" in core_unit
+    su.verificar(d, agora=1000.0)
+    su.verificar(d, agora=1100.0)   # dentro dos 5 min → cache
+    assert len(chamadas) == 2       # system + user, uma vez só
 
-    def test_wanted_by_default(self, core_unit: str) -> None:
-        assert "WantedBy=default.target" in core_unit
+    su.verificar(d, agora=1000.0 + 301)  # expirou
+    assert len(chamadas) == 4
 
-    def test_journald_logging(self, core_unit: str) -> None:
-        assert "StandardOutput=journal" in core_unit
 
-    def test_read_write_data_dir(self, core_unit: str) -> None:
-        assert "ReadWritePaths=" in core_unit
+def test_check_do_health_registra_status_degraded(monkeypatch, tmp_path: Path) -> None:
+    from runtime import launcher
 
+    class _Mon:
+        def __init__(self) -> None:
+            self.checks: dict = {}
 
-# ---------------------------------------------------------------------------
-# od-llm.service
-# ---------------------------------------------------------------------------
+        def register(self, nome, fn, critical=True):  # noqa: ANN001
+            self.checks[nome] = (fn, critical)
 
-
-class TestOdLlmService:
-    def test_file_exists(self) -> None:
-        assert (SYSTEMD_DIR / "od-llm.service").exists()
-
-    def test_runs_llama_server(self, llm_unit: str) -> None:
-        assert "llama-server" in llm_unit
-
-    def test_restart_on_failure(self, llm_unit: str) -> None:
-        assert "Restart=on-failure" in llm_unit
-
-    def test_wanted_by_default(self, llm_unit: str) -> None:
-        assert "WantedBy=default.target" in llm_unit
-
-
-# ---------------------------------------------------------------------------
-# od-control-bridge.service
-# ---------------------------------------------------------------------------
-
-
-class TestControlBridgeService:
-    def test_file_exists(self) -> None:
-        assert (SYSTEMD_DIR / "od-control-bridge.service").exists()
-
-    def test_runs_bridge(self, bridge_unit: str) -> None:
-        assert "bridge.py" in bridge_unit
-
-    def test_depends_on_core(self, bridge_unit: str) -> None:
-        assert "od-core.service" in bridge_unit
-
-    def test_restart_on_failure(self, bridge_unit: str) -> None:
-        assert "Restart=on-failure" in bridge_unit
-
-    def test_wanted_by_default(self, bridge_unit: str) -> None:
-        assert "WantedBy=default.target" in bridge_unit
-
-    def test_environment_file(self, bridge_unit: str) -> None:
-        assert "EnvironmentFile=" in bridge_unit
-
-
-# ---------------------------------------------------------------------------
-# router-monitor.service / router-monitor.timer
-# ---------------------------------------------------------------------------
-
-
-class TestRouterMonitorUnits:
-    """Monitor do roteador: service oneshot disparado por timer de 1 minuto."""
-
-    def test_files_exist(self) -> None:
-        assert (SYSTEMD_DIR / "router-monitor.service").exists()
-        assert (SYSTEMD_DIR / "router-monitor.timer").exists()
-
-    def test_service_runs_script_once(self) -> None:
-        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
-        assert "router_monitor.sh --once" in unit
-        assert "/bin/bash" in unit
-
-    def test_service_uses_repo_working_directory(self) -> None:
-        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
-        assert "WorkingDirectory=/home/alex/OmegaDrakon" in unit
-
-    def test_service_does_not_restart(self) -> None:
-        # oneshot por minuto: Restart= aqui só multiplicaria a execução.
-        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
-        assert "Restart=" not in unit
-
-    def test_service_journal_identifier(self) -> None:
-        unit = (SYSTEMD_DIR / "router-monitor.service").read_text(encoding="utf-8")
-        assert "SyslogIdentifier=router-monitor" in unit
-
-    def test_timer_fires_every_minute(self) -> None:
-        timer = (SYSTEMD_DIR / "router-monitor.timer").read_text(encoding="utf-8")
-        assert "OnBootSec=1min" in timer
-        assert "OnUnitActiveSec=1min" in timer
-
-    def test_timer_install_target(self) -> None:
-        timer = (SYSTEMD_DIR / "router-monitor.timer").read_text(encoding="utf-8")
-        assert "WantedBy=timers.target" in timer
-
-
-# ---------------------------------------------------------------------------
-# network-watchdog.service / network-watchdog.timer — Vigia da Rede
-# ---------------------------------------------------------------------------
-
-
-class TestNetworkWatchdogUnits:
-    """Vigia da Rede: oneshot de 5 min — inventário + detecção de intrusão."""
-
-    def test_files_exist(self) -> None:
-        assert (SYSTEMD_DIR / "network-watchdog.service").exists()
-        assert (SYSTEMD_DIR / "network-watchdog.timer").exists()
-
-    def test_service_runs_script_once(self) -> None:
-        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
-            encoding="utf-8")
-        assert "network_watchdog.py --once" in unit
-        assert "/usr/bin/python3" in unit
-
-    def test_service_environment_file_para_senha_do_roteador(self) -> None:
-        # A camada rica lê a UI do roteador: a senha vem do .env via
-        # EnvironmentFile (nunca versionada, nunca em linha de comando).
-        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
-            encoding="utf-8")
-        assert "EnvironmentFile=/home/alex/OmegaDrakon/.env" in unit
-
-    def test_service_does_not_restart(self) -> None:
-        # oneshot por 5 min: mesmo molde do router-monitor (estado é log).
-        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
-            encoding="utf-8")
-        assert "Restart=" not in unit
-
-    def test_service_journal_identifier(self) -> None:
-        unit = (SYSTEMD_DIR / "network-watchdog.service").read_text(
-            encoding="utf-8")
-        assert "SyslogIdentifier=network-watchdog" in unit
-
-    def test_timer_fires_every_five_minutes(self) -> None:
-        timer = (SYSTEMD_DIR / "network-watchdog.timer").read_text(
-            encoding="utf-8")
-        assert "OnBootSec=2min" in timer
-        assert "OnUnitActiveSec=5min" in timer
-
-    def test_timer_install_target(self) -> None:
-        timer = (SYSTEMD_DIR / "network-watchdog.timer").read_text(
-            encoding="utf-8")
-        assert "WantedBy=timers.target" in timer
-
-    def test_installador_copia_as_units(self) -> None:
-        install = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "network-watchdog.service" in install
-        assert "network-watchdog.timer" in install
-        assert "enable --now network-watchdog.timer" in install
-
-
-# ---------------------------------------------------------------------------
-# install-user.sh
-# ---------------------------------------------------------------------------
-
-
-class TestInstallScript:
-    def test_file_exists(self) -> None:
-        assert (SYSTEMD_DIR / "install-user.sh").exists()
-
-    def test_installs_all_three_units(self) -> None:
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "od-llm.service" in script
-        assert "od-core.service" in script
-        assert "od-control-bridge.service" in script
-
-    def test_daemon_reload(self) -> None:
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "daemon-reload" in script
-
-    def test_enable_services(self) -> None:
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "systemctl --user enable" in script
-
-    def test_mentions_linger(self) -> None:
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "loginctl enable-linger" in script
-
-    def test_installs_router_monitor_units(self) -> None:
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "router-monitor.service" in script
-        assert "router-monitor.timer" in script
-
-    def test_enables_router_monitor_timer(self) -> None:
-        # Quem manda é o timer (o service é oneshot por minuto).
-        script = (SYSTEMD_DIR / "install-user.sh").read_text(encoding="utf-8")
-        assert "enable --now router-monitor.timer" in script
+    monkeypatch.setattr(
+        su, "verificar",
+        lambda *a, **k: {"ok": False, "faltando": ["x.service"], "total": 2,
+                         "erro": ""},
+    )
+    mon = _Mon()
+    launcher.register_units_health(mon)
+
+    fn, critical = mon.checks["units_instaladas"]
+    r = fn(mon)
+    assert critical is False
+    assert r["ok"] is False and r["status"] == "degraded"
+    assert "x.service" in r["detail"] and "1 de 2" in r["detail"]

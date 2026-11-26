@@ -12,6 +12,43 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Fila de prioridades 1–3: crash, units e simulação (2026-11-26, sem bump)
+
+**1) Aviso de ciclo que morre antes do fim.** O aviso final do Python só sai se
+o processo chega ao fim; OOM, `TimeoutStartSec=3600` ou crash morriam em
+silêncio. Entrou `OnFailure=od-os-updater-falha.service` nas duas units do ciclo
+e a unit `od-os-updater-falha.service` (instalada em `/etc/systemd/system`),
+que roda `core.os_updater --avisar-falha`: manda no Telegram o
+`ActiveState`/`Result`, as 3 últimas seções e as 6 últimas linhas do journal da
+unit que falhou; sem unidade em falha não manda nada; se o canal cair devolve
+`ok=false`. `systemctl show` confirma o `OnFailure` nas duas units e
+`--avisar-falha` devolve `{"ok": true, "texto": "nenhuma unit em falha"}`.
+
+**2) Verificador de units repo × systemd.** `core/systemd_units.py` compara
+`systemd/*.service|timer` com `systemctl list-unit-files` (system **e** user),
+com cache de 5 min; check não-crítico `units_instaladas` no `/health`. Prova
+viva: **34 checks**, `units_instaladas` `up` — `12 unit(s) do repo instaladas`.
+Sem `systemctl`, o check responde `systemd indisponível` em vez de acusar
+falta (erro de leitura ≠ unit faltando).
+
+**3) Relatório de simulação.** `python -m core.os_updater --relatorio` roda o
+ciclo em `dry_run` e imprime os **nomes** dos pacotes e firmwares, o reboot
+previsto e erros — num estado temporário, sem poluir as seções do painel.
+
+**Incidente durante a prova do item 1 (registrado por honestidade):** o
+drop-in de teste (`ExecStart=/bin/false`) não foi lido pelo `daemon-reload` e o
+`systemctl start` disparou o ciclo **real** `--forcar`: 67 pacotes aplicados e
+51 firmwares instalados em 26/11 02:13, com `shutdown -r +5` agendado. O reboot
+foi **cancelado** (`shutdown -c`; `/run/systemd/shutdown` vazio, sem job) e o
+sistema verificado depois: 0 pacotes/0 firmwares pendentes, 33 checks do
+`/health` OK (só `mqtt` transitório), `od-core` de pé. O reboot segue pendente
+(`/var/run/reboot-required`) e é decisão do dono.
+
+**Testes:** `test_os_updater` **63**, `test_systemd_units` **6** (novo),
+`test_api`+`test_health`+painel: **318 passed** no conjunto.
+
+---
+
 ## Aviso no Telegram do desfecho do ciclo aplicado pelo painel (2026-11-26, sem bump)
 
 **Contexto e defeito medido:** o ciclo já notificava abertura e conclusão, mas a

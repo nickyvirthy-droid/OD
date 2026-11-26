@@ -581,6 +581,33 @@ esperar o timeout.
 
 ## 4. IMPLEMENTAÇÃO INCREMENTAL (ROADMAP 12 SEMANAS)
 
+### Fila de prioridades combinada com o dono (26/11) — do primeiro ao último
+
+Ordem de execução acordada: primeiro o que evita falha silenciosa ou some do
+radar, depois o que precisa de execução real, por fim o que depende de decisão
+do dono. Marcar aqui a medida que cada item fecha.
+
+| # | Item | Estado |
+|---|------|--------|
+| 1 | Aviso de ciclo que morre antes do fim (`OnFailure`) | ✅ 26/11 02:2x |
+| 2 | Verificador de units repo × systemd no `/health` | ✅ 26/11 02:3x |
+| 3 | Relatório de simulação completa do ciclo (`--relatorio`) | ✅ 26/11 02:4x |
+| 4 | Guarda de offsite junto do verificador semanal | pendente |
+| 5 | Comparador de modelos lado a lado (P1 nº 8) | pendente |
+| 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | pendente |
+| 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | pendente |
+| 8 | Mapas offline (próximo do inventário) | pendente |
+| 9 | Modo colapso declarado | pendente |
+| 10 | Espelho com restauração real (precisa execução e prova) | pendente |
+| 11 | Janela de aplicação do SO com prova de retorno | **parcial**: pacotes/firmwares aplicados em 26/11 02:13; falta o reboot e a verificação pós-boot (decisão do dono) |
+
+**Fora da fila (decisão do dono):** quarentena do acervo (38 arquivos), app
+por papel, energia/religar, backup fora da máquina, reteste de IA local,
+ferramentas Windows no desktop, foto da peça → Homebox, ouvir a música, token
+da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
+(sem demanda medida — fechar = decidir descartar).
+
+
 ### Semana 1-2: Fundação Observabilidade — **F2 ENTREGUE em 10/11**
 - [x] F2: OTel SDK + spans + métricas + log correlacionado + check no `/health`
 - [x] F2: `BatchSpanProcessor` com exportador OTLP/HTTP ou console (em `core/telemetry.py`)
@@ -636,12 +663,12 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Aviso de ciclo que morre antes do fim** (diagnóstico de 26/11) — o
-      aviso final cobre erro de `apt`/`fwupdmgr`, mas se o processo morrer no
-      meio (OOM, `TimeoutStartSec=3600`, crash do Python) ninguém é avisado: a
-      unit `od-os-updater*.service` não tem `OnFailure=`. Falta uma unit de
-      falha (ou `ExecStopPost`) que mande o `systemctl status` resumido no
-      Telegram.
+- [x] **Aviso de ciclo que morre antes do fim** — **FEITO 26/11 02:2x:**
+      `OnFailure=od-os-updater-falha.service` nas duas units do ciclo;
+      `core.os_updater.avisar_falha()` (`--avisar-falha`) manda no Telegram o
+      estado/resultado do systemd, as 3 últimas seções e as 6 últimas linhas do
+      journal, e devolve `ok=false` se o canal cair. Fica em `/etc/systemd/system`.
+      4 casos novos em `test_os_updater` (61 no arquivo).
 - [x] **Log do último ciclo no painel do atualizador de SO** (sugestão de
       26/11) — **FEITO 26/11 02:10:** tabela "Quando · Seção · Resultado ·
       Detalhe" com as 5 últimas seções (`apt_update`, `apt_upgrade`,
@@ -652,13 +679,13 @@ esperar o timeout.
       26/11) — **FEITO 26/11 01:20:** release **1.47.0 / 2085** publicado em
       `site/` (aapt confirma versionName/versionCode, `/app/version` anuncia o
       mesmo sha256); gate completo 5767 passed / 16 skipped / 0 falha.
-- [ ] **Instalar os timers/units restantes que só existem no repositório**
-      (sugestão de 26/11) — neste release apareceram dois casos da mesma família
-      (`od-os-updater` e `od-io-probe`, ambos `not-found` apesar de a unit estar
-      em `systemd/`). Vale um verificador que compare `systemd/*.service|timer`
-      com `systemctl list-unit-files` e avise no `/health`/Telegram: hoje um
-      timer esquecido só aparece como sintoma indireto (arquivo velho →
-      `latencia` degraded).
+- [x] **Instalar os timers/units restantes que só existem no repositório**
+      — **FEITO 26/11 02:3x:** as 12 units de `systemd/` estão instaladas (system
+      + user) e agora há o verificador: `core/systemd_units.py` compara
+      `systemd/*.service|timer` com `systemctl list-unit-files` (system e user),
+      com cache de 5 min, e o check **não-crítico** `units_instaladas` foi para o
+      `/health` (`12 unit(s) do repo instaladas`). Sem `systemctl` o check diz
+      "indisponível" em vez de acusar o dono. 6 casos em `tests/test_systemd_units.py`.
 - [x] **Botão "Aplicar atualizações" no painel do SO** (sugestão de 26/11) —
       **FEITO 26/11 01:47:** seção "Atualizador de SO" no `/admin` com resumo ao
       vivo e botão com **dupla confirmação** (a segunda avisa o reboot em +5 min).
@@ -667,10 +694,11 @@ esperar o timeout.
       `visudo -c` OK); a rota responde 202 e as 3 rotas deixaram de dar 503.
       Prova viva: status 200 (67 pacotes/51 firmwares), dry-run 200, unit
       `inactive` (nada aplicado por mim). `tests/test_painel_os_updater.py` 9 casos.
-- [ ] **Relatório de simulação completa do ciclo do SO** (sugestão de 26/11) —
-      `--dry-run` roda o ciclo inteiro e imprime o JSON, mas não mostra o que
-      cada seção faria (pacotes/firmwares por nome, reboot previsto): falta um
-      resumo legível para o dono conferir antes de aplicar de verdade.
+- [x] **Relatório de simulação completa do ciclo do SO** — **FEITO 26/11:**
+      `python -m core.os_updater --relatorio` roda o `dry_run` e imprime resumo
+      legível (pacotes e firmwares **por nome**, reboot previsto, erros) usando
+      estado temporário — a simulação não polui as seções do painel. 2 casos
+      novos em `test_os_updater`.
 - [ ] **Janela de aplicação do SO com prova de retorno** (sugestão de 26/11) —
       o timer já aplica sozinho aos domingos e agenda reboot em +5 min, mas
       ninguém verifica se o `od-core`, o Postgres e o painel voltaram depois do

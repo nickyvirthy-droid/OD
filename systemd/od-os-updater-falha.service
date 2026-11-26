@@ -1,0 +1,21 @@
+[Unit]
+Description=Omega Drakon OS Updater - aviso no Telegram quando o ciclo morre
+Documentation=https://github.com/OmegaDrakon
+# Disparada por OnFailure= das units do ciclo (od-os-updater.service e
+# od-os-updater-forcar.service). O aviso final do Python só sai se o processo
+# CHEGA ao fim; aqui é o caso OOM / TimeoutStartSec=3600 / crash.
+#
+# Sem After=network-online: numa falha por timeout a rede pode estar ocupada;
+# o Telegram é rápido e a mensagem é best-effort (a unit não falha se ele cair).
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m core.os_updater --avisar-falha
+# Canal de aviso (Telegram do dono) — mesmo padrão das outras units.
+EnvironmentFile=-/home/alex/OmegaDrakon/.env
+# Nada de apt aqui: só `systemctl show`, journal e uma chamada HTTP.
+TimeoutStartSec=120
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-os-updater-falha
+PrivateTmp=yes
