@@ -361,3 +361,50 @@ voltava "parado" e a recarga nem começaria. Agora
 ### Sem bump
 
 `1.47.0+2085` (servidor/painel).
+
+## §8 — Aviso no Telegram do desfecho do ciclo aplicado pelo painel (26/11 ~02:52)
+
+**Dono:** *"Faça o painel avisar no Telegram quando um ciclo aplicado terminar
+ou falhar"* — era sugestão anotada no §4.
+
+### Defeito medido
+
+O ciclo já notificava abertura e conclusão, mas a conclusão era **sempre**
+`✅ "Atualizações concluídas sem necessidade de reboot"` — **mesmo com erro**:
+`apt update`/`apt full-upgrade` falhando entravam só em `erros` e o aviso saía
+igual. O dono lia sucesso onde houve falha, e no ciclo do botão nem sabia a
+origem.
+
+### O que entrou
+
+- `core/os_updater.py`: `_notificar_resultado(resultados, forcar)` — **um único
+  aviso final**, emitido depois do reboot agendado:
+  - `❌ OSUpdater` / *"Ciclo terminou COM FALHA (pedido pelo painel)"* + N erros
+    + **as seções que quebraram** (`apt_update`, `apt_upgrade`…) com detalhe +
+    pacotes/firmware + estado do reboot. Ciclo com erro **nunca** manda `✅`;
+  - `⚠️ OSUpdater` — aplicadas com reboot necessário (kernel antes → depois,
+    pacotes, firmware, "Reboot agendado para +5 min");
+  - `✅ OSUpdater` — concluídas sem reboot.
+- Ciclo do painel (`--forcar`) marcado com **"(pedido pelo painel)"**; o de
+  domingo sai sem a marca.
+- `integrations/api/server.py`: o texto da seção diz que o desfecho chega no
+  Telegram mesmo com a página fechada.
+
+### Verificação
+
+- `tests/test_os_updater.py`: **57 casos** (4 novos) — sucesso do painel diz a
+  origem; **falha avisa o passo e nunca diz concluído**; falha + reboot diz as
+  duas coisas; ciclo agendado sem a marca do painel.
+- `test_api` + painel + os_updater: **288 passed**.
+- Prova viva (restart 02:52, MainPID **2457865**, `NRestarts=0`): `/admin` 200
+  com o aviso novo; status 200; CLI `--status` ok; unit do botão com
+  `EnvironmentFile` (canal) e CLI com `notificador_telegram`; journal `-p err` 0.
+
+### Limite conhecido
+
+Processo que morre antes do fim (OOM, `TimeoutStartSec=3600`, crash) **não**
+avisa — a unit não tem `OnFailure=`. Virou checkbox novo no §4 do TODO.
+
+### Sem bump
+
+`1.47.0+2085` (servidor/painel).

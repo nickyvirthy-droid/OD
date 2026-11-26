@@ -1976,6 +1976,8 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       e, se a máquina pedir, <b>reboot em +5 min</b>. Roda como root na unit
       <code>od-os-updater-forcar.service</code> (o od-core é <code>alex</code> e
       apt/dpkg exigem root) e nada acontece sem as <b>duas confirmações</b>.
+      O desfecho do ciclo — concluído ou falhou, com o passo que quebrou —
+      chega no seu <b>Telegram</b>, mesmo que você feche o painel.
     </p>
     <div class="row">
       <span class="muted" id="so-resumo" style="font-size:0.8rem">carregando…</span>

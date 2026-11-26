@@ -2623,3 +2623,38 @@ de unidade no node (timers falsos), não visualmente.
 
 **Pela metade / próximo passo:** nada pendente. Segue aberto só o clique real
 do botão (67 pacotes + 51 firmwares, reboot em +5 min) — decisão do dono.
+
+---
+
+## 26/11/2026 — Aviso no Telegram do desfecho do ciclo
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Faça o painel avisar no Telegram
+quando um ciclo aplicado terminar ou falhar"*).
+
+### Criados
+
+- nenhum arquivo novo (transcrição §8).
+
+### Modificados
+
+- `core/os_updater.py` — `_notificar_resultado()` (❌ falha com as seções que
+  quebraram / ⚠️ reboot / ✅ sem reboot), substituindo os dois avisos antigos;
+  abertura marca "(pedido pelo painel)" no `--forcar`.
+- `integrations/api/server.py` — texto da seção avisa que o desfecho chega no
+  Telegram.
+- `tests/test_os_updater.py` — 4 casos novos → 57 no arquivo.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox do `OnFailure`),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§8),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** 288 testes (api+painel+os_updater); `/admin` 200 com o
+aviso; status 200; journal `-p err` 0; prova viva no restart 02:52
+(MainPID 2457865).
+
+**Limitação:** morte do processo antes do fim não notifica (sem `OnFailure`) —
+anotado no §4 do TODO.
+
+**Pela metade / próximo passo:** nada pendente. O clique real do botão segue
+decisão do dono.

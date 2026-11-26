@@ -12,6 +12,45 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Aviso no Telegram do desfecho do ciclo aplicado pelo painel (2026-11-26, sem bump)
+
+**Contexto e defeito medido:** o ciclo já notificava abertura e conclusão, mas a
+conclusão era sempre `✅ "Atualizações concluídas sem necessidade de reboot"`
+**mesmo com erro** no meio (`apt update`/`apt full-upgrade` falhando entravam só
+em `erros`, e o aviso saía igual). O dono lia sucesso onde houve falha — e para
+o ciclo disparado pelo botão ele nem sabia a origem.
+
+**Agora:** um **único aviso final** (`_notificar_resultado`), já depois do reboot
+estar agendado:
+
+- `❌ OSUpdater` — **"Ciclo terminou COM FALHA (pedido pelo painel)"**, com a
+  quantidade de erros, **as seções que quebraram** (`apt_update`,
+  `apt_upgrade`…) com o detalhe de cada uma, contagem de pacotes/firmware e o
+  estado do reboot. Ciclo com erro **nunca** manda `✅`;
+- `⚠️ OSUpdater` — aplicadas com reboot necessário (kernel antes → depois,
+  pacotes, firmware, "Reboot agendado para +5 min");
+- `✅ OSUpdater` — concluídas sem reboot.
+
+O ciclo disparado pelo painel (`--forcar`) é identificado nas mensagens com
+**"(pedido pelo painel)"**; o ciclo agendado de domingo sai sem essa marca. O
+painel também passou a dizer, na seção do atualizador, que o desfecho chega no
+Telegram mesmo com a página fechada.
+
+**Prova viva** (restart 26/11 02:52, MainPID **2457865**, `NRestarts=0`):
+`/admin` 200 com o aviso novo na página; `/admin/os-updater/status` 200; CLI
+`--status` ok; unit do botão tem `EnvironmentFile` (canal) e o CLI passa
+`notificador_telegram=notificar_telegram`; journal `-p err`: **0**.
+
+**Testes:** `test_os_updater` **57** (4 novos: sucesso do painel diz a origem;
+falha avisa o passo e **nunca** diz concluído; falha + reboot diz as duas
+coisas; ciclo agendado sem a marca do painel). `test_api` + painel +
+os_updater: **288 passed**.
+
+**Não coberto:** processo que morre antes do fim (OOM/timeout de 3600 s) não
+avisa — não há `OnFailure` na unit. Anotado como próximo passo.
+
+---
+
 ## Painel do SO recarrega sozinho enquanto o ciclo roda (2026-11-26, sem bump)
 
 **Contexto:** o ciclo real leva minutos (`apt full-upgrade` + `fwupdmgr`) e o

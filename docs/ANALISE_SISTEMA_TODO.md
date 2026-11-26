@@ -636,6 +636,12 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Aviso de ciclo que morre antes do fim** (diagnóstico de 26/11) — o
+      aviso final cobre erro de `apt`/`fwupdmgr`, mas se o processo morrer no
+      meio (OOM, `TimeoutStartSec=3600`, crash do Python) ninguém é avisado: a
+      unit `od-os-updater*.service` não tem `OnFailure=`. Falta uma unit de
+      falha (ou `ExecStopPost`) que mande o `systemctl status` resumido no
+      Telegram.
 - [x] **Log do último ciclo no painel do atualizador de SO** (sugestão de
       26/11) — **FEITO 26/11 02:10:** tabela "Quando · Seção · Resultado ·
       Detalhe" com as 5 últimas seções (`apt_update`, `apt_upgrade`,

@@ -1,4 +1,15 @@
 {
+  "aviso_telegram_desfecho_ciclo_2026_11_26": {
+    "pedido": "Dono (26/11 ~02:45): 'Faca o painel avisar no Telegram quando um ciclo aplicado terminar ou falhar'.",
+    "defeito_medido": "O ciclo notificava abertura e conclusao, mas a conclusao era sempre '✅ Atualizacoes concluidas sem necessidade de reboot' MESMO com erro (apt update/full-upgrade falhando iam so para `erros`). O dono lia sucesso onde houve falha, e nao sabia que o ciclo veio do botao.",
+    "codigo": "core/os_updater.py: _notificar_resultado(resultados, forcar) chamado UMA vez, depois do reboot agendado. Falha -> '❌ OSUpdater / Ciclo terminou COM FALHA (pedido pelo painel)' com N erros, as SECOES que quebraram e detalhe de cada uma, pacotes/firmware e estado do reboot; sucesso com reboot -> '⚠️ ... Reboot necessario' (kernel antes->depois, pacotes, firmware, 'Reboot agendado para +5 min'); sucesso sem reboot -> '✅ ...'. Ciclo com erro nunca manda ✅. --forcar marca '(pedido pelo painel)'. Painel: texto da secao avisa que o desfecho chega no Telegram.",
+    "testes": "test_os_updater 57 (4 novos: sucesso do painel diz a origem; falha avisa o passo e nunca diz concluido; falha + reboot diz as duas coisas; ciclo agendado sem a marca do painel). test_api + painel + os_updater: 288 passed.",
+    "prova_viva": "restart 26/11 02:52 — MainPID 2457865, NRestarts=0; /admin 200 com o aviso novo; /admin/os-updater/status 200; CLI --status ok; unit do botao tem EnvironmentFile e o CLI passa notificador_telegram=notificar_telegram; journal -p err 0.",
+    "limite": "Processo que morre antes do fim (OOM / TimeoutStartSec=3600 / crash) nao avisa: unit sem OnFailure. Virou checkbox no §4 do TODO.",
+    "sem_bump": "1.47.0+2085 (servidor/painel).",
+    "arquivos": "core/os_updater.py, integrations/api/server.py, tests/test_os_updater.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§8), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T02:55:00-03:00"
+  },
   "recarga_automatica_painel_so_2026_11_26": {
     "pedido": "Dono (26/11 ~02:28): 'Faca o painel recarregar sozinho o status do SO enquanto o ciclo estiver rodando, sem apertar Atualizar'.",
     "codigo": "integrations/api/server.py: SO_INTERVALO_MS=5000, soDeveRecarregar(d) (PURA: so em_andamento === true), soAgendarRecarga(d) (agenda se roda, cancela se nao, NUNCA empilha timers), chamado no fim de soLoad(); erro de rede/HTTP nao religa a recarga; apos 202 no botao, setTimeout(soLoad, 1500); ao transitar rodando->parado mostra 'ciclo concluido — secoes atualizadas abaixo'.",
@@ -6811,6 +6822,15 @@
       "commit": "b3c1afd",
       "branch": "master",
       "iniciado_em": "2026-11-26T01:54:16-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2457865,
+      "commit": "285781b",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T02:00:41-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

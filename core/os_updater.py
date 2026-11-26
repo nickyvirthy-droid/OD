@@ -406,6 +406,59 @@ class OSUpdater:
         code, out, err = _executar(["fwupdmgr", "update", "-y"], timeout=600, dry_run=self.dry_run)
         return code == 0, out if code == 0 else err
 
+    def _notificar_resultado(self, resultados: dict[str, Any], forcar: bool) -> None:
+        """Aviso FINAL do ciclo: terminou ou falhou, e em que passo (regra 15).
+
+        Antes, o ciclo com erro no `apt update` ainda mandava "✅ concluídas" —
+        o dono lia sucesso onde houve falha. Agora o desfecho é um só: falha
+        (com as seções que quebraram), sucesso com reboot agendado, ou sucesso
+        sem reboot. `forcar` identifica o ciclo disparado pelo painel.
+        """
+        erros = [str(e) for e in (resultados.get("erros") or [])]
+        pacotes = len(resultados.get("pacotes_atualizados") or [])
+        firmware = len(resultados.get("firmware_atualizados") or [])
+        origem = " (pedido pelo painel)" if forcar else ""
+        if resultados.get("reboot_executado"):
+            reboot = "Reboot agendado para +5 min."
+        elif resultados.get("reboot_necessario"):
+            reboot = "Reboot pendente — reinicia no próximo boot."
+        else:
+            reboot = ""
+
+        if erros:
+            # as seções que falharam são mais úteis que a mensagem crua
+            falhas = [s for s in self._estado.secoes[-6:] if not s.get("ok")]
+            if falhas:
+                linhas = "\n".join(
+                    f"• {s.get('acao')}: {str(s.get('detalhes') or '')[:160]}"
+                    for s in falhas
+                )
+            else:  # pragma: no cover - seções sempre existem com erro
+                linhas = "\n".join(f"• {e[:180]}" for e in erros)
+            partes = [
+                f"Ciclo terminou COM FALHA{origem}.",
+                f"{len(erros)} erro(s):",
+                linhas,
+                f"Pacotes: {pacotes} | Firmware: {firmware}",
+            ]
+            if reboot:
+                partes.append(reboot)
+            self._notificar("❌ OSUpdater", "\n".join(partes))
+        elif resultados.get("reboot_necessario"):
+            self._notificar(
+                "⚠️ OSUpdater",
+                "Atualizações aplicadas" + origem + ". Reboot necessário.\n"
+                f"Kernel: {resultados.get('kernel_antes')} → "
+                f"{resultados.get('kernel_depois')}\n"
+                f"Pacotes: {pacotes}\nFirmware: {firmware}\n{reboot}",
+            )
+        else:
+            self._notificar(
+                "✅ OSUpdater",
+                "Atualizações concluídas sem necessidade de reboot" + origem + ".\n"
+                f"Pacotes: {pacotes} | Firmware: {firmware}",
+            )
+
     def _verificar_reboot(self) -> bool:
         return _precisa_reboot()
 
@@ -436,7 +489,11 @@ class OSUpdater:
             self._salvar_estado()
 
             log.info("OSUpdater: iniciando ciclo", forcar=forcar)
-            self._notificar("🔧 OSUpdater", "Iniciando atualização semanal do sistema...")
+            self._notificar(
+                "🔧 OSUpdater",
+                "Iniciando atualização semanal do sistema..."
+                + (" (pedido pelo painel)" if forcar else ""),
+            )
 
             resultados = {
                 "apt_update": False,
@@ -503,26 +560,17 @@ class OSUpdater:
             if precisa_reboot:
                 self._estado.pendente_reboot = True
                 self._salvar_estado()
-                self._notificar(
-                    "⚠️ OSUpdater",
-                    f"Atualizações aplicadas. Reboot necessário.\n"
-                    f"Kernel: {resultados['kernel_antes']} → {resultados['kernel_depois']}\n"
-                    f"Pacotes: {len(upgradable)}\n"
-                    f"Firmware: {len(firmware_antes)}"
-                )
-                # Agenda reboot para daqui a 5 min (dá tempo de notificação chegar)
+                # Agenda reboot para daqui a 5 min (dá tempo do aviso sair)
                 if not self.dry_run:
                     _executar(["shutdown", "-r", "+5", "OSUpdater: atualizações aplicadas"])
                     resultados["reboot_executado"] = True
                     self._estado.ultimo_reboot = time.time()
                     self._estado.pendente_reboot = False
                     self._registrar_secao("reboot", True, "agendado +5min")
-            else:
-                self._notificar(
-                    "✅ OSUpdater",
-                    f"Atualizações concluídas sem necessidade de reboot.\n"
-                    f"Pacotes: {len(upgradable)} | Firmware: {len(firmware_antes)}"
-                )
+
+            # Um aviso final só, já com o desfecho (sucesso ou falha). Vai
+            # ANTES do shutdown em +5 min terminar o serviço.
+            self._notificar_resultado(resultados, forcar=forcar)
 
             # Atualiza estado
             self._estado.ultima_execucao = agora

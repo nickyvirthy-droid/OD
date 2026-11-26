@@ -1277,3 +1277,82 @@ def test_sondagem_nao_bloqueia_a_requisicao(monkeypatch) -> None:
     monkeypatch.setitem(os_updater._SONDAGEM, "ts", 1_000.0)
     assert os_updater._contar_pacotes_e_firmware(1_100.0, 1800.0) == (67, 51)
     assert disparos == [True]
+
+
+class TestAvisoFinalDoCiclo:
+    """Um único aviso final: terminou (✅/⚠️) ou FALHOU (❌), e em que passo.
+
+    Antes o ciclo com erro ainda mandava "✅ concluídas" — o dono lia sucesso
+    onde houve falha. O `--forcar` (botão do painel) é identificado na
+    mensagem para ele saber de onde veio o ciclo.
+    """
+
+    def test_sucesso_do_painel_diz_a_origem(
+        self, estado_path: Path, sem_comandos_reais: _ExecucaoFalsa
+    ) -> None:
+        notif = _NotificadorFalso()
+        up = _novo_updater(estado_path, notificador_telegram=notif)
+
+        up.executar_ciclo(forcar=True)
+
+        assert len(notif.mensagens) == 2  # abertura + desfecho (sem spam)
+        assert "pedido pelo painel" in notif.mensagens[0]
+        assert "pedido pelo painel" in notif.mensagens[1]
+        assert "✅" in notif.mensagens[1]
+        assert "COM FALHA" not in notif.mensagens[1]
+
+    def test_falha_avisa_o_passo_e_nunca_diz_concluido(
+        self, estado_path: Path, sem_comandos_reais: _ExecucaoFalsa
+    ) -> None:
+        sem_comandos_reais.falhas.add("apt update")
+        notif = _NotificadorFalso()
+        up = _novo_updater(estado_path, notificador_telegram=notif)
+
+        resultado = up.executar_ciclo(forcar=True)
+
+        assert resultado["ok"] is False
+        final = notif.mensagens[-1]
+        assert "❌" in final and "COM FALHA" in final
+        assert "pedido pelo painel" in final
+        assert "apt_update" in final  # a seção que quebrou, não só o erro cru
+        assert "concluídas sem necessidade" not in final
+        assert "Atualizações aplicadas" not in final
+        # nada de "✅" em nenhuma mensagem do ciclo que falhou
+        assert not any("✅" in m for m in notif.mensagens)
+
+    def test_falha_com_reboot_diz_as_duas_coisas(
+        self,
+        estado_path: Path,
+        sem_comandos_reais: _ExecucaoFalsa,
+        flag_reboot: _FlagReboot,
+    ) -> None:
+        flag_reboot.pendente = True
+        sem_comandos_reais.falhas.add("apt full-upgrade")
+        notif = _NotificadorFalso()
+        up = _novo_updater(estado_path, notificador_telegram=notif)
+
+        up.executar_ciclo(forcar=True)
+
+        final = notif.mensagens[-1]
+        assert "COM FALHA" in final and "apt_upgrade" in final
+        assert "Reboot agendado para +5 min" in final
+        # o reboot é agendado mesmo com falha no upgrade (decisão do ciclo)
+        assert "shutdown -r +5 OSUpdater: atualizações aplicadas" in _comandos(
+            sem_comandos_reais
+        )
+
+    def test_ciclo_agendado_sem_origem_do_painel(
+        self,
+        estado_path: Path,
+        sem_comandos_reais: _ExecucaoFalsa,
+        flag_reboot: _FlagReboot,
+    ) -> None:
+        flag_reboot.pendente = True
+        notif = _NotificadorFalso()
+        up = _novo_updater(estado_path, notificador_telegram=notif)
+
+        up.executar_ciclo(forcar=False)
+
+        final = notif.mensagens[-1]
+        assert "⚠️" in final and "Reboot necessário" in final
+        assert "pedido pelo painel" not in final
