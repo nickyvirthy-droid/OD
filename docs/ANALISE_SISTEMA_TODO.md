@@ -636,6 +636,15 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Janela de aplicação do SO com prova de retorno** (sugestão de 26/11) —
+      o timer já aplica sozinho aos domingos e agenda reboot em +5 min, mas
+      ninguém verifica se o `od-core`, o Postgres e o painel voltaram depois do
+      reboot: falta um pós-reboot que confirme `/health`, dumps e timers e avise
+      no Telegram (hoje o dono descobre pelo uso).
+- [ ] **Estado do atualizador de SO no `/health`** (sugestão de 26/11) —
+      `precisa_reboot`, `upgradable` e `falhas_consecutivas` só aparecem nas
+      rotas `/admin/os-updater/*`; um check não-crítico no `/health` faria o
+      painel e o app mostrarem reboot pendente sem abrir a aba certa.
 - [x] **Restart do `od-core` para ativar o reconhecimento de segurança pelo chat**
       (sugestão de 25/11) — **FEITO 25/11 14:27:** MainPID 1768401, `NRestarts=0`,
       `/health` ok com 32 checks, journal `-p err` 0; prova viva `POST /message`

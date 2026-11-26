@@ -11,7 +11,9 @@
     "pendente_dono": "Aplicar agora as 67 atualizacoes + 51 firmwares: o ciclo termina agendando reboot em +5 min. Sem ordem, a primeira aplicacao real e domingo 29/11 ~03:16.",
     "arquivos": "systemd/od-os-updater.service, core/os_updater.py, tests/test_os_updater.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, docs/ARCHITECTURE_v2.md, iniciar/2026-11-26_conversa_omegadrakon.md (novo), iniciar/ATRIBUICOES.md, txt.txt.",
     "sem_bump": "1.46.1+2084 (operacao/servidor; contrato do app intacto).",
-    "updated_at": "2026-11-26T00:42:00-03:00"
+    "telegram": "resumo enviado ao dono (regra 15) via notificar_telegram -> True.",
+    "commit": "416cce2 publicado em origin/master.",
+    "updated_at": "2026-11-26T00:45:00-03:00"
   },
   "rag_hibrido_ligado_2026_11_25": {
     "pedido": "Dono (25/11 ~15:45): 'Recalibre o piso do RAG híbrido para ligar o I2 com evidência medida' + 'leia também o txt. existem atualizações do sistema operacional, OD possui algum action ou ferramenta para resolver isso, se não então crie'.",
