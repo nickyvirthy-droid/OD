@@ -9,6 +9,38 @@
 
 ---
 
+## 26/11/2026 — Comparador: custo de máquina medido nas chamadas
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Implemente o monitor de CPU/RAM
+durante as chamadas do comparador no painel"*).
+
+### Modificados
+
+- `core/comparador_modelos.py` — `_ColetorHardware` (leitura de `/proc/stat` e
+  `/proc/meminfo` a cada 250 ms durante cada chamada; resumo com média/pico
+  de CPU, RAM usada, delta de RAM, % da RAM do servidor, núcleos, amostras).
+  Sem `/proc`, `hardware` é `None` sem quebrar a comparação.
+- `integrations/api/server.py` — `cmpHw()` pura + o custo sob o nome de cada
+  modelo no painel, e a nota de que o número é do servidor inteiro.
+- `tests/test_comparador_modelos.py` — 3 casos novos (chamada lenta,
+  falha/timeout, ausência de `/proc`) e o harness node cobrindo `cmpHw`.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (monitor de CPU/RAM ✅,
+  VRAM virou pendência própria com motivo), `iniciar/2026-11-26_conversa_omegadrakon.md`
+  (§22), `iniciar/session.json`, `txt.txt`.
+
+### Intenção e estado
+
+O comparador já media latência; faltava o custo de máquina. Agora a medição
+acontece durante a chamada e aparece no cartão do painel. Provado ao vivo
+(groq 10,9% de CPU e +0 MB; gemini 12,4% e +8,1 MB; rodada com o local
+33,7–36,4% e +55,9 MB), gate completo 5811/16/2 (as 2 falhas antigas de
+`test_websocket`) e RAG 8/8 · 0/8 · 6/6. Restart verde. `1.47.0+2085`.
+
+Lacuna declarada: CPU/RAM são do servidor inteiro (as chamadas correm em
+paralelo e a máquina é compartilhada); VRAM não existe nesta máquina.
+
+---
+
 ## 26/11/2026 — Checkbox do comparador separado (TODO)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Corrija o checkbox desatualizado

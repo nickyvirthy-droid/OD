@@ -12,6 +12,50 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Comparador: custo de máquina medido durante cada chamada (2026-11-26, sem bump)
+
+**Contexto:** o comparador (item 5) mostrava latência e texto, mas não o custo
+de máquina — a pendência que sobrou do checkbox de 17/11 era “CPU/RAM/VRAM por
+modelo no painel”.
+
+**Feito:**
+
+- `core/comparador_modelos.py` ganhou `_ColetorHardware`: antes de cada chamada
+  lê `/proc/stat` + `/proc/meminfo` e amostra a cada **250 ms** até a resposta
+  (inclusive timeout e erro). Cada modelo volta com `hardware` =
+  `cpu_pct_medio`, `cpu_pct_pico`, `ram_usada_mb_medio`, `ram_usada_mb_pico`,
+  `ram_inicial_mb`, `ram_delta_mb_pico`, `ram_pct_pico`, `ram_total_mb`,
+  `nucleos`, `amostras`, `intervalo_ms`.
+- Sem `/proc` (outro SO), `hardware` é `None` e a comparação segue — medir não
+  pode derrubar a resposta.
+- Painel: `cmpHw()` (função pura) imprime `CPU 43.0% (pico 61.5%) · RAM +120 MB
+  · 52% da RAM do servidor · 2 amostras` sob o nome de cada modelo, e a seção
+  avisa que o número é do **servidor inteiro** (as chamadas correm em paralelo).
+- Amostra final só depois de meio intervalo: numa chamada de 50 ms o delta da
+  própria chamada já vale como medida, sem virar pico falso de 100%.
+
+**Prova viva (pelo servidor, após restart):**
+
+| chamada | latência | CPU média (pico) | RAM |
+|---|---|---|---|
+| groq | 441,8 ms | 10,9% (11,2%) | +0,0 MB |
+| gemini | 1.017,4 ms | 12,4% (20,2%) | +8,1 MB |
+| gemini (com o local) | 1.755,1 ms | 33,7% (52,0%) | +55,9 MB |
+| gemma-local (com o gemini) | 2.037,1 ms | 36,4% (56,0%) | +55,9 MB |
+
+**Testes:** 22 em `tests/test_comparador_modelos.py` (3 novos: medição com
+chamada lenta, hardware presente em falha/timeout, `None` sem `/proc`) + o
+harness node cobrindo a formatação de `cmpHw`; `tests/test_api.py` **237
+passed** no total dos dois arquivos.
+
+**Limites declarados:** o percentual de CPU é do servidor inteiro (máquina
+compartilhada com o od-core) e, como as chamadas são paralelas, o custo
+aparece parecido em todos os cartões — a diferença real fica na latência.
+**VRAM não é medida:** o LLM local roda em CPU e não há contador de GPU
+(`nvidia-smi` ausente); quando houver GPU, o lugar é `_snapshot()`.
+
+---
+
 ## Espelho offline: restauração real provada (2026-11-26, sem bump)
 
 **Contexto:** a fila (item 10, P2 nº 19) pedia o que a prova de 12/11 não

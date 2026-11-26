@@ -9,8 +9,11 @@ Aqui ficam provados:
   * os modelos rodam em PARALELO e cada um volta com a latência medida;
   * modelo que falha não derruba os outros — o erro é resultado;
   * timeout é teto POR MODELO (o local tem 240 s próprios);
+  * o custo de máquina (CPU/RAM do servidor) é medido DURANTE cada chamada,
+    com média/pico e delta de RAM, e sem `/proc` vira `None` sem quebrar;
   * as rotas do painel devolvem a lista e o resultado, e recusam pedido vazio;
-  * o render puro dos cartões (node) escapa texto e mostra o vazio honesto.
+  * o render puro dos cartões (node) escapa texto, mostra o vazio honesto e
+    imprime o monitor de hardware.
 """
 
 from __future__ import annotations
@@ -123,6 +126,41 @@ class TestComparacao:
     def test_selecao_por_nome_preserva_a_ordem_da_cadeia(self) -> None:
         r = _rodar(providers=_cadeia(), nomes=["gemma-local", "gemini"])
         assert [m["nome"] for m in r["modelos"]] == ["gemma-local", "gemini"]
+
+
+class TestMonitorDeHardware:
+    def test_cpu_e_ram_medidas_durante_a_chamada(self) -> None:
+        cadeia = [_Provider("lento", "x", 0.7), _Provider("rapido", "y", 0.02)]
+        r = _rodar(providers=cadeia)
+        lento, rapido = r["modelos"]
+        hw = lento["hardware"]
+        assert hw is not None
+        assert 0.0 <= hw["cpu_pct_medio"] <= 100.0
+        assert hw["cpu_pct_pico"] >= hw["cpu_pct_medio"]
+        assert hw["amostras"] >= 2
+        assert hw["ram_total_mb"] > 0 and hw["ram_usada_mb_pico"] > 0
+        assert hw["ram_delta_mb_pico"] >= 0.0
+        assert hw["nucleos"] >= 1 and hw["intervalo_ms"] == 250
+        # chamada curta também tem medida (o delta da própria chamada)
+        assert rapido["hardware"] is not None
+        assert rapido["hardware"]["amostras"] >= 1
+
+    def test_falha_e_timeout_tambem_levam_hardware(self) -> None:
+        cadeia = [
+            _Provider("quebrado", erro=RuntimeError("sem chave"), atraso=0.05),
+            _Provider("lento", "x", 2.0),
+        ]
+        r = _rodar(providers=cadeia, timeout_s=0.2)
+        assert all(m["hardware"] is not None for m in r["modelos"])
+        assert r["modelos"][0]["erro"].startswith("RuntimeError")
+        assert "tempo esgotado" in r["modelos"][1]["erro"]
+
+    def test_sem_proc_hardware_e_none_e_comparacao_segue(self, monkeypatch) -> None:
+        monkeypatch.setattr(comp, "_snapshot", lambda: None)
+        r = _rodar(providers=_cadeia())
+        assert r["ok"] is True
+        assert [m["hardware"] for m in r["modelos"]] == [None, None, None]
+        assert r["modelos"][0]["resposta"] == "resposta do gemini"
 
 
 class TestPedidosInvalidos:
@@ -274,9 +312,15 @@ vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
 console.log(JSON.stringify({
   vazio: ctx.cmpCartoesHtml([]),
   nulo: ctx.cmpCartoesHtml(null),
+  hw: ctx.cmpHw({ cpu_pct_medio: 43.0, cpu_pct_pico: 61.5, ram_delta_mb_pico: 120.4,
+    ram_pct_pico: 52.0, amostras: 2 }),
+  hwNulo: ctx.cmpHw(null),
+  hwVazio: ctx.cmpHw({}),
   cheio: ctx.cmpCartoesHtml([
     { nome: 'gemini', modelo: 'g-3', ok: true, resposta: '<b>oi</b> & tchau',
-      latencia_ms: 1234.5 },
+      latencia_ms: 1234.5,
+      hardware: { cpu_pct_medio: 43.0, cpu_pct_pico: 61.5, ram_delta_mb_pico: 120.4,
+        ram_pct_pico: 52.0, amostras: 2 } },
     { nome: 'groq', modelo: '', ok: false, erro: 'HTTP 429 <cota>', latencia_ms: 88 },
   ]),
 }));
@@ -307,3 +351,12 @@ console.log(JSON.stringify({
         assert "&lt;b&gt;oi&lt;/b&gt; &amp; tchau" in cheio
         assert "<b>oi</b>" not in cheio
         assert "HTTP 429 &lt;cota&gt;" in cheio and "<cota>" not in cheio
+
+        # monitor de hardware: formatação e ausência honesta
+        assert "CPU 43.0%" in d["hw"] and "pico 61.5%" in d["hw"]
+        assert "RAM +120 MB" in d["hw"] and "52% da RAM do servidor" in d["hw"]
+        assert "2 amostras" in d["hw"]
+        assert d["hwNulo"] == "" and d["hwVazio"] == ""
+        # o cartão com hardware mostra o custo; o sem medição não inventa nada
+        assert "CPU 43.0%" in cheio
+        assert cheio.count("CPU ") == 1

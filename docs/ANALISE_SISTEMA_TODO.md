@@ -976,11 +976,21 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       `/admin`; timeout e falha por modelo isolados; prova viva com groq
       564,5 ms / gemini 2.625,4 ms / gemma-local 18.584,5 ms. Sem persistir
       comparações.
-- [ ] **Monitor de hardware do comparador (CPU/RAM/VRAM por modelo)** — o
-      comparador de 26/11 mostra latência e texto, não o custo de máquina.
-      Falta amostrar CPU/RAM/VRAM durante cada chamada no painel. Sem
-      demanda medida até agora: a VRAM é local (llama-server) e as nuvens não
-      expõem consumo.
+- [x] **Monitor de hardware do comparador (CPU/RAM)** — **FEITO 26/11:**
+      `_ColetorHardware` em `core/comparador_modelos.py` amostra
+      `/proc/stat` + `/proc/meminfo` a cada 250 ms durante cada chamada; o
+      resultado leva média/pico de CPU, RAM usada, `ram_delta_mb_pico` e
+      porcentagem da RAM do servidor, e o cartão do painel mostra embaixo do
+      nome. Prova viva: groq 441,8 ms · CPU 10,9% (pico 11,2%) · RAM +0 MB;
+      gemini 1.017,4 ms · CPU 12,4% (pico 20,2%) · RAM +8,1 MB; numa segunda
+      rodada com o local: CPU média 33,7–36,4%, pico 52–56%, RAM +55,9 MB.
+      **Ressalva documentada:** as chamadas rodam em paralelo, então o número
+      é do servidor inteiro (como a máquina é compartilhada com o od-core,
+      ele não isola o modelo).
+- [ ] **VRAM por modelo no comparador** — não medido e hoje imensurável:
+      o LLM local roda em CPU e não há contador de GPU exposto
+      (`nvidia-smi` ausente). Reabrir quando entrar GPU; o lugar é
+      `_snapshot()`.
 - [x] Task Queue: manter as tasks **concluídas visíveis** na API com retenção
       limitada — **ENTREGUE 14/11** (histórico em `completed/`, poda automática,
       `OD_TASK_QUEUE_KEEP_COMPLETED=200`)

@@ -1997,6 +1997,10 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       com a resposta e a latência lado a lado. É a comparação ao vivo — a
       resposta de cada modelo é um retrato do agora, nada fica em cache.
       Um modelo que falha não derruba os outros: o erro aparece no cartão dele.
+      Embaixo de cada nome vem o <b>custo de máquina</b> medido durante a
+      chamada (CPU e RAM). Como as chamadas correm em paralelo, esse número é
+      do <b>servidor inteiro</b> — numa comparação simultânea ele aparece
+      parecido em todos os cartões; a diferença real fica na latência.
     </p>
     <div class="row" style="margin-bottom:8px">
       <span class="muted" id="cmp-modelos" style="font-size:0.8rem">carregando modelos…</span>
@@ -2734,6 +2738,31 @@ function cmpMs(ms) {
   return ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : ms + " ms";
 }
 
+function cmpNum(v) {
+  return typeof v === "number" && isFinite(v);
+}
+
+// Custo de máquina da chamada (CPU/RAM do servidor) — função pura para o
+// teste node provar formatação e o "sem medição" sem navegador.
+function cmpHw(hw) {
+  if (!hw || !hw.amostras) return "";
+  const partes = [];
+  if (cmpNum(hw.cpu_pct_medio)) {
+    let cpu = "CPU " + hw.cpu_pct_medio.toFixed(1) + "%";
+    if (cmpNum(hw.cpu_pct_pico)) cpu += " (pico " + hw.cpu_pct_pico.toFixed(1) + "%)";
+    partes.push(cpu);
+  }
+  if (cmpNum(hw.ram_delta_mb_pico)) {
+    partes.push("RAM +" + hw.ram_delta_mb_pico.toFixed(0) + " MB");
+  }
+  if (cmpNum(hw.ram_pct_pico)) {
+    partes.push(hw.ram_pct_pico.toFixed(0) + "% da RAM do servidor");
+  }
+  if (!partes.length) return "";
+  return '<div class="muted" style="font-size:0.72rem;margin-top:4px">' +
+    esc(partes.join(" · ") + " · " + hw.amostras + " amostras") + "</div>";
+}
+
 function cmpCartoesHtml(resultados) {
   const lista = Array.isArray(resultados) ? resultados : [];
   if (!lista.length) {
@@ -2751,7 +2780,8 @@ function cmpCartoesHtml(resultados) {
       : '<div class="muted" style="font-size:0.8rem;margin-top:6px">' + esc(r.erro || "sem resposta") + "</div>";
     return '<div class="card" style="padding:10px"><div class="row">' +
       "<b>" + nome + "</b>" + modelo + '<span style="flex:1"></span>' +
-      selo + " · <b>" + cmpMs(r.latencia_ms) + "</b></div>" + corpo + "</div>";
+      selo + " · <b>" + cmpMs(r.latencia_ms) + "</b></div>" +
+      cmpHw(r.hardware) + corpo + "</div>";
   }).join("");
 }
 

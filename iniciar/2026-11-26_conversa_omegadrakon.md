@@ -995,3 +995,55 @@ Nenhum (`1.47.0+2085`).
     como pendência real: o comparador mede latência e texto, não consumo.
     Sem demanda medida; VRAM só existe no lado local.
 - Só documentação: nenhum `.py` tocado, sem teste e sem restart; sem bump.
+
+---
+
+## §22 — Comparador: monitor de CPU/RAM durante as chamadas (26/11 ~12:45)
+
+**Dono:** *"Implemente o monitor de CPU/RAM durante as chamadas do comparador
+no painel"* (era o `[ ]` que sobrou do checkbox de 17/11).
+
+### Feito
+
+- `core/comparador_modelos.py`: `_ColetorHardware` lê `/proc/stat` e
+  `/proc/meminfo` antes da chamada e amostra a cada **250 ms** até a resposta
+  (também no timeout e no erro). `_comparar_um` devolve `hardware` com média e
+  pico de CPU, RAM usada, `ram_delta_mb_pico` (o que a chamada acrescentou),
+  `ram_pct_pico`, total, núcleos, amostras e intervalo.
+- Sem `/proc`, `hardware` é `None` e a comparação segue inteira.
+- Amostra final só se passou meio intervalo — evita pico falso de 100% numa
+  janela de 5 ms em chamada rápida.
+- Painel: `cmpHw()` (pura) mostra
+  `CPU 43.0% (pico 61.5%) · RAM +120 MB · 52% da RAM do servidor · 2 amostras`
+  sob o nome de cada modelo; a seção avisa que o número é do servidor inteiro.
+
+### Prova viva (restart verde, chamadas pelo servidor)
+
+| chamada | latência | CPU média (pico) | RAM |
+|---|---|---|---|
+| groq | 441,8 ms | 10,9% (11,2%) | +0,0 MB |
+| gemini | 1.017,4 ms | 12,4% (20,2%) | +8,1 MB |
+| gemini (com o local) | 1.755,1 ms | 33,7% (52,0%) | +55,9 MB |
+| gemma-local (com o gemini) | 2.037,1 ms | 36,4% (56,0%) | +55,9 MB |
+
+### Verificação
+
+- `tests/test_comparador_modelos.py` **22 passed** (3 novos) +
+  `tests/test_api.py` → **237 passed** juntos.
+- Gate completo: **5811 passed / 16 skipped / 2 failed** em 274 s — as mesmas
+  2 de `test_websocket.py` por ordem (pré-existentes, no TODO).
+- Gate RAG: **8/8 · 0/8 · 6/6**, igual ao baseline.
+- Restart `od-core` verde: health `up` depois da ponte MQTT conectar (o
+  `check mqtt` fica `degraded` nos primeiros ~20 s, como nas outras subidas).
+
+### Limites declarados
+
+- A CPU é do **servidor inteiro** (compartilhado com o od-core) e, como as
+  chamadas rodam em paralelo, o custo aparece parecido nos cartões — a
+  diferença real fica na latência. Documentado no módulo e no painel.
+- **VRAM não é medida**: LLM local em CPU, sem contador de GPU exposto.
+  Virou checkbox próprio no TODO, para quando entrar GPU.
+
+### Bump
+
+Nenhum (`1.47.0+2085`): `OD_VERSION` fica para entrega com APK/cliente.

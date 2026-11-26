@@ -1,4 +1,15 @@
 {
+  "comparador_hardware_2026_11_26": {
+    "pedido": "Dono (26/11 ~12:2x): 'Implemente o monitor de CPU/RAM durante as chamadas do comparador no painel'.",
+    "feito": "core/comparador_modelos.py ganhou _ColetorHardware: le /proc/stat e /proc/meminfo antes da chamada e amostra a cada 250 ms ate a resposta (inclusive timeout e erro). Cada modelo volta com hardware={cpu_pct_medio, cpu_pct_pico, ram_usada_mb_medio, ram_usada_mb_pico, ram_inicial_mb, ram_delta_mb_pico, ram_pct_pico, ram_total_mb, nucleos, amostras, intervalo_ms}; sem /proc, hardware=None e a comparacao segue. Amostra final so depois de meio intervalo (evita pico falso em chamada curta). Painel: cmpHw() pura imprime 'CPU ... (pico ...) · RAM +... MB · ...% da RAM do servidor · N amostras' sob o nome de cada modelo, e a secao avisa que o numero e do servidor inteiro.",
+    "prova_viva": "Apos restart: groq 441,8 ms CPU 10,9% (pico 11,2%) RAM +0,0 MB; gemini 1.017,4 ms CPU 12,4% (pico 20,2%) RAM +8,1 MB; segunda rodada gemini 1.755,1 ms CPU 33,7% (52,0%) +55,9 MB e gemma-local 2.037,1 ms CPU 36,4% (56,0%) +55,9 MB. Pagina /admin servida com o texto novo e cmpHw (3 ocorrencias).",
+    "testes": "tests/test_comparador_modelos.py 22 passed (3 novos: medicao em chamada lenta, hardware em falha/timeout, None sem /proc; harness node cobre cmpHw). tests/test_api.py junto: 237 passed. Gate completo: 5811 passed / 16 skipped / 2 failed (as 2 pre-existentes de test_websocket por ordem). Gate RAG: 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, estruturais 2/2.",
+    "limites": "CPU e do servidor inteiro (maquina compartilhada com o od-core) e, como as chamadas sao paralelas, o custo aparece parecido nos cartoes - a diferenca real fica na latencia. VRAM nao e medida: LLM local em CPU, sem contador de GPU; virou checkbox proprio no TODO.",
+    "arquivos": "core/comparador_modelos.py, integrations/api/server.py (cmpHw + nota da secao + cmpHw no cartao), tests/test_comparador_modelos.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS22), iniciar/session.json, txt.txt.",
+    "sem_bump": "1.47.0+2085.",
+    "proximo": "Sem pendencia neste tema alem da VRAM (sem GPU). Gate segue com as 2 falhas por ordem em test_websocket.",
+    "updated_at": "2026-11-26T12:45:00-03:00"
+  },
   "checkbox_comparador_2026_11_26": {
     "pedido": "Dono (26/11 ~11:4x): 'Corrija o checkbox desatualizado do comparador na linha 972 do TODO'.",
     "feito": "docs/ANALISE_SISTEMA_TODO.md: o checkbox que juntava 'comparador lado a lado + monitor de hardware' foi separado. Comparador agora [x] com arquivos, rotas, painel, timeouts isolados e tempos da prova viva; monitor de hardware (CPU/RAM/VRAM por modelo) virou [ ] proprio, com o motivo (compara latencia e texto, nao consumo; sem demanda medida).",
@@ -7008,6 +7019,24 @@
       "commit": "1752faa",
       "branch": "master",
       "iniciado_em": "2026-11-26T08:53:31-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 486393,
+      "commit": "4125563",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T10:27:45-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 488071,
+      "commit": "4125563",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T10:29:20-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
