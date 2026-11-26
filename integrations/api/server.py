@@ -1967,6 +1967,23 @@ _ADMIN_PAGE_HTML = """<!doctype html>
       pendências a tabela fica vazia e o aviso para de repetir.
     </p>
   </section>
+  <section>
+    <h2>Atualizador de SO</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      O timer aplica sozinho aos domingos 03:00 — e <b>este botão aplica
+      agora</b>. O ciclo é o mesmo: <code>apt update</code> +
+      <code>full-upgrade</code> + <code>autoremove</code>, <code>fwupdmgr</code>
+      e, se a máquina pedir, <b>reboot em +5 min</b>. Roda como root na unit
+      <code>od-os-updater-forcar.service</code> (o od-core é <code>alex</code> e
+      apt/dpkg exigem root) e nada acontece sem as <b>duas confirmações</b>.
+    </p>
+    <div class="row">
+      <span class="muted" id="so-resumo" style="font-size:0.8rem">carregando…</span>
+      <span style="flex:1"></span>
+      <button id="so-aplicar" class="danger">⚠ Aplicar atualizações</button>
+      <span class="muted msg" id="so-msg"></span>
+    </div>
+  </section>
 </main>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
@@ -2539,6 +2556,65 @@ async function vigiaAcao(acao, alvo) {
   vigiaLoad();
 }
 document.getElementById("vigia-refresh").onclick = vigiaLoad;
+
+// --- Atualizador de SO (26/11): status + botão "Aplicar" ---------------------
+// O ciclo real vai por systemd (root); aqui só se pede e se acompanha.
+async function soLoad() {
+  const alvo = document.getElementById("so-resumo");
+  try {
+    const resp = await fetch("/admin/os-updater/status", { headers: authHeaders() });
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) { alvo.textContent = "status indisponível (HTTP " + resp.status + ")"; return; }
+    const partes = [
+      (d.upgradable == null ? "?" : d.upgradable) + " pacotes",
+      (d.firmware_upgrades == null ? "?" : d.firmware_upgrades) + " firmwares",
+      d.precisa_reboot ? "reboot pendente" : "sem reboot pendente",
+      d.falhas_consecutivas ? d.falhas_consecutivas + " falha(s) no ciclo" : "sem falhas",
+      d.em_andamento ? "aplicando agora…" : "parado"
+    ];
+    alvo.textContent = partes.join(" · ");
+    document.getElementById("so-aplicar").disabled = !!d.em_andamento;
+  } catch (e) {
+    alvo.textContent = "falha ao ler o status: " + e.message;
+  }
+}
+
+async function soAplicar() {
+  const btn = document.getElementById("so-aplicar");
+  const msg = document.getElementById("so-msg");
+  const resumo = document.getElementById("so-resumo").textContent;
+  // 1ª confirmação: o que será aplicado.
+  if (!window.confirm("Aplicar as atualizações do sistema agora? " + resumo +
+      " — é apt update + full-upgrade + autoremove e fwupdmgr; o ciclo pode levar vários minutos.")) return;
+  // 2ª confirmação: o reboot, que é o que dói.
+  if (!window.confirm("Confirmação FINAL: se a máquina pedir reinício, o servidor AGENDA UM REBOOT EM +5 MINUTOS e o OD sai do ar por alguns minutos. Aplicar mesmo assim?")) return;
+  btn.disabled = true;
+  msg.textContent = "iniciando…";
+  msg.className = "muted msg";
+  try {
+    const resp = await fetch("/admin/os-updater/executar", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: "{}"
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (resp.status === 202) {
+      msg.textContent = "ciclo iniciado — acompanhe o status";
+      msg.className = "msg ok";
+    } else {
+      msg.textContent = "não iniciou: " + (d.detalhe || d.erro || ("HTTP " + resp.status));
+      msg.className = "msg err";
+      btn.disabled = false;
+    }
+  } catch (e) {
+    msg.textContent = "falha ao pedir: " + e.message;
+    msg.className = "msg err";
+    btn.disabled = false;
+  }
+  soLoad();
+}
+
+document.getElementById("so-aplicar").onclick = soAplicar;
 document.getElementById("vigia-lista").addEventListener("click", e => {
   const b = e.target.closest ? e.target.closest("button[data-acao]") : null;
   if (!b) return;
@@ -4053,7 +4129,7 @@ async function iaLoad() {
   } catch (e) { resumo.textContent = "falha: " + e.message; }
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); vigiaLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); vigiaLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); soLoad(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -9428,40 +9504,63 @@ class APIHandler(BaseHTTPRequestHandler):
 
     # --- OS Updater (2026-11-10) -----------------------------------------
     def _os_updater_or_503(self) -> Any:
+        """Instância do atualizador — criada sob demanda (26/11).
+
+        `APIConfig` nunca teve o campo `os_updater`, então as 3 rotas
+        respondiam 503 desde 10/11. A instância lê o estado persistido e não
+        tem efeito colateral; status/reboot passaram a funcionar.
+        """
         updater = getattr(self.api.config, "os_updater", None)
         if updater is None:
-            raise APIError(503, "os_updater_indisponivel")
+            from core.os_updater import OSUpdater
+
+            updater = OSUpdater()
         return updater
 
     def admin_os_updater_status(self) -> None:
-        """GET /admin/os-updater/status — status do atualizador do SO."""
-        self._require_admin()
-        updater = self._os_updater_or_503()
-        self._json(200, {"ok": True, **updater.status()})
+        """GET /admin/os-updater/status — status barato do atualizador do SO.
 
-    def admin_os_updater_executar(self) -> None:
-        """POST /admin/os-updater/executar — força execução do ciclo de atualização.
-        Body opcional: {forcar: true, dry_run: false}
+        Usa `status_painel()` (JSON de estado + cache da sondagem) em vez de
+        `status()`, que roda `apt list` e `fwupdmgr` a cada chamada: o painel
+        consulta esta rota no carregamento e depois do botão Aplicar.
         """
         self._require_admin()
-        updater = self._os_updater_or_503()
+        from core.os_updater import status_painel
+
+        self._json(200, {"ok": True, **status_painel()})
+
+    def admin_os_updater_executar(self) -> None:
+        """POST /admin/os-updater/executar — aplica o ciclo AGORA.
+
+        O od-core roda como `alex` e apt/dpkg exigem root: a aplicação real vai
+        pela unit oneshot `od-os-updater-forcar.service` (root, via
+        `sudo -n systemctl start --no-block`, regra em
+        /etc/sudoers.d/od-os-updater) e a rota responde **202** na hora —
+        o ciclo pode durar minutos e termina agendando reboot em +5 min.
+        Body `{"dry_run": true}` continua fazendo a simulação em processo.
+        """
+        self._require_admin()
         data = self._read_json() if self._has_body() else {}
-        forcar = bool(data.get("forcar")) if isinstance(data, dict) else True
         dry_run = bool(data.get("dry_run")) if isinstance(data, dict) else False
-        # Se dry_run solicitado, cria instância temporária
-        if dry_run and not updater.dry_run:
+        from core.os_updater import UNIDADE_FORCAR, iniciar_ciclo_forcado
+
+        if dry_run:
+            updater = self._os_updater_or_503()
             from core.os_updater import OSUpdater
-            updater = OSUpdater(
-                schedule=updater.schedule,
-                day=updater.day,
-                hour=updater.hour,
-                dry_run=True,
-            )
-        resultado = updater.executar_ciclo(forcar=forcar)
-        if resultado.get("ok"):
-            self._json(200, {"ok": True, **resultado})
+
+            if not updater.dry_run:
+                updater = OSUpdater(dry_run=True)
+            resultado = updater.executar_ciclo(forcar=True)
+            self._json(200 if resultado.get("ok") else 500, {"ok": resultado.get("ok"), "dry_run": True, **resultado})
+            return
+        ok, motivo = iniciar_ciclo_forcado()
+        if ok:
+            self._json(202, {"ok": True, "iniciado": True, "unidade": UNIDADE_FORCAR})
         else:
-            self._json(500, {"ok": False, **resultado})
+            self._json(
+                503,
+                {"ok": False, "erro": "nao_foi_possivel_iniciar", "detalhe": motivo},
+            )
 
     def admin_os_updater_reboot(self) -> None:
         """POST /admin/os-updater/reboot — força reboot se necessário."""

@@ -1,0 +1,24 @@
+[Unit]
+Description=Omega Drakon OS Updater - Aplicar atualizacoes AGORA (botao do painel)
+Documentation=https://github.com/OmegaDrakon
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+# Root é obrigatório: apt/dpkg precisam escrever em /var/lib/apt, /var/lib/dpkg
+# e rodar os scripts de manutenção; fwupdmgr idem em /var/lib/fwupd.
+WorkingDirectory=/home/alex/OmegaDrakon
+# --forcar: ignora o agendamento semanal (é o "Aplicar agora" do /admin).
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m core.os_updater --forcar
+Environment=DEBIAN_FRONTEND=noninteractive
+EnvironmentFile=-/home/alex/OmegaDrakon/.env
+# O ciclo pode levar vários minutos (apt full-upgrade) + reboot agendado.
+TimeoutStartSec=3600
+# O estado é lido pelo od-core (rota /admin/os-updater e /health) como alex.
+ExecStartPost=-/bin/chown alex:alex /home/alex/OmegaDrakon/data/os_updater_estado.json
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-os-updater-forcar
+
+PrivateTmp=yes

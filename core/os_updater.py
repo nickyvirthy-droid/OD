@@ -165,6 +165,59 @@ def _contar_pacotes_e_firmware(agora: float, intervalo: float) -> tuple[Optional
     return _SONDAGEM["upgradable"], _SONDAGEM["firmware"]
 
 
+#: Unit root que aplica o ciclo AGORA (ignora o agendamento). O painel dispara
+#: por `sudo -n systemctl start --no-block` — apt/dpkg exigem root, e o od-core
+#: roda como `alex` (regra do sudoers em /etc/sudoers.d/od-os-updater).
+UNIDADE_FORCAR = "od-os-updater-forcar.service"
+SYSTEMCTL = "/usr/bin/systemctl"
+
+
+def iniciar_ciclo_forcado() -> tuple[bool, str]:
+    """Pede ao systemd o ciclo forçado (root). Devolve (ok, motivo).
+
+    `--no-block` responde na hora: o ciclo é oneshot e pode durar minutos
+    (apt full-upgrade). Quem acompanha é `status_painel()`/`/health`.
+    """
+    code, out, err = _executar(
+        ["sudo", "-n", SYSTEMCTL, "start", "--no-block", UNIDADE_FORCAR],
+        timeout=30,
+    )
+    if code == 0:
+        return True, "ciclo solicitado"
+    return False, (err or out or f"exit {code}").strip()[:300]
+
+
+def unidade_em_andamento() -> bool:
+    """True enquanto a unit do ciclo forçado estiver ativa."""
+    code, out, _ = _executar(
+        [SYSTEMCTL, "is-active", "--quiet", UNIDADE_FORCAR], timeout=10
+    )
+    return code == 0 and out.strip() in ("", "active")
+
+
+def status_painel(estado_arquivo: Path = ESTADO_ARQUIVO) -> dict[str, Any]:
+    """Status barato para a rota/painel do atualizador (sem rodar o ciclo)."""
+    resumo = resumo_health(estado_arquivo)
+    estado: dict[str, Any] = {}
+    try:
+        caminho = Path(estado_arquivo)
+        if caminho.exists():
+            estado = json.loads(caminho.read_text(encoding="utf-8"))
+    except Exception:  # estado ilegível → só os campos do resumo
+        estado = {}
+    secoes = estado.get("secoes") or []
+    return {
+        **resumo,
+        "schedule": DEFAULT_SCHEDULE,
+        "day": DEFAULT_DAY,
+        "hour": DEFAULT_HOUR,
+        "ultima_tentativa": float(estado.get("ultima_tentativa", 0.0) or 0.0),
+        "secoes": secoes[-5:],
+        "unidade": UNIDADE_FORCAR,
+        "em_andamento": unidade_em_andamento(),
+    }
+
+
 def resumo_health(
     estado_arquivo: Path = ESTADO_ARQUIVO,
     *,
