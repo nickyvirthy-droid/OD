@@ -647,10 +647,14 @@ esperar o timeout.
       com `systemctl list-unit-files` e avise no `/health`/Telegram: hoje um
       timer esquecido só aparece como sintoma indireto (arquivo velho →
       `latencia` degraded).
-- [ ] **Botão "Aplicar atualizações" no painel do SO** (sugestão de 26/11) —
-      aplicar hoje é `sudo systemctl start od-os-updater.service` na mão; o
-      painel mostra os números mas não age. Como o ciclo agenda reboot em
-      +5 min, exige confirmação dupla e registro do reboot previsto.
+- [x] **Botão "Aplicar atualizações" no painel do SO** (sugestão de 26/11) —
+      **FEITO 26/11 01:47:** seção "Atualizador de SO" no `/admin` com resumo ao
+      vivo e botão com **dupla confirmação** (a segunda avisa o reboot em +5 min).
+      A aplicação vai pela unit root `od-os-updater-forcar.service` via
+      `sudo -n` restrito a esse comando (`/etc/sudoers.d/od-os-updater`,
+      `visudo -c` OK); a rota responde 202 e as 3 rotas deixaram de dar 503.
+      Prova viva: status 200 (67 pacotes/51 firmwares), dry-run 200, unit
+      `inactive` (nada aplicado por mim). `tests/test_painel_os_updater.py` 9 casos.
 - [ ] **Relatório de simulação completa do ciclo do SO** (sugestão de 26/11) —
       `--dry-run` roda o ciclo inteiro e imprime o JSON, mas não mostra o que
       cada seção faria (pacotes/firmwares por nome, reboot previsto): falta um

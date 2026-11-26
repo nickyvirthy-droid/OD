@@ -12,6 +12,53 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Botão "Aplicar atualizações" no painel do SO, com dupla confirmação (2026-11-26, sem bump)
+
+**Contexto:** o painel só **mostrava** o estado do atualizador. Aplicar era
+`sudo systemctl start od-os-updater.service` no terminal — e essa unit respeita
+o agendamento (`--executar`), então numa quinta-feira ela responde
+`acao: aguardar` e não aplica nada.
+
+**Três defeitos encontrados no caminho (medidos):**
+
+1. **As três rotas `/admin/os-updater/*` respondiam 503 desde 10/11:**
+   `APIConfig` nunca teve o campo `os_updater`. Agora a instância é criada sob
+   demanda e o status usa `status_painel()` (JSON de estado + cache da
+   sondagem), sem rodar `apt`.
+2. **O od-core roda como `alex`** — `apt full-upgrade` ali falharia (a mesma
+   causa da unit corrigida antes hoje). A aplicação real vai pela unit oneshot
+   **root** `od-os-updater-forcar.service` (`--forcar`, ignora o agendamento),
+   acionada por `sudo -n systemctl start --no-block`.
+3. **O comando tem que ser exato**, porque sudo é autorizado por comando:
+   `/etc/sudoers.d/od-os-updater` libera **só**
+   `/usr/bin/systemctl start --no-block od-os-updater-forcar.service`
+   (`visudo -c`: parsed OK; `sudo -n -l`: permitido). Nada de sudo geral sem
+   senha, e o teste `test_comando_exato_que_o_sudoers_autoriza` trava a ordem
+   dos argumentos.
+
+**Painel:** seção **"Atualizador de SO"** com o resumo ao vivo (pacotes,
+firmwares, reboot pendente, falhas, "aplicando agora…") e o botão
+**⚠ Aplicar atualizações** com **duas confirmações**: a primeira descreve o que
+será aplicado; a segunda é a final e diz, em maiúsculas, que a máquina agenda
+**REBOOT EM +5 MINUTOS**. O POST devolve **202** na hora (o ciclo pode durar
+minutos) e o botão fica desabilitado enquanto a unit estiver ativa.
+
+**Prova viva** (restart 26/11 01:47, MainPID **2430574**, `NRestarts=0`):
+`GET /admin/os-updater/status` **200** (antes 503) com 67 pacotes / 51 firmwares
+/ `precisa_reboot=true`; `POST .../executar {"dry_run": true}` **200** com
+`apt_update/apt_upgrade/fwupdmgr_update=true` e `reboot_executado=false`;
+`/admin` 200 com `id="so-aplicar"` e o texto da confirmação final; unit
+`od-os-updater-forcar.service` **inactive** (nada aplicado); journal `-p err`
+0 entradas. **O botão não foi disparado de verdade** — isso aplica 67 pacotes e
+agenda reboot, decisão do dono.
+
+**Testes:** `tests/test_painel_os_updater.py` novo com 9 casos (comando exato,
+202, 503 com detalhe, dry-run em processo, status barato, HTML com duas
+confirmações e a unit no repositório); `test_api` 215 + `test_os_updater` 53 +
+`test_rota_reboot_os_updater` seguem verdes.
+
+---
+
 ## [1.47.0] — ATUALIZADOR DE SO NO CELULAR E NO PAINEL: PACOTES, FIRMWARES, FALHAS E REBOOT PENDENTE (2026-11-26)
 
 **Bump MINOR**, versionCode **2085**. O APK 1.47.0 leva ao celular o card

@@ -1,4 +1,17 @@
 {
+  "botao_aplicar_so_2026_11_26": {
+    "pedido": "Dono (26/11 ~01:40): 'Coloque um botao Aplicar atualizacoes no painel do atualizador de SO com confirmacao dupla'.",
+    "defeitos_achados": "(1) As 3 rotas /admin/os-updater/* respondiam 503 desde 10/11 porque APIConfig nunca teve o campo os_updater; agora a instancia e criada sob demanda e o status usa status_painel() (estado + cache da sondagem, sem apt). (2) O od-core roda como alex, entao apt full-upgrade ali falharia: a aplicacao real vai pela unit oneshot root od-os-updater-forcar.service (--forcar) por 'sudo -n /usr/bin/systemctl start --no-block'. (3) A unit do timer roda --executar e numa quinta responde acao=aguardar, logo nao serve para o botao.",
+    "sudoers": "/etc/sudoers.d/od-os-updater (fora do git): alex ALL=(root) NOPASSWD SOMENTE /usr/bin/systemctl start --no-block od-os-updater-forcar.service. visudo -c parsed OK; 'sudo -n -l <comando>' permitido sem executar. Nada de sudo geral sem senha.",
+    "painel": "Secao 'Atualizador de SO' no /admin: resumo ao vivo (pacotes, firmwares, reboot pendente, falhas, aplicando agora/parado) e botao 'Aplicar atualizacoes' com DUAS confirmacoes (a 2a avisa REBOOT EM +5 MINUTOS). POST devolve 202 e o botao fica desabilitado enquanto a unit estiver ativa.",
+    "prova_viva": "restart 26/11 01:47 — MainPID 2430574, NRestarts=0; GET /admin/os-updater/status 200 (antes 503) com 67 pacotes/51 firmwares/precisa_reboot=true/em_andamento=false; POST .../executar {dry_run:true} 200 com apt_update/apt_upgrade/fwupdmgr_update=true e reboot_executado=false; /admin 200 com id='so-aplicar' e o texto da confirmacao final; od-os-updater-forcar.service inactive; journal -p err 0.",
+    "nao_disparado": "O botao NAO foi acionado de verdade (aplicaria 67 pacotes e agendaria reboot) — decisao do dono.",
+    "testes": "tests/test_painel_os_updater.py (novo, 9 casos) + test_api 215 + test_os_updater 53 + test_rota_reboot_os_updater; 'test_api + test_painel' 224 passed.",
+    "commit": "596066e publicado em origin/master.",
+    "sem_bump": "1.47.0+2085 (servidor/painel; contrato do app intacto).",
+    "arquivos": "systemd/od-os-updater-forcar.service (novo), core/os_updater.py, integrations/api/server.py, tests/test_painel_os_updater.py (novo), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§5), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T01:58:00-03:00"
+  },
   "release_1_47_0_2026_11_26": {
     "pedido": "Dono (26/11 ~01:05): 'Publique o APK com o card do atualizador de SO, fazendo o bump SemVer e o checklist de release'.",
     "bump": "MINOR 1.46.1 -> 1.47.0, versionCode 2084 -> 2085, nas 8 fontes do docs/VERSIONAMENTO.md §5: .env OD_VERSION, fallback em core/capabilities.py, app/pubspec.yaml, _APP_VERSION_CODE, site/index.html (badge/card/download), site/historico.html (80 lancamentos, linha de 26 nov, Era 9 com 14 releases), docs/CHANGELOG.md e docs/README_VERSAO.md com secao [1.47.0].",
@@ -6751,6 +6764,15 @@
       "commit": "604c2de",
       "branch": "master",
       "iniciado_em": "2026-11-26T01:16:11-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2430574,
+      "commit": "596066e",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T01:36:30-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

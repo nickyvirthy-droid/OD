@@ -229,3 +229,57 @@ também estava sem instalar — arquivo velho = degraded permanente. Instalado c
 
 Reboot pendente da máquina (67 pacotes + 51 firmwares) — aplicar é decisão do
 dono; o card no app agora mostra isso na aba Status.
+
+## §5 — Botão "Aplicar atualizações" no painel do SO (26/11 ~01:55)
+
+**Dono:** *"Coloque um botão 'Aplicar atualizações' no painel do atualizador de
+SO com confirmação dupla"*.
+
+### O que estava por baixo (medido)
+
+1. **As 3 rotas `/admin/os-updater/*` davam 503 desde 10/11:** `APIConfig`
+   nunca teve o campo `os_updater`. Agora a instância é criada sob demanda e o
+   status usa `status_painel()` (estado + cache da sondagem, sem `apt`).
+2. **O od-core roda como `alex`** → `apt full-upgrade` ali falharia. A aplicação
+   real vai pela unit oneshot **root** `od-os-updater-forcar.service`
+   (`--forcar`, ignora o agendamento) por `sudo -n systemctl start --no-block`.
+   A unit `od-os-updater.service` do timer roda `--executar` e numa quinta-feira
+   responde `acao: aguardar` — não serve para o botão.
+3. **Sudo por comando exato:** `/etc/sudoers.d/od-os-updater` libera somente
+   `/usr/bin/systemctl start --no-block od-os-updater-forcar.service`.
+   `visudo -c` → parsed OK; `sudo -n -l <comando>` → permitido, **sem executar**.
+   Não existe sudo geral sem senha. Teste `test_comando_exato_que_o_sudoers_autoriza`
+   trava a ordem dos argumentos (mudar um quebra o botão em silêncio).
+
+### Painel
+
+Seção **"Atualizador de SO"** depois do Vigia: resumo ao vivo (`67 pacotes ·
+51 firmwares · reboot pendente · sem falhas · parado`) e o botão **⚠ Aplicar
+atualizações**. **Duas confirmações:** a 1ª descreve o que será aplicado; a 2ª é
+a final e diz em maiúsculas que a máquina agenda **REBOOT EM +5 MINUTOS**. O
+POST devolve **202** (ciclo oneshot pode durar minutos) e o botão fica
+desabilitado enquanto a unit estiver ativa (`em_andamento`).
+
+### Prova viva (restart 01:47, MainPID 2430574, NRestarts=0)
+
+- `GET /admin/os-updater/status` → **200** (antes 503): 67 pacotes, 51 firmwares,
+  `precisa_reboot=true`, `em_andamento=false`.
+- `POST /admin/os-updater/executar {"dry_run": true}` → **200** com
+  `apt_update/apt_upgrade/fwupdmgr_update=true`, `reboot_executado=false`.
+- `/admin` → 200 com `id="so-aplicar"` e o texto da confirmação final.
+- `od-os-updater-forcar.service` → **inactive** (nada aplicado), journal
+  `-p err`: 0 entradas.
+- **O botão não foi disparado de verdade** — é o que aplica 67 pacotes e agenda
+  reboot; a decisão continua com o dono.
+
+### Testes
+
+`tests/test_painel_os_updater.py` (novo, 9 casos): comando exato do sudoers,
+202 no sucesso, 503 com detalhe na falha de sudo, dry-run em processo, status
+barato, HTML com botão + exatamente duas confirmações, e a unit no repositório
+com `--forcar`. `test_api` 224 verdes na bateria (215 + 9) e
+`test_rota_reboot_os_updater` + `test_os_updater` (53) verdes.
+
+### Sem bump
+
+`1.47.0+2085` (só servidor/painel; contrato do app intacto).

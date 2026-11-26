@@ -9,6 +9,43 @@
 
 ---
 
+## 26/11/2026 — Botão "Aplicar atualizações" no painel do SO
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Coloque um botão 'Aplicar
+atualizações' no painel do atualizador de SO com confirmação dupla"*).
+
+### Criados
+
+- `systemd/od-os-updater-forcar.service` — oneshot root com `--forcar`
+  (ignora o agendamento; é o que o botão dispara).
+- `tests/test_painel_os_updater.py` — 9 casos.
+- `/etc/sudoers.d/od-os-updater` (fora do git) — NOPASSWD **só** para
+  `/usr/bin/systemctl start --no-block od-os-updater-forcar.service`;
+  validado com `visudo -c`.
+
+### Modificados
+
+- `core/os_updater.py` — `iniciar_ciclo_forcado()`, `unidade_em_andamento()`,
+  `status_painel()` e `UNIDADE_FORCAR`.
+- `integrations/api/server.py` — seção "Atualizador de SO" no `/admin` (botão +
+  duas confirmações, `soLoad`/`soAplicar`), rota `executar` → 202 via systemd
+  (dry-run segue em processo), status barato e `_os_updater_or_503` sem 503.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§5),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** as 3 rotas deixaram de dar 503; status 200 com 67
+pacotes/51 firmwares; dry-run 200; `/admin` com o botão e o aviso de reboot;
+unit `inactive` (nada aplicado); sudo validado por `sudo -n -l` **sem
+executar**; journal `-p err` 0. Testes: 224 (api + painel) + 53 (os_updater) +
+3 (rota reboot). Commit `596066e`.
+
+**Pela metade / próximo passo:** o botão **não foi disparado de verdade**
+(aplicaria 67 pacotes e agendaria reboot) — fica para o dono decidir. Sem bump
+(`1.47.0+2085`, servidor/painel).
+
 ## 26/11/2026 — Release 1.47.0 (APK com o card do atualizador de SO)
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Publique o APK com o card do
