@@ -123,7 +123,7 @@ registro):
 | 14 | OTel Collector + Grafana + alertas | SDK já exporta; falta só a infra e onde hospedar. |
 | 15 | R5 Eval framework no CI | Ganha valor junto do item 5 (comparar antes/depois sem palpite). |
 | 16 | RAG: cache de embedding de documento | Ganho local, sem risco. |
-| 17 | Mapas: rótulos não-latinos e zoom 15 urbano | Só se o uso pedir. |
+| 17 | Mapas: rótulos não-latinos e zoom 15 urbano | Rótulos não-latinos **embutidos 26/11** (hebraico, árabe, siríaco, devanagari, tailandês, vietnamita, pontuação; CJK/hangul não existem na fonte Protomaps). z15: só com demanda medida. |
 | 18 | IA local: reteste do 7B Q3_K_M / `-c 4096` | Depende de RAM livre; 60 s × 16 s hoje. |
 | 19 | Espelho: restauração real (venv limpo + container) | Prova de boot offline do espelho. |
 | 20 | NV (DAG/scheduler, security layer) e dados do Orion | Referência arquivada; **sem demanda medida** — não portar. |
@@ -596,7 +596,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 5 | Comparador de modelos lado a lado (P1 nº 8) | ✅ 26/11 08:5x — `/admin/comparador/*` + seção no painel; provado ao vivo em 3 modelos (0,56 s / 2,63 s / 18,6 s, parede = o mais lento) |
 | 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | ✅ 26/11 — `docs/NV_DAG_SCHEDULER_REFERENCE.md` (13/11) + `docs/SECURITY_LAYER_ARCHITECTURE.md` novo, com o mapeamento de cada camada no OD |
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | ✅ 26/11 — originais já fora do servidor (zip na HD); leitura do Orion documentada em `docs/PROJETI_REFERENCIA.md`; trilha de backups do APK medida, 1.47.0 arquivado e passo de `aapt` no checklist |
-| 8 | Mapas offline (próximo do inventário) | pendente |
+| 8 | Mapas offline (próximo do inventário) | ✅ 26/11 — 8 faixas de glifos não-latinos embutidas (+648 KB, 11 testes); CJK/hangul e z15 medidos e fechados por falta de demanda (`docs/MAPAS_OFFLINE.md`) |
 | 9 | Modo colapso declarado | pendente |
 | 10 | Espelho com restauração real (precisa execução e prova) | pendente |
 | 11 | Janela de aplicação do SO com prova de retorno | ✅ 26/11 02:36 — 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, `od-pos-reboot` avisou no Telegram, kernel 6.8.0-151, `reboot pendente: não` |
@@ -1353,8 +1353,16 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       1–3 GB, medir antes) e colocar em `site/maps/brasil.pmtiles` — **FEITO
       12/11: 2,9 GB, zoom 0–14, bbox do Brasil; libs e glifos latinos em
       `site/vendor/`, detecção por Range (HEAD responde 501). Fora do git.**
-- [ ] **Mapas offline (próximo):** incluir rótulos não-latinos (só latin 0–1279
-      foi embutido) e considerar zoom 15 em áreas urbanas se o uso pedir
+- [x] **Mapas offline (próximo)** — **FEITO 26/11:** 8 faixas de glifos
+      embutidas (+648 KB): hebraico, árabe, siríaco, devanagari, tailandês,
+      vietnamita (latim ext. add.), pontuação geral e pontuação CJK. A amostra
+      de 200 MB dos tiles (25.675 tiles) provou os scripts presentes; CJK e
+      hangul **não existem** na fonte Noto Sans Regular da Protomaps (PBF de
+      29 B) e precisariam de outra fontstack — documentado, sem demanda.
+      Zoom 15: o arquivo é z0–14 e acima disso o MapLibre faz overzoom; ir a
+      15 exige nova extração (~4× os tiles do último zoom, ordem de +2,5–3 GB)
+      e não há uso medido. Números, limites e critério para reabrir em
+      `docs/MAPAS_OFFLINE.md`; `tests/test_mapa_glyphs.py` 11 casos.
 - [ ] **Backup fora da máquina:** SSD/pendrive criptografado com snapshot do
       Postgres + `data/` + cofre exportado; testar a restauração
 - [x] **Backup do Postgres (dump automático):** hoje **nenhum** `pg_dump`

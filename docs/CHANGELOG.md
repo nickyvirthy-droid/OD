@@ -12,6 +12,48 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Mapas offline: glifos não-latinos embutidos e limites medidos (2026-11-26, sem bump)
+
+**Contexto:** o mapa offline (`site/maps/brasil.pmtiles`, 2,87 GiB, PMTiles v3,
+MVT/gzip, **z0–14**, bbox do Brasil) só tinha os blocos de glifos **0–1279**
+(latim, grego, cirílico), embora os tiles carreguem `name:ar`, `name:he`,
+`name:hi`, `name:ja`, `name:ko`.
+
+**Medido antes de mexer:** amostra de 200 MB da seção de tiles (25.675
+tiles descomprimidos) encontrou árabe (175.848 ocorrências), hebraico
+(169.215), siríaco (147.075), pontuação CJK/kana (22.022), devanagari
+(16.882) — e CJK/hangul nos campos `name:*`.
+
+**Feito:** 8 faixas novas em `site/vendor/fonts/Noto Sans Regular/`
+(+648 KB): 1280–1535 (hebraico), 1536–1791 (árabe), 1792–2047 (siríaco),
+2304–2559 (devanagari), 3584–3839 (tailandês), 7680–7935 (vietnamita),
+8192–8447 (pontuação) e 12288–12543 (pontuação CJK). Origem verificada: o
+`0-255.pbf` que já existia tem o **mesmo sha256** do asset público da
+Protomaps.
+
+**Limites medidos (e por que param aqui):**
+
+- **CJK/hangul não existem nesta fonte** — o servidor devolve um PBF de
+  **29 bytes** (stub) para `19968+` e `44032+`, e a faixa de kana tem só 23
+  glifos de pontuação. Kanji/hangul continuariam tofu; exigiriam outra
+  fontstack (Noto Sans CJK) e mudança de estilo, sem demanda (o estilo
+  mostra `name`, em português).
+- **Zoom 15 não existe no arquivo**; acima de 14 o MapLibre faz overzoom.
+  Ir a 15 é nova extração (~4× os tiles do último zoom, ordem de
+  +2,5–3 GB) — só com uso medido.
+
+**Verificação:** `tests/test_mapa_glyphs.py` **11 passed** — leitor PBF
+próprio (sem dependência): cada faixa existe, não é stub, declara a faixa
+certa e cobre amostras de cada script (hebraico, árabe, siríaco,
+devanagari, tailandês, vietnamita, travessões); o estilo aponta para o
+template `/site/vendor/fonts/{fontstack}/{range}.pbf` com "Noto Sans
+Regular". Prova viva pelo servidor: `1280-1535` → 200/84.434 B,
+`1536-1791` → 200/110.716 B, `7680-7935` → 200/135.449 B; página 200. Gate
+do RAG híbrido (texto novo em `docs/`): **8/8 · 0/8 · 6/6**, idêntico ao
+baseline. Dossiê com todos os números em `docs/MAPAS_OFFLINE.md`.
+
+---
+
 ## Projeti fechado: referência do Orion e furo na trilha de backups do APK (2026-11-26, sem bump)
 
 **Contexto:** o item 7 da fila pedia `google-services.json`, o APK órfão de

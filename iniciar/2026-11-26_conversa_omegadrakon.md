@@ -825,3 +825,57 @@ lugar nenhum do servidor.
 ### Bump
 
 Nenhum (`1.47.0+2085`).
+
+---
+
+## §18 — Fila item 8: mapas offline (26/11 ~10:15)
+
+**Dono:** *"Siga para o item 8 da fila: mapas offline próximos do inventário"*
+(o checkbox "Mapas offline (próximo): rótulos não-latinos e zoom 15").
+
+### Medições antes de mexer
+
+- Cabeçalho do `site/maps/brasil.pmtiles`: PMTiles v3, MVT/gzip,
+  **3.079.554.972 B (2,87 GiB)**, **z0–14**, bbox do Brasil, **4.842.245**
+  tiles endereçados.
+- Amostra de **200 MB** da seção de tiles (**25.675** tiles descomprimidos):
+  árabe 175.848 ocorrências, hebraico 169.215, siríaco 147.075,
+  pontuação CJK/kana 22.022, devanagari 16.882 — os campos `name:*` existem
+  nos tiles (ex.: "南極海", "남극해").
+- Glifos embutidos: só os 5 blocos **0–1279**.
+- Fonte de origem identificada por sha256: assets públicos da Protomaps
+  (`basemaps-assets`).
+
+### Feito
+
+- 8 faixas novas em `site/vendor/fonts/Noto Sans Regular/` (**+648 KB**):
+  hebraico, árabe, siríaco, devanagari, tailandês, vietnamita (latim ext.
+  add.), pontuação geral e pontuação CJK.
+- `tests/test_mapa_glyphs.py` (11 casos): leitor PBF mínimo, sem dependência
+  nova — cada faixa existe, não é stub de 29 B, declara a faixa certa e tem
+  amostra de cada script; o template do estilo e a fontstack batem com a
+  pasta.
+- `docs/MAPAS_OFFLINE.md`: números do arquivo, scripts medidos, tabela de
+  glifos, **limites** (CJK/hangul não existem na fonte; z15 é nova extração
+  de ~+2,5–3 GB) e o critério para reabrir.
+
+### Limites declarados
+
+- **CJK/hangul continuam sem glifo**: a Protomaps devolve PBF de 29 B para
+  19968+ e 44032+, e a faixa de kana tem só pontuação. Exigiria outra
+  fontstack e mudança de estilo; sem demanda (o estilo mostra `name`).
+- **Zoom 15**: acima de 14 o MapLibre faz overzoom; subir de verdade é nova
+  extração — só com uso medido.
+
+### Verificação
+
+- `tests/test_mapa_glyphs.py`: **11 passed**.
+- Prova viva (pelo servidor, sem restart): `1280-1535` → 200/84.434 B,
+  `1536-1791` → 200/110.716 B, `7680-7935` → 200/135.449 B; página 200.
+- Gate do RAG híbrido (texto novo em `docs/`): **8/8 relevantes · 0/8
+  irrelevantes · 6/6 paráfrases**, idêntico ao baseline.
+- Nenhum `.py` de produção alterado: sem gate completo e sem restart.
+
+### Bump
+
+Nenhum (`1.47.0+2085`).

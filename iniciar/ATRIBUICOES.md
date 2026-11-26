@@ -9,6 +9,36 @@
 
 ---
 
+## 26/11/2026 — Mapas offline: glifos não-latinos embutidos (fila item 8)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 8 da fila:
+mapas offline próximos do inventário"*).
+
+### Criados
+
+- `docs/MAPAS_OFFLINE.md` — números do `.pmtiles`, scripts medidos nos tiles,
+  tabela de glifos, limites (CJK/hangul, z15) e critério para reabrir.
+- `tests/test_mapa_glyphs.py` — 11 casos com leitor PBF próprio.
+- 8 faixas de glifos em `site/vendor/fonts/Noto Sans Regular/` (+648 KB):
+  1280–1535, 1536–1791, 1792–2047, 2304–2559, 3584–3839, 7680–7935,
+  8192–8447 e 12288–12543.
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (item 8 da fila ✅,
+  P2 nº 17 e o checkbox dos mapas), `iniciar/2026-11-26_conversa_omegadrakon.md`
+  (§18), `iniciar/session.json`, `txt.txt`.
+
+### Intenção e estado
+
+Fechar o “rótulo não-latino” com medição em vez de achismo: os campos
+`name:*` existem nos tiles, os glifos que a fonte realmente tem foram
+embutidos e o que a fonte não tem (CJK/hangul) ficou nomeado como limite,
+tal como o z15. Sem mudança de estilo (o mapa segue mostrando `name`), sem
+restart. `1.47.0+2085`.
+
+---
+
 ## 26/11/2026 — Projeti fechado: referência do Orion + trilha de APK (fila item 7)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 7 da fila:

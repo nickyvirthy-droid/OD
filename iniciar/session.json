@@ -1,4 +1,15 @@
 {
+  "mapas_glifos_2026_11_26": {
+    "pedido": "Dono (26/11 ~10:0x): 'Siga para o item 8 da fila: mapas offline proximos do inventario' (checkbox 'Mapas offline (proximo): rotulos nao-latinos e zoom 15').",
+    "medido": "site/maps/brasil.pmtiles: PMTiles v3, MVT/gzip, 3.079.554.972 B (2,87 GiB), z0-14, bbox do Brasil, 4.842.245 tiles enderecados. Amostra de 200 MB da secao de tiles (25.675 tiles descomprimidos): arabe 175.848 ocorrencias, hebraico 169.215, siríaco 147.075, pontuacao CJK/kana 22.022, devanagari 16.882; campos name:* existem nos tiles. Glifos embutidos antes: so 0-1279. Fonte de origem provada por sha256: assets publicos da Protomaps (basemaps-assets).",
+    "feito": "8 faixas novas em site/vendor/fonts/Noto Sans Regular (+648 KB): 1280-1535 hebraico, 1536-1791 arabe, 1792-2047 siríaco, 2304-2559 devanagari, 3584-3839 tailandes, 7680-7935 vietnamita, 8192-8447 pontuacao, 12288-12543 pontuacao CJK. tests/test_mapa_glyphs.py (11 casos, leitor PBF proprio sem dependencia nova) valida existencia, ausencia de stub de 29 B, faixa declarada, amostras de cada script e o template/fontstack do estilo. docs/MAPAS_OFFLINE.md com numeros, limites e criterio para reabrir.",
+    "limites": "CJK/hangul nao existem na fonte (Protomaps devolve PBF de 29 B para 19968+ e 44032+; kana tem so pontuacao) - exigiria outra fontstack e mudanca de estilo, sem demanda. Zoom 15 nao existe no arquivo (z0-14; acima disso o MapLibre faz overzoom); subir de verdade e nova extracao (~4x os tiles do ultimo zoom, ordem de +2,5-3 GB). Estilo segue mostrando name (portugues).",
+    "verificacao": "tests/test_mapa_glyphs.py 11 passed. Prova viva pelo servidor sem restart: 1280-1535 -> 200/84.434 B, 1536-1791 -> 200/110.716 B, 7680-7935 -> 200/135.449 B; pagina 200. Gate do RAG hibrido (texto novo em docs/): 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, identico ao baseline. Nenhum .py de producao alterado: sem gate completo e sem restart.",
+    "sem_bump": "1.47.0+2085.",
+    "arquivos": "docs/MAPAS_OFFLINE.md (novo), tests/test_mapa_glyphs.py (novo), site/vendor/fonts/Noto Sans Regular/*.pbf (8 novos), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS18), txt.txt.",
+    "proximo": "Item 9 da fila: modo colapso declarado.",
+    "updated_at": "2026-11-26T10:15:00-03:00"
+  },
   "projeti_referencia_2026_11_26": {
     "pedido": "Dono (26/11 ~09:4x): 'Siga para o item 7 da fila: Projeti (google-services.json, APK de 51 MB x backups, leitura do Orion)'.",
     "estado_encontrado": "analise/Projeti ja esvaziada em 13/11 (zip na HD do dono); no servidor so data/refs_todo/Projeti/Cod (10 arquivos, 200 KB, gitignored). google-services.json oficial em app/android/app com sha256 5e64634c... (o mesmo da copia de Projeti).",
