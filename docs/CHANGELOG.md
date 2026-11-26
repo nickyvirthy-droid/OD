@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## [1.47.0] — ATUALIZADOR DE SO NO CELULAR E NO PAINEL: PACOTES, FIRMWARES, FALHAS E REBOOT PENDENTE (2026-11-26)
+
+**Bump MINOR**, versionCode **2085**. O APK 1.47.0 leva ao celular o card
+"Atualizador de SO" da aba Status (Pacotes, Firmwares, Falhas do ciclo,
+Reboot pendente, Kernel) e a correção que pinta em **laranja** os checks
+`degraded` — antes o reboot pendente aparecia com o mesmo verde de um
+componente saudável.
+
+O servidor já estava no ar desde a madrugada (seções datadas abaixo, na
+ordem em que foram entregues):
+
+1. **Timer do atualizador instalado** com `sudo` liberado pelo dono —
+   `od-os-updater.timer` enabled + active (domingos 03:00) e dois defeitos
+   medidos e corrigidos: a unit não escreveria em 5/5 caminhos do
+   apt/dpkg/fwupd e a CLI não passava o notificador (ciclo mudo).
+2. **Check `os_updater` no `/health`** (não-crítico): pacotes, firmwares,
+   falhas do ciclo, reboot pendente e kernel; sondagem com cache de 30 min
+   (`apt list` = 0,54 s medidos).
+3. **Painel e app**: bloco estruturado `os_updater` no `/health`, card
+   "Sistema (SO)" no `/admin` e card próprio na aba Status do app.
+
+**Testes:** Python 52 (`test_os_updater`) + 215 (`test_api`) + 39
+(health/launcher) + 125 (`test_rag`); Flutter `analyze` limpo e **267
+passed / 2 skipped**. Bateria final do release no fim desta seção.
+
+---
+
 ## Atualizador de SO visível no painel e na aba Status do app (2026-11-26, sem bump)
 
 **Contexto:** o check `os_updater` só existia como uma linha de texto no

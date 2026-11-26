@@ -65,7 +65,7 @@ from core.dev_canal import ideia_ja_implementada
 # celular do dono está na linhagem arm64 (2016). Um code abaixo disso é
 # downgrade e o instalador recusa ("pacote parece ser inválido").
 # O versionName (X.Y.Z) é o OD_VERSION — vem do core.capabilities.
-_APP_VERSION_CODE = 2084  # versionCode cru do APK publicado (v1.46.1+2084)
+_APP_VERSION_CODE = 2085  # versionCode cru do APK publicado (v1.47.0+2085)
 
 # Cache dos metadados do APK (F3, 2026-11-10): o handler de /app/version
 # relia e re-hashava ~70 MB a CADA chamada (p50 medido: 174 ms; 20 req/s com

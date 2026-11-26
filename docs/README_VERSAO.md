@@ -7,6 +7,53 @@
 > uma seção aqui ANTES de ser publicada no GitHub.
 > **Assinatura:** `OD // CORE`
 
+## [1.47.0] — ATUALIZADOR DE SO NO CELULAR E NO PAINEL: PACOTES, FIRMWARES, FALHAS E REBOOT PENDENTE 🜂 (2026-11-26)
+
+**Bump MINOR** (capacidade nova compatível), versionCode **2085**.
+
+### 1. Pedido
+
+*"existem atualizações do sistema operacional, OD possui algum action ou
+ ferramenta para resolver isso"* → depois *"Coloque o estado do atualizador de
+SO (reboot pendente, pacotes, falhas) como check no /health"* → *"Mostre o check
+os_updater no painel /admin e na aba do app que já lê o /health"* → *"Publique o
+APK com o card do atualizador de SO, fazendo o bump SemVer e o checklist de
+release"*.
+
+### 2. O que entrou
+
+- **Timer do atualizador no ar** (26/11): `od-os-updater.timer` instalado,
+  `enabled + active`, domingos 03:00 (+30 min aleatórios). A unit não
+  atualizaria nada (`User=alex` + `ProtectSystem=strict`: 5/5 caminhos do
+  apt/dpkg/fwupd sem escrita) e o ciclo rodaria em silêncio (a CLI não passava
+  o notificador) — os dois defeitos foram medidos e corrigidos.
+- **`/health`**: check `os_updater` (não-crítico, reboot pendente = `degraded`)
+  e bloco estruturado com `upgradable`, `firmware_upgrades`,
+  `falhas_consecutivas`, `precisa_reboot` e `kernel`.
+- **Painel `/admin`**: card "Sistema (SO)" → `67 pac · 51 fw · reboot
+  pendente`, vermelho quando o ciclo falha, `—` quando o bloco não vem.
+- **App (aba Status)**: card "Atualizador de SO" com Pacotes, Firmwares,
+  Falhas do ciclo, Reboot pendente e Kernel; checks `degraded` agora em
+  **laranja** (antes o reboot pendente aparecia com o mesmo verde de um
+  componente saudável).
+
+### 3. Testes
+
+- Python: `test_os_updater` 52, `test_api` 215 (inclui o bloco no `/health` e
+  o harness node de `visaoCards`), `test_health` + `test_launcher_health_external`
+  39, `test_rag` 125 (piso do híbrido segue verde).
+- Flutter: `analyze` 0 issues; `flutter test` **267 passed / 2 skipped**
+  (novo `app/test/status_screen_test.dart`).
+
+### 4. Versão
+
+- `.env` `OD_VERSION=1.47.0`; fallback em `core/capabilities.py`;
+  `app/pubspec.yaml` `1.47.0+2085`; `_APP_VERSION_CODE = 2085`;
+  `site/index.html` (badge, card e versionCode);
+  `site/historico.html` (80 lançamentos, Era 9 com 14 releases).
+- APKs publicados em `site/` (completo e arm64), com sha256 registrado no
+  `GET /app/version`.
+
 ## [1.46.1] — VIGIA DA REDE NO APP: RECONHECER OU BLOQUEAR NA TELA DO ALERTA 🜂 (2026-11-19)
 
 **Bump PATCH** (correção/entrega de app compatível), versionCode **2084**.
