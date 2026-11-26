@@ -1147,3 +1147,108 @@ def test_dry_run_nao_notifica(monkeypatch, tmp_path) -> None:
     )
     updater._notificar("🔧 OSUpdater", "não deveria sair")
     assert enviados == []
+
+
+# ---------------------------------------------------------------------------
+# Check `os_updater` no /health (26/11: reboot pendente, pacotes, falhas)
+# ---------------------------------------------------------------------------
+
+
+class _MonitorFalso:
+    def __init__(self) -> None:
+        self.checks: dict[str, object] = {}
+        self.critical: dict[str, bool] = {}
+
+    def register(self, nome, check, *, critical=True):
+        self.checks[nome] = check
+        self.critical[nome] = critical
+
+
+def _resumo(**over) -> dict:
+    base = {
+        "precisa_reboot": False,
+        "pendente_reboot": False,
+        "upgradable": 67,
+        "firmware_upgrades": 51,
+        "falhas_consecutivas": 0,
+        "sucessos_consecutivos": 3,
+        "ultima_execucao": 1794273354.0,
+        "kernel": "6.8.0-147-generic",
+    }
+    base.update(over)
+    return base
+
+
+def test_resumo_health_le_estado_sem_rodar_apt(monkeypatch, tmp_path) -> None:
+    """Lê o JSON do ciclo e reaproveita o cache; sem estado → zeros honestos."""
+    from runtime.launcher import register_os_updater_health
+
+    monkeypatch.setattr(os_updater, "_precisa_reboot", lambda: True)
+    monkeypatch.setattr(
+        os_updater, "_contar_pacotes_e_firmware", lambda agora, intervalo: (67, 51)
+    )
+    monkeypatch.setattr(os_updater, "_kernel_atual", lambda: "6.8.0-147-generic")
+    estado = tmp_path / "estado.json"
+    estado.write_text(
+        json.dumps({"falhas_consecutivas": 2, "sucessos_consecutivos": 0,
+                    "pendente_reboot": True, "ultima_execucao": 123.0}),
+        encoding="utf-8",
+    )
+    s = os_updater.resumo_health(estado)
+    assert s["precisa_reboot"] is True
+    assert s["pendente_reboot"] is True
+    assert s["upgradable"] == 67 and s["firmware_upgrades"] == 51
+    assert s["falhas_consecutivas"] == 2
+    assert s["ultima_execucao"] == 123.0
+
+    vazio = os_updater.resumo_health(tmp_path / "nao_existe.json")
+    assert vazio["falhas_consecutivas"] == 0 and vazio["pendente_reboot"] is False
+
+    monitor = _MonitorFalso()
+    register_os_updater_health(monitor)
+    assert "os_updater" in monitor.checks
+    assert monitor.critical["os_updater"] is False
+
+
+def test_check_os_updater_degradado_por_reboot_pendente(monkeypatch) -> None:
+    """Reboot pendente não é 'down': ok=True com status degraded e números no detalhe."""
+    from runtime import launcher
+
+    monkeypatch.setattr(
+        os_updater, "resumo_health", lambda *a, **k: _resumo(precisa_reboot=True)
+    )
+    monitor = _MonitorFalso()
+    launcher.register_os_updater_health(monitor)
+    r = monitor.checks["os_updater"](monitor)
+    assert r["ok"] is True and r["status"] == "degraded"
+    assert "pacotes=67" in r["detail"] and "firmwares=51" in r["detail"]
+    assert "reboot pendente" in r["detail"]
+
+
+def test_check_os_updater_falha_do_ciclo_e_estado_limpo(monkeypatch) -> None:
+    """Falhas consecutivas → ok=False/degraded; tudo limpo → up com os números."""
+    from runtime import launcher
+
+    monitor = _MonitorFalso()
+    launcher.register_os_updater_health(monitor)
+    check = monitor.checks["os_updater"]
+
+    monkeypatch.setattr(
+        os_updater,
+        "resumo_health",
+        lambda *a, **k: _resumo(falhas_consecutivas=2),
+    )
+    r = check(monitor)
+    assert r["ok"] is False and r["status"] == "degraded"
+    assert "2 ciclo(s) com falha" in r["detail"]
+
+    monkeypatch.setattr(os_updater, "resumo_health", lambda *a, **k: _resumo())
+    r = check(monitor)
+    assert r == {
+        "ok": True,
+        "status": "up",
+        "detail": (
+            "pacotes=67 firmwares=51 falhas=0 reboot_pendente=nao "
+            "kernel=6.8.0-147-generic"
+        ),
+    }

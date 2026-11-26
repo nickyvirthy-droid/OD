@@ -113,6 +113,63 @@ def _precisa_reboot() -> bool:
     return Path("/var/run/reboot-required").exists()
 
 
+# Cache da sondagem de pacotes/firmware usada pelo /health. `apt list` custa
+# ~0,55 s medidos nesta máquina — barato, mas o /health roda a cada 8 s; a
+# sondagem vale por 30 min e o valor anterior é reaproveitado em falha.
+INTERVALO_SONDAGEM_S = 1800.0
+_SONDAGEM: dict[str, Any] = {"ts": 0.0, "upgradable": None, "firmware": None}
+
+
+def _contar_pacotes_e_firmware(agora: float, intervalo: float) -> tuple[Optional[int], Optional[int]]:
+    """Conta pacotes/firmwares com cache em memória (nunca levanta exceção)."""
+    if _SONDAGEM["upgradable"] is not None and agora - float(_SONDAGEM["ts"]) < intervalo:
+        return _SONDAGEM["upgradable"], _SONDAGEM["firmware"]
+    try:
+        code, out, _ = _executar(["apt", "list", "--upgradable"], timeout=60)
+        if code == 0:
+            _SONDAGEM["upgradable"] = len(_apt_lista_upgradable())
+        code, out, _ = _executar(["fwupdmgr", "get-upgrades"], timeout=60)
+        if code == 0:
+            _SONDAGEM["firmware"] = len(_fwupdmgr_upgrades())
+        _SONDAGEM["ts"] = agora
+    except Exception as exc:  # sonda é enfeite: o check não pode cair por ela
+        log.debug("OSUpdater: sondagem de pacotes falhou", erro=str(exc)[:120])
+    return _SONDAGEM["upgradable"], _SONDAGEM["firmware"]
+
+
+def resumo_health(
+    estado_arquivo: Path = ESTADO_ARQUIVO,
+    *,
+    agora: Optional[float] = None,
+    intervalo_sondagem: float = INTERVALO_SONDAGEM_S,
+) -> dict[str, Any]:
+    """Resumo do atualizador para o check `os_updater` do /health.
+
+    Barato de propósito: lê o JSON de estado (sem apt/fwupdmgr por chamada —
+    a contagem tem cache de `intervalo_sondagem`) e o flag de reboot. Nunca
+    levanta exceção: estado ausente/ilegível vira zeros honestos.
+    """
+    agora = time.time() if agora is None else agora
+    estado: dict[str, Any] = {}
+    try:
+        caminho = Path(estado_arquivo)
+        if caminho.exists():
+            estado = json.loads(caminho.read_text(encoding="utf-8"))
+    except Exception as exc:  # estado corrompido não derruba o /health
+        log.warn("OSUpdater: estado ilegível no /health", erro=str(exc)[:120])
+    upgradable, firmware = _contar_pacotes_e_firmware(agora, intervalo_sondagem)
+    return {
+        "precisa_reboot": _precisa_reboot(),
+        "pendente_reboot": bool(estado.get("pendente_reboot", False)),
+        "upgradable": upgradable,
+        "firmware_upgrades": firmware,
+        "falhas_consecutivas": int(estado.get("falhas_consecutivas", 0) or 0),
+        "sucessos_consecutivos": int(estado.get("sucessos_consecutivos", 0) or 0),
+        "ultima_execucao": float(estado.get("ultima_execucao", 0.0) or 0.0),
+        "kernel": _kernel_atual(),
+    }
+
+
 def _env(clave: str) -> str:
     """Lê do ambiente e, se faltar (execução manual), do .env do projeto."""
     valor = (os.environ.get(clave) or "").strip()

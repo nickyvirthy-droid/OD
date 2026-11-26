@@ -1375,6 +1375,51 @@ def register_task_queue_health(monitor: Any, task_queue: Any) -> None:
     monitor.register("task_queue", _check_task_queue, critical=False)
 
 
+def register_os_updater_health(monitor: Any) -> None:
+    """Check `os_updater` (26/11): reboot pendente, pacotes e falhas do ciclo.
+
+    Não-crítico, como os outros componentes operacionais: sistema com reboot
+    pendente degrada o /health, não derruba o core. Lê só o JSON de estado e
+    o flag de reboot; a contagem de pacotes tem cache de 30 min em
+    `core.os_updater.resumo_health` (apt list custa ~0,55 s).
+    """
+
+    def _check_os_updater(mon: Any) -> dict[str, Any]:
+        try:
+            from core.os_updater import resumo_health
+
+            s = resumo_health()
+        except Exception as exc:  # atualizador quebrado não derruba o monitor
+            return {
+                "ok": False,
+                "status": "degraded",
+                "detail": f"estado do atualizador ilegível: {type(exc).__name__}",
+            }
+        pacotes = "?" if s["upgradable"] is None else s["upgradable"]
+        firmwares = "?" if s["firmware_upgrades"] is None else s["firmware_upgrades"]
+        detalhe = (
+            f"pacotes={pacotes} firmwares={firmwares} "
+            f"falhas={s['falhas_consecutivas']} "
+            f"reboot_pendente={'sim' if s['precisa_reboot'] else 'nao'} "
+            f"kernel={s['kernel'] or '?'}"
+        )
+        if s["falhas_consecutivas"]:
+            return {
+                "ok": False,
+                "status": "degraded",
+                "detail": f"{s['falhas_consecutivas']} ciclo(s) com falha — " + detalhe,
+            }
+        if s["precisa_reboot"]:
+            return {
+                "ok": True,
+                "status": "degraded",
+                "detail": "reboot pendente — " + detalhe,
+            }
+        return {"ok": True, "status": "up", "detail": detalhe}
+
+    monitor.register("os_updater", _check_os_updater, critical=False)
+
+
 def _check_circuit_breakers(mon: Any) -> dict[str, Any]:
     """Check dos circuit breakers: lista todos e avisa se algum está aberto."""
     from core.resilience import status_breakers
@@ -1865,6 +1910,10 @@ async def _run_api_forever(
         # main) e antes do build_api_server().
         if health is not None:
             register_task_queue_health(health, task_queue)
+    # Atualizador de SO no /health (26/11): reboot pendente, pacotes e falhas.
+    # Não depende da fila e não roda apt fora do cache — pode ser registrado aqui.
+    if health is not None:
+        register_os_updater_health(health)
     # Conecta o ActionRegistry ao Orchestrador TAMBÉM no caminho da API:
     # sem isto o fast path de intenções (Etapa 3.5) fica desligado no chat —
     # "qual o ip do servidor?" caía no LLM em vez da action real (v1.6.1).
