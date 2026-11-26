@@ -708,7 +708,16 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       `od-core`, 5/5 serviços e 2/2 timers `active`, kernel 6.8.0-151,
       `reboot pendente: não`, Telegram enviado, `exit=0`. `/health` depois:
       ok=true com 34 checks. 5 casos em `tests/test_validar_pos_reboot.py`.
-- [ ] **Pós-reboot: não soar alarme com container ainda subindo** — no boot de
+- [x] **Pós-reboot: não soar alarme com container ainda subindo** — **FEITO
+      26/11:** `tools/validar_pos_reboot.py` ganhou carência própria para os
+      checks de container/broker (`tool_*`, `mqtt`): depois de o `od-core`
+      responder, relê o `/health` a cada 5 s por até **60 s** e só então fecha o
+      veredito; se subiram, o relatório diz `containers: subiram em ~Ns` e o
+      boot fica **🟢**. Falha real (banco, orchestrator, backup…) continua
+      alarmando **na hora**, sem carência, e container que não sobe no prazo
+      vira pendência explícita (`containers/broker ainda falhando: …`).
+      `TimeoutStartSec` da unit 300 → 360 s. 4 casos novos (9 no arquivo).
+      Contexto original: no boot de
       26/11 a checagem rodou 22 s depois do uptime e reportou `/health
       degraded` com 6 checks falhando (`mqtt`, `tool_kiwix`, `tool_flatnotes`,
       `tool_stirling_pdf`, `tool_calibre_web`, `tool_homebox`); os containers

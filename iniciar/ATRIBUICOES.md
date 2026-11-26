@@ -9,6 +9,45 @@
 
 ---
 
+## 26/11/2026 — Pós-reboot separa container subindo de falha real
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Faça o pós-reboot separar
+containers ainda subindo de falha real antes de avisar no Telegram"*).
+
+### Criados
+
+- nenhum arquivo novo.
+
+### Modificados
+
+- `tools/validar_pos_reboot.py` — `eh_check_transitorio()` (`tool_*` + `mqtt`),
+  `aguardar_transitorios()` (relê o `/health` a cada 5 s por até 60 s, **só**
+  quando todos os falhando são transitórios), `_ler_health()` extraído,
+  `coletar()` separa `reais_falhando` × `containers_pendentes`, relatório
+  ganhou `containers: subiram em ~Ns` / `containers ainda fora do ar: …`.
+- `systemd/od-pos-reboot.service` — `TimeoutStartSec` 300 → 360 s.
+- `tests/test_validar_pos_reboot.py` — 4 casos novos (9 no arquivo).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§12),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Intenção:** o veredito do boot não pode chamar de falha o que é só container
+começando (boot de 26/11: 6 checks `tool_*`/`mqtt` em `degraded` aos 22 s, todos
+`up` logo depois) — mas também não pode esconder container que não subiu nem
+atrasar o alarme de falha real.
+
+**Pronto e validado:** janela de 60 s só para transitórios; falha real alarme
+imediato; container que não sobe vira pendência explícita; `9 passed` (4 novos);
+execução real `--sem-envio` → `/health up · 34 checks`, `exit=0`.
+
+**Pela metade / próximo passo:** a prova no boot real depende do próximo
+reboot (aqui a máquina está com 13 min de uptime); o caminho está coberto por
+teste com `/health` simulado. **A unit instalada em `/etc/systemd/system`
+continua com `TimeoutStartSec=300`** até o dono autorizar a reinstalação
+(mudança de sistema exige ordem — regra 7).
+
 ## 26/11/2026 — Retomada "leia iniciar": reboot de 02:36 validado, item 11 fechado
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).

@@ -14,8 +14,9 @@ WorkingDirectory=/home/alex/OmegaDrakon
 ExecStart=/home/alex/OmegaDrakon/.venv/bin/python tools/validar_pos_reboot.py
 # Canal de aviso + OD_API_KEY para consultar o /health.
 EnvironmentFile=-/home/alex/OmegaDrakon/.env
-# O script espera até 180 s o od-core responder; margem para o boot inteiro.
-TimeoutStartSec=300
+# O script espera até 180 s o od-core responder e mais até 60 s os checks de
+# container/broker (tool_*, mqtt), que sobem depois dele; margem para o boot.
+TimeoutStartSec=360
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=od-pos-reboot

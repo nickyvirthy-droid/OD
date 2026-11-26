@@ -545,3 +545,52 @@ Leitura + registro, nada de código: sem restart e sem bump (`1.47.0+2085`).
 Escritos: seção do pós-reboot no `docs/CHANGELOG.md`, fila item 11 e checkbox
 novo em `docs/ANALISE_SISTEMA_TODO.md`, duas entradas em
 `iniciar/ATRIBUICOES.md`, este §11, `session.json` e aviso no `txt.txt`.
+
+## §12 — Pós-reboot separa container subindo de falha real (26/11 ~03:00)
+
+**Dono:** *"Faça o pós-reboot separar containers ainda subindo de falha real
+antes de avisar no Telegram"*.
+
+### Defeito medido
+
+No boot de 02:36 o `od-pos-reboot` rodou com **22 s de uptime** e mandou no
+Telegram `/health degraded` com **6 checks falhando** (`mqtt`, `tool_kiwix`,
+`tool_flatnotes`, `tool_stirling_pdf`, `tool_calibre_web`, `tool_homebox`).
+Nada estava quebrado: esses checks dependem de container/broker, que sobe
+depois do `od-core` — todos ficaram `up` em seguida. O veredito do boot soava
+como falha.
+
+### Correção
+
+- `eh_check_transitorio()`: `tool_*` e `mqtt` (container/broker).
+- `aguardar_transitorios()`: depois do `/health` responder, relê a cada 5 s
+  por até **60 s** — **só quando todos os checks falhando são transitórios**.
+  Se sobem, o relatório diz `containers: subiram em ~Ns (espera do boot)` e o
+  boot sai **🟢**.
+- Falha real (`database`, `orchestrator`, `backup`, `offsite`,
+  `units_instaladas`, qualquer outro check) **não ganha carência**: alarme na
+  hora, sem reler e sem dormir.
+- Container que não sobe no prazo (ou que aparece junto de falha real) vira
+  pendência explícita: `containers/broker ainda falhando: …`, com
+  `containers_pendentes` no `data/pos_reboot.json`.
+- `systemd/od-pos-reboot.service`: `TimeoutStartSec` 300 → **360 s**
+  (180 s do core + 60 s dos containers + serviço/Telegram).
+
+### Verificação
+
+- `tests/test_validar_pos_reboot.py`: **9 passed** (4 novos) — container
+  começando não vira falha; container que não sobe vira pendência; falha real
+  não espera (não relê, não dorme); texto conta a espera.
+- Execução real `--sem-envio`: `/health up · 34 checks`, `exit=0`, sem linha
+  de containers pendentes.
+
+### Pendente
+
+A unit copiada em `/etc/systemd/system` ainda tem `TimeoutStartSec=300` —
+reinstalar exige sudo/ordem explícita (regra 7). O código já espera a janela
+sem estourar (180 + 60 s < 300 s no pior caso típico), mas o teto instalado
+fica menor que o do repositório até essa ordem.
+
+### Bump
+
+Nenhum (`1.47.0+2085`; ferramenta de boot).

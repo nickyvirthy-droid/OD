@@ -1,4 +1,16 @@
 {
+  "pos_reboot_transitorios_2026_11_26": {
+    "pedido": "Dono (26/11 ~02:55): 'Faca o pos-reboot separar containers ainda subindo de falha real antes de avisar no Telegram'.",
+    "defeito": "No boot de 26/11 02:36 a checagem rodou com 22 s de uptime e mandou 'degraded' com 6 checks falhando (mqtt, tool_kiwix, tool_flatnotes, tool_stirling_pdf, tool_calibre_web, tool_homebox) — containers ainda subindo; todos ficaram up em seguida. O texto do boot parecia falha.",
+    "codigo": "tools/validar_pos_reboot.py: eh_check_transitorio() (tool_* + mqtt), aguardar_transitorios() rele o /health a cada 5 s por ate JANELA_TRANSITORIOS_S=60 SO quando todos os falhando sao transitorios; _ler_health() extraido de esperar_health(); coletar() separa reais_falhando x containers_pendentes (campo novo); relatorio mostra 'containers: subiram em ~Ns (espera do boot)' ou 'containers ainda fora do ar: ...'; falha real (database/orchestrator/backup/offsite/units_instaladas) nao ganha carencia. systemd/od-pos-reboot.service: TimeoutStartSec 300 -> 360 s.",
+    "testes": "tests/test_validar_pos_reboot.py 9 passed (4 novos: container subindo nao vira falha; container que nao sobe na janela vira pendencia; falha real nao espera nem rele; texto conta a espera).",
+    "prova": "execucao real --sem-envio: 'Pos-reboot OK (uptime 13.2 min)', /health up 34 checks, exit=0, sem containers pendentes. Prova no boot real fica para o proximo reboot; caminho coberto por teste com /health simulado.",
+    "pendente_dono": "A unit copiada em /etc/systemd/system ainda tem TimeoutStartSec=300: reinstalar exige sudo/ordem explicita (regra 7). O codigo ja suporta a janela de 60 s mesmo assim.",
+    "sem_bump": "1.47.0+2085 (ferramenta de boot; servico e app intactos).",
+    "arquivos": "tools/validar_pos_reboot.py, systemd/od-pos-reboot.service, tests/test_validar_pos_reboot.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a712), txt.txt.",
+    "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
+    "updated_at": "2026-11-26T03:05:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_26": {
     "pedido": "Dono (26/11 ~02:40): 'leia iniciar' — recarregar o checkpoint depois do reboot.",
     "lido": "iniciar/README.md, RULES (24 regras), session.json (topo: fila_item4_offsite_2026_11_26), ATRIBUICOES, transcricao 2026-11-26 (\u00a71-\u00a710), txt.txt, git e servico.",

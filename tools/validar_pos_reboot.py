@@ -9,7 +9,10 @@ confere serviços/timers/health e **manda o veredito no Telegram**.
 
 O que confere:
   * uptime do boot (prova de que é pós-reboot, não checagem manual);
-  * `/health` (com `X-API-Key`) e quantos checks estão `ok`;
+  * `/health` (com `X-API-Key`) e quantos checks estão `ok` — com carência
+    própria para os checks de container/broker (`tool_*`, `mqtt`), que sobem
+    DEPOIS do od-core: no boot de 26/11 eles ainda estavam começando e o
+    veredito saiu "degraded" com 6 checks, sem nada realmente quebrado;
   * serviços de usuário (`od-core`, `od-llm`, `od-orchestrator`,
     `od-azura-proxy`) e de sistema (`postgresql`, `docker`);
   * timers (`od-os-updater.timer`, `od-io-probe.timer`) ativos;
@@ -48,6 +51,21 @@ ESPERA_CORE_S = 180
 # não existem — usar nome inventado acusaria falta sempre).
 CHECKS_OBRIGATORIOS = ("database", "orchestrator", "backup", "offsite",
                        "units_instaladas")
+# Checks que dependem de container/broker e por isso sobem DEPOIS do od-core.
+# Medido no boot de 26/11: às 22 s de uptime seis deles ainda falhavam e todos
+# ficaram `up` em seguida. Só estes ganham carência; banco, orchestrator e
+# backup continuam alarmando na hora — falha real não pode esperar para avisar.
+CHECKS_TRANSITORIOS = ("mqtt",)  # broker no Docker
+PREFIXO_TRANSITORIO = "tool_"   # ferramentas em container
+# Teto da carência: 180 s (core) + 60 s (containers) cabem no TimeoutStartSec
+# da unit com folga para Telegram.
+JANELA_TRANSITORIOS_S = 60
+INTERVALO_TRANSITORIOS_S = 5
+
+
+def eh_check_transitorio(nome: str) -> bool:
+    """Check que pode estar apenas começando poucos segundos após o boot."""
+    return nome in CHECKS_TRANSITORIOS or nome.startswith(PREFIXO_TRANSITORIO)
 
 
 def uptime_s() -> float:
@@ -103,17 +121,23 @@ def _env(chave: str) -> str:
     return ""
 
 
+def _ler_health(timeout: int = 10) -> dict[str, Any]:
+    """Uma leitura do `/health`; levanta exceção se o core não responder."""
+    chave = _env("OD_API_KEY")
+    req = urllib.request.Request(
+        "http://127.0.0.1:8000/health", headers={"X-API-Key": chave}
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        return json.loads(resp.read().decode("utf-8"))
+
+
 def esperar_health(timeout_s: int = ESPERA_CORE_S) -> dict[str, Any]:
     """Tenta o `/health` até o od-core responder (ele sobe depois do boot)."""
-    chave = _env("OD_API_KEY")
-    url = "http://127.0.0.1:8000/health"
     inicio = time.time()
     ultimo_erro = "sem tentativa"
     while time.time() - inicio < timeout_s:
         try:
-            req = urllib.request.Request(url, headers={"X-API-Key": chave})
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                dados = json.loads(resp.read().decode("utf-8"))
+            dados = _ler_health()
             dados["_espera_s"] = round(time.time() - inicio, 1)
             return dados
         except Exception as exc:  # core ainda subindo
@@ -122,11 +146,47 @@ def esperar_health(timeout_s: int = ESPERA_CORE_S) -> dict[str, Any]:
     return {"_erro": ultimo_erro, "_espera_s": round(time.time() - inicio, 1)}
 
 
+def aguardar_transitorios(
+    saude: dict[str, Any], timeout_s: int | None = None
+) -> dict[str, Any]:
+    """Espera os checks de container/broker terminarem de subir.
+
+    Só espera quando **todos** os checks falhando são transitórios: se o banco,
+    o orchestrator ou o backup já falham, o relatório sai na hora (misturar
+    carência com falha real esconderia o problema). Se o `/health` parar de
+    responder no meio, devolve a última leitura e o relatório marca o que viu.
+    """
+    if timeout_s is None:
+        timeout_s = JANELA_TRANSITORIOS_S
+    inicio = time.time()
+    dados = saude
+    while True:
+        checks = dados.get("checks") or {}
+        falhando = [k for k, v in checks.items() if not v.get("ok")]
+        restantes = [k for k in falhando if eh_check_transitorio(k)]
+        if not restantes or len(restantes) != len(falhando):
+            break
+        if time.time() - inicio >= timeout_s:
+            break
+        time.sleep(min(INTERVALO_TRANSITORIOS_S, max(0.0, timeout_s - (time.time() - inicio))))
+        try:
+            dados = _ler_health()
+        except Exception:
+            break
+    resultado = dict(dados)
+    resultado["_espera_transitorios_s"] = round(time.time() - inicio, 1)
+    return resultado
+
+
 def coletar() -> dict[str, Any]:
     uptime = uptime_s()
     saude = esperar_health()
+    if "_erro" not in saude:
+        saude = aguardar_transitorios(saude)
     checks = saude.get("checks") or {}
     falhando = [k for k, v in checks.items() if not v.get("ok")]
+    transitorios_pendentes = [k for k in falhando if eh_check_transitorio(k)]
+    reais_falhando = [k for k in falhando if not eh_check_transitorio(k)]
 
     servicos: dict[str, str] = {}
     for nome in SERVICOS_USUARIO:
@@ -149,6 +209,16 @@ def coletar() -> dict[str, Any]:
     for chave in CHECKS_OBRIGATORIOS:
         if checks and not (checks.get(chave) or {}).get("ok"):
             problemas.append(f"check {chave} não está ok")
+    for chave in reais_falhando:
+        if chave not in CHECKS_OBRIGATORIOS:
+            problemas.append(f"check {chave} não está ok")
+    if transitorios_pendentes:
+        # Esgotou a carência (ou nem houve carência porque uma falha real já
+        # apareceu): o container/broker continua fora — é pendência de verdade.
+        problemas.append(
+            "containers/broker ainda falhando: "
+            + ", ".join(transitorios_pendentes)
+        )
     for nome, estado in servicos.items():
         if estado != "active":
             problemas.append(f"serviço {nome}: {estado}")
@@ -165,7 +235,9 @@ def coletar() -> dict[str, Any]:
         "health_status": saude.get("status"),
         "checks": len(checks),
         "checks_falhando": falhando,
+        "containers_pendentes": transitorios_pendentes,
         "espera_core_s": saude.get("_espera_s"),
+        "espera_transitorios_s": saude.get("_espera_transitorios_s"),
         "servicos": servicos,
         "timers": timers,
         "kernel": kernel,
@@ -200,6 +272,15 @@ def texto_relatorio(r: dict[str, Any]) -> str:
         f"kernel: {r.get('kernel')} · reboot pendente: "
         + ("sim" if r.get("reboot_pendente") else "não"),
     ]
+    if r.get("containers_pendentes"):
+        linhas.append(
+            "containers ainda fora do ar: " + ", ".join(r["containers_pendentes"])
+        )
+    elif (r.get("espera_transitorios_s") or 0) >= INTERVALO_TRANSITORIOS_S:
+        linhas.append(
+            "containers: subiram em ~"
+            f"{r['espera_transitorios_s']}s (espera do boot)"
+        )
     if r.get("checks_falhando"):
         linhas.append("checks falhando: " + ", ".join(r["checks_falhando"]))
     if r.get("problemas"):

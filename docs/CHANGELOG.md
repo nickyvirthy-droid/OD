@@ -12,6 +12,41 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Pós-reboot: containers subindo não são falha (2026-11-26, sem bump)
+
+**Contexto:** no boot real de 26/11 02:36 o `od-pos-reboot` rodou com 22 s de
+uptime e mandou no Telegram `/health degraded` com **6 checks falhando**
+(`mqtt`, `tool_kiwix`, `tool_flatnotes`, `tool_stirling_pdf`,
+`tool_calibre_web`, `tool_homebox`). Não havia nada quebrado: esses checks
+dependem de container/broker, que sobe **depois** do `od-core`, e todos
+ficaram `up` em seguida. O veredito do boot não pode soar como falha nem
+treinar o dono a ignorar o canal.
+
+**Agora:** `tools/validar_pos_reboot.py` separa as duas coisas.
+
+- `eh_check_transitorio()`: `tool_*` e `mqtt` são de container/broker.
+- `aguardar_transitorios()`: depois de o `/health` responder, relê a cada 5 s
+  por até **60 s** (`JANELA_TRANSITORIOS_S`) — **só quando todos os checks
+  falhando são transitórios**. Se sobem, o relatório diz `containers: subiram
+  em ~Ns (espera do boot)` e o veredito é **🟢**.
+- Falha real (`database`, `orchestrator`, `backup`, `offsite`,
+  `units_instaladas` ou qualquer outro check) **não ganha carência**: o
+  relatório sai na hora. Misturar carência com falha real esconderia problema.
+- Container que não sobe (ou que aparece junto de uma falha real) vira
+  pendência explícita: `containers/broker ainda falhando: …`, com
+  `containers_pendentes` no `data/pos_reboot.json`.
+- `systemd/od-pos-reboot.service`: `TimeoutStartSec` 300 → **360 s** (180 s do
+  core + 60 s dos containers + serviço/Telegram).
+
+**Testes:** `tests/test_validar_pos_reboot.py` **9 casos** (4 novos):
+container começando não vira falha; container que não sobe no prazo vira
+pendência; falha real não espera (não relê e não dorme); texto conta a espera.
+
+**Prova de fumaça:** execução real `--sem-envio` agora — `/health up · 34
+checks`, `exit=0`, sem linha de containers pendentes.
+
+---
+
 ## Validação pós-reboot automática no Telegram (2026-11-26, sem bump)
 
 **Origem:** commit `006502c` (autor do commit: Alex Projeti) **sem registro em
