@@ -1,4 +1,17 @@
 {
+  "release_1_47_0_2026_11_26": {
+    "pedido": "Dono (26/11 ~01:05): 'Publique o APK com o card do atualizador de SO, fazendo o bump SemVer e o checklist de release'.",
+    "bump": "MINOR 1.46.1 -> 1.47.0, versionCode 2084 -> 2085, nas 8 fontes do docs/VERSIONAMENTO.md §5: .env OD_VERSION, fallback em core/capabilities.py, app/pubspec.yaml, _APP_VERSION_CODE, site/index.html (badge/card/download), site/historico.html (80 lancamentos, linha de 26 nov, Era 9 com 14 releases), docs/CHANGELOG.md e docs/README_VERSAO.md com secao [1.47.0].",
+    "apk": "app/build_apk.sh com JAVA_HOME=/home/alex/jdk e ANDROID_HOME=/home/alex/android-sdk (fora do PATH), exit 0. aapt: versionCode='2085' versionName='1.47.0'. Completo 72.488.590 B sha256 4fa3bb88bb8b2cc531770e341d5d1fd723131ef363b0a406fac4e8386a905dfd; arm64 27.038.253 B sha256 e096d1fd4dbd65afa5f0bdc4bf472c062c672df62d8f0fbc782515cf1dea03ac. Publicados em site/.",
+    "defeito_pego": "O primeiro /health depois do release deu ok=false com o check latencia em degraded (p95 356,7 ms): o bloco os_updater roda fora do cache de 8 s e o apt list (0,54 s) + fwupdmgr aconteciam dentro da requisicao, uma vez por janela de 30 min. Correcao: a contagem devolve o cache na hora e renova em thread propria (aquecer_sondagem(), aquecida no boot por register_os_updater_health). Medido depois: health p95 53,1 ms. Teste novo test_sondagem_nao_bloqueia_a_requisicao.",
+    "achado_extra": "od-io-probe.timer (fonte do check latencia, a cada 5 min) tambem estava sem instalar — arquivo velho = degraded permanente. Instalado com sudo: enabled + active.",
+    "testes": "GATE COMPLETO: 5767 passed / 16 skipped / 0 falha (271,03 s). test_os_updater 53. Flutter analyze: No issues found; flutter test 267 passed / 2 skipped.",
+    "prova_viva": "restart 01:20 — MainPID 2408084, NRestarts=0, active; /app/version {version: 1.47.0, version_code: 2085, size: 72488590, sha256: 4fa3bb88...} igual ao binario de site/; /health 200 ok=true 33 checks (so os_updater degraded pelo reboot pendente, esperado; latencia de volta a up); /site/index.html 3x v1.47.0 + versionCode 2085 + 80 lancamentos; /site/historico.html 'Os 80 Lancamentos', 'a v1.47.0', linha de 26 nov, 14 releases na Era 9; journal -p err 0.",
+    "pendente": "Maquina com 67 pacotes + 51 firmwares + reboot pendente: aplicar agora e decisao do dono (sudo systemctl start od-os-updater.service, agenda reboot +5 min). Sem ordem, aplica sozinho domingo 29/11 ~03:16.",
+    "commits": "ba3d75d (bump + APK) e 604c2de (sondagem em thread) publicados em origin/master.",
+    "arquivos": "app/pubspec.yaml, core/capabilities.py, core/os_updater.py, runtime/launcher.py, integrations/api/server.py, tests/test_os_updater.py, site/index.html, site/historico.html, docs/CHANGELOG.md, docs/README_VERSAO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§4), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T01:30:00-03:00"
+  },
   "os_updater_no_painel_e_no_app_2026_11_26": {
     "pedido": "Dono (26/11 ~00:55): 'Mostre o check os_updater no painel /admin e na aba do app que ja le o /health'.",
     "servidor": "integrations/api/server.py: _bloco_os_updater() emite o bloco estruturado os_updater no /health (upgradable, firmware_upgrades, falhas_consecutivas, precisa_reboot, kernel) FORA do cache de 8 s, como a fila; falha do modulo vira {ok:false,error} e nunca derruba a rota.",
@@ -6729,6 +6742,15 @@
       "commit": "ba3d75d",
       "branch": "master",
       "iniciado_em": "2026-11-26T01:13:57-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2408084,
+      "commit": "604c2de",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T01:16:11-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

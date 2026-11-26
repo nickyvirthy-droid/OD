@@ -9,6 +9,42 @@
 
 ---
 
+## 26/11/2026 — Release 1.47.0 (APK com o card do atualizador de SO)
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Publique o APK com o card do
+atualizador de SO, fazendo o bump SemVer e o checklist de release"*).
+
+### Criados
+
+- nenhum arquivo novo além dos APKs publicados em `site/` (não rastreados no
+  git; `OmegaDrakon.apk` e `OmegaDrakon-arm64.apk`).
+
+### Modificados
+
+- Bump MINOR **1.46.1 → 1.47.0**, versionCode **2084 → 2085**: `.env`,
+  `core/capabilities.py`, `app/pubspec.yaml`, `integrations/api/server.py`,
+  `site/index.html`, `site/historico.html`, `docs/CHANGELOG.md`,
+  `docs/README_VERSAO.md`.
+- `core/os_updater.py` + `runtime/launcher.py` — sondagem de pacotes em thread
+  própria (`aquecer_sondagem()` no boot) para não pesar na requisição.
+- `tests/test_os_updater.py` — `test_sondagem_nao_bloqueia_a_requisicao` (53
+  no arquivo).
+- `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§4),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** APK 1.47.0/2085 publicado em `site/` (aapt confirma
+versionName/versionCode), `/app/version` anuncia 1.47.0/2085 com o **mesmo
+sha256** do binário; gate completo 5767 passed / 16 skipped / 0 falha; Flutter
+analyze limpo e 267 passed. No caminho, um defeito real foi medido e corrigido
+(`latencia` em degraded por `apt` dentro do `/health`, p95 356,7 ms → 53,1 ms)
+e o `od-io-probe.timer` foi instalado. Commits `ba3d75d` e `604c2de`.
+
+**Pela metade / próximo passo:** a máquina segue com **67 pacotes + 51
+firmwares + reboot pendente** — aplicar agora é decisão do dono
+(`sudo systemctl start od-os-updater.service`, agenda reboot +5 min).
+
 ## 26/11/2026 — Atualizador de SO visível no painel `/admin` e na aba Status
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Mostre o check os_updater no

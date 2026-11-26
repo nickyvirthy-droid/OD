@@ -166,3 +166,66 @@ próprio e com o ícone antigo.
 ### Sem bump
 
 `1.46.1+2084` (servidor + código do app; o APK não foi publicado).
+
+## §4 — Release 1.47.0: APK com o card do atualizador de SO (26/11 ~01:25)
+
+**Dono:** *"Publique o APK com o card do atualizador de SO, fazendo o bump
+SemVer e o checklist de release"*.
+
+### Bump (checklist do `docs/VERSIONAMENTO.md` §5)
+
+**MINOR 1.46.1 → 1.47.0**, versionCode **2084 → 2085**, nas 8 fontes:
+
+| fonte | valor |
+| --- | --- |
+| `.env` `OD_VERSION` | `1.47.0` |
+| `core/capabilities.py` (fallback) | `1.47.0` |
+| `app/pubspec.yaml` | `1.47.0+2085` |
+| `integrations/api/server.py` `_APP_VERSION_CODE` | `2085` |
+| `site/index.html` | badge, card e download `v1.47.0 · versionCode 2085` |
+| `site/index.html` / `site/historico.html` | 80 lançamentos / 80 releases |
+| `site/historico.html` | linha de 26 nov (1.47.0) + Era 9 com 14 releases |
+| `docs/CHANGELOG.md` / `docs/README_VERSAO.md` | seção `[1.47.0]` nos dois |
+
+### Build
+
+`app/build_apk.sh` com `JAVA_HOME=/home/alex/jdk`,
+`ANDROID_HOME=/home/alex/android-sdk` e `flutter` no PATH — exit 0.
+`aapt dump badging`: `versionCode='2085' versionName='1.47.0'`,
+`compileSdk 37`, `sdkVersion 24`. Publicados em `site/`:
+completo 72.488.590 B sha256 `4fa3bb88...`; arm64 27.038.253 B sha256
+`e096d1fd...`.
+
+### Defeito pego no próprio release
+
+A primeira chamada de `/health` depois do release deu `ok=false` com o check
+`latencia` em `degraded` (**p95 356,7 ms**). Causa medida: o bloco
+`os_updater` roda fora do cache de 8 s e a sondagem (`apt list` 0,54 s +
+`fwupdmgr`) acontecia **dentro** da requisição, uma vez por janela de 30 min.
+
+Correção: `core/os_updater.py` agora devolve o cache na hora e renova em
+**thread própria** (`aquecer_sondagem()`, aquecida no boot pelo
+`register_os_updater_health`). Medido depois: **health p95 53,1 ms**.
+Teste novo `test_sondagem_nao_bloqueia_a_requisicao`.
+
+No mesmo passo: o **`od-io-probe.timer`** (fonte do `latencia`, a cada 5 min)
+também estava sem instalar — arquivo velho = degraded permanente. Instalado com
+`sudo`: `enabled + active`.
+
+### Verificação
+
+- Gate completo: **5767 passed / 16 skipped / 0 falha (271 s)**.
+- Flutter: `analyze` 0 issues; **267 passed / 2 skipped**.
+- Restart 01:20 → MainPID **2408084**, `NRestarts=0`.
+- `/app/version`: `version 1.47.0`, `version_code 2085`, `size 72488590`,
+  `sha256 4fa3bb88...` **igual** ao binário em `site/`.
+- `/health`: 200, `ok=true`, 33 checks, só `os_updater` em `degraded` pelo
+  reboot pendente (esperado); `latencia` de volta a `up`.
+- `/site/index.html`: 3× `v1.47.0`, `versionCode 2085`, 80 lançamentos,
+  80 releases; `/site/historico.html`: `Os 80 Lançamentos`, `a v1.47.0`,
+  linha de `26 nov` e `14 releases` na Era 9. Journal `-p err`: 0.
+
+### Pendente
+
+Reboot pendente da máquina (67 pacotes + 51 firmwares) — aplicar é decisão do
+dono; o card no app agora mostra isso na aba Status.

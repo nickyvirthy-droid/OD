@@ -33,9 +33,20 @@ ordem em que foram entregues):
 3. **Painel e app**: bloco estruturado `os_updater` no `/health`, card
    "Sistema (SO)" no `/admin` e card próprio na aba Status do app.
 
-**Testes:** Python 52 (`test_os_updater`) + 215 (`test_api`) + 39
-(health/launcher) + 125 (`test_rag`); Flutter `analyze` limpo e **267
-passed / 2 skipped**. Bateria final do release no fim desta seção.
+**Correção pega no próprio release:** o primeiro `/health` de cada janela de
+30 min pagava `apt list` + `fwupdmgr` dentro da requisição e o check
+`latencia` caía para `degraded` (**p95 356,7 ms** medido na sonda). A contagem
+passou a rodar em **thread própria**, aquecida no boot: a requisição só lê o
+cache (medido depois: **health p95 53,1 ms**). No mesmo passo, o
+`od-io-probe.timer` — que alimenta o `latencia` — também estava sem instalar
+(arquivo velho = degraded permanente) e foi instalado (`enabled + active`, a
+cada 5 min).
+
+**Testes:** gate completo **5767 passed / 16 skipped / 0 falha em 271 s**;
+`test_os_updater` 53 (novo `test_sondagem_nao_bloqueia_a_requisicao`);
+Flutter `analyze` limpo e **267 passed / 2 skipped**. APK 1.47.0/2085 com
+`aapt`: `versionCode='2085' versionName='1.47.0'`; completo 72.488.590 B
+sha256 `4fa3bb88...`, arm64 27.038.253 B sha256 `e096d1fd...`.
 
 ---
 

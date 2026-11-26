@@ -39,11 +39,17 @@ release"*.
 
 ### 3. Testes
 
-- Python: `test_os_updater` 52, `test_api` 215 (inclui o bloco no `/health` e
-  o harness node de `visaoCards`), `test_health` + `test_launcher_health_external`
-  39, `test_rag` 125 (piso do híbrido segue verde).
+- Gate completo: **5767 passed / 16 skipped / 0 falha em 271 s**.
+- `test_os_updater` **53** (inclui `test_sondagem_nao_bloqueia_a_requisicao` e
+  o check no `/health`), `test_api` 215 (bloco no `/health` + harness node de
+  `visaoCards`), `test_health` + `test_launcher_health_external` 39,
+  `test_rag` 125 (piso do híbrido segue verde).
 - Flutter: `analyze` 0 issues; `flutter test` **267 passed / 2 skipped**
   (novo `app/test/status_screen_test.dart`).
+- **Defeito pego no release:** a sondagem de pacotes rodava dentro da
+  requisição e derrubava o check `latencia` (p95 **356,7 ms**). Passou a rodar
+  em thread própria, aquecida no boot → health p95 **53,1 ms**. O
+  `od-io-probe.timer` (fonte do `latencia`) também foi instalado, a cada 5 min.
 
 ### 4. Versão
 
