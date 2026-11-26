@@ -1,0 +1,25 @@
+[Unit]
+Description=Omega Drakon - valida o retorno do sistema apos reboot
+Documentation=https://github.com/OmegaDrakon
+# A validação roda sozinha no boot: se a sessão do agente não voltar, o
+# veredito ainda chega no Telegram e fica em data/pos_reboot.json.
+After=network-online.target postgresql.service docker.service
+Wants=network-online.target
+# Depois do od-core de usuário (que sobe pelo linger do alex).
+After=user@1000.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/home/alex/OmegaDrakon
+ExecStart=/home/alex/OmegaDrakon/.venv/bin/python tools/validar_pos_reboot.py
+# Canal de aviso + OD_API_KEY para consultar o /health.
+EnvironmentFile=-/home/alex/OmegaDrakon/.env
+# O script espera até 180 s o od-core responder; margem para o boot inteiro.
+TimeoutStartSec=300
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=od-pos-reboot
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target
