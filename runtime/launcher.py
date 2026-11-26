@@ -1384,6 +1384,15 @@ def register_os_updater_health(monitor: Any) -> None:
     `core.os_updater.resumo_health` (apt list custa ~0,55 s).
     """
 
+    # Aquece a contagem no boot (thread própria): a primeira abertura do
+    # painel já encontra os números, sem pagar apt dentro de uma requisição.
+    try:
+        from core.os_updater import aquecer_sondagem
+
+        aquecer_sondagem()
+    except Exception as exc:  # sonda é enfeite; o check não pode sumir por ela
+        log.warn("Não foi possível aquecer a sondagem do SO", erro=str(exc)[:120])
+
     def _check_os_updater(mon: Any) -> dict[str, Any]:
         try:
             from core.os_updater import resumo_health

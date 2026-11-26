@@ -24,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 import urllib.error
 import urllib.request
@@ -117,23 +118,50 @@ def _precisa_reboot() -> bool:
 # ~0,55 s medidos nesta máquina — barato, mas o /health roda a cada 8 s; a
 # sondagem vale por 30 min e o valor anterior é reaproveitado em falha.
 INTERVALO_SONDAGEM_S = 1800.0
-_SONDAGEM: dict[str, Any] = {"ts": 0.0, "upgradable": None, "firmware": None}
+_SONDAGEM: dict[str, Any] = {
+    "ts": 0.0,
+    "upgradable": None,
+    "firmware": None,
+    "em_curso": False,
+}
+
+
+def _sondar_pacotes_e_firmware() -> None:
+    """Executa a sondagem cara (apt + fwupdmgr) e atualiza o cache."""
+    try:
+        code, _out, _ = _executar(["apt", "list", "--upgradable"], timeout=60)
+        if code == 0:
+            _SONDAGEM["upgradable"] = len(_apt_lista_upgradable())
+        code, _out, _ = _executar(["fwupdmgr", "get-upgrades"], timeout=60)
+        if code == 0:
+            _SONDAGEM["firmware"] = len(_fwupdmgr_upgrades())
+        _SONDAGEM["ts"] = time.time()
+    except Exception as exc:  # sonda é enfeite: o check não pode cair por ela
+        log.debug("OSUpdater: sondagem de pacotes falhou", erro=str(exc)[:120])
+    finally:
+        _SONDAGEM["em_curso"] = False
+
+
+def aquecer_sondagem() -> None:
+    """Dispara a sondagem em thread separada (chamada no boot do launcher)."""
+    if _SONDAGEM["em_curso"]:
+        return
+    _SONDAGEM["em_curso"] = True
+    threading.Thread(
+        target=_sondar_pacotes_e_firmware, name="od-sondagem-so", daemon=True
+    ).start()
 
 
 def _contar_pacotes_e_firmware(agora: float, intervalo: float) -> tuple[Optional[int], Optional[int]]:
-    """Conta pacotes/firmwares com cache em memória (nunca levanta exceção)."""
-    if _SONDAGEM["upgradable"] is not None and agora - float(_SONDAGEM["ts"]) < intervalo:
-        return _SONDAGEM["upgradable"], _SONDAGEM["firmware"]
-    try:
-        code, out, _ = _executar(["apt", "list", "--upgradable"], timeout=60)
-        if code == 0:
-            _SONDAGEM["upgradable"] = len(_apt_lista_upgradable())
-        code, out, _ = _executar(["fwupdmgr", "get-upgrades"], timeout=60)
-        if code == 0:
-            _SONDAGEM["firmware"] = len(_fwupdmgr_upgrades())
-        _SONDAGEM["ts"] = agora
-    except Exception as exc:  # sonda é enfeite: o check não pode cair por ela
-        log.debug("OSUpdater: sondagem de pacotes falhou", erro=str(exc)[:120])
+    """Devolve o cache e, se vencido, renova em SEGUNDO PLANO.
+
+    Nunca executa apt/fwupdmgr na thread chamadora: o /health é medido
+    (p95) e um `apt list` de 0,55 s dentro da requisição derrubava o check
+    `latencia` para `degraded` — medido no release 1.47.0.
+    """
+    vencido = agora - float(_SONDAGEM["ts"]) >= intervalo
+    if _SONDAGEM["upgradable"] is None or vencido:
+        aquecer_sondagem()
     return _SONDAGEM["upgradable"], _SONDAGEM["firmware"]
 
 

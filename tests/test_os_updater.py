@@ -1252,3 +1252,28 @@ def test_check_os_updater_falha_do_ciclo_e_estado_limpo(monkeypatch) -> None:
             "kernel=6.8.0-147-generic"
         ),
     }
+
+
+def test_sondagem_nao_bloqueia_a_requisicao(monkeypatch) -> None:
+    """O /health é medido: a sondagem de pacotes roda em segundo plano.
+
+    Medido no release 1.47.0: o `apt list` (0,55 s) dentro da requisição
+    derrubava o check `latencia` para degraded (p95 356 ms). O contrato agora
+    é: `_contar_pacotes_e_firmware` só devolve o cache e pede o aquecimento.
+    """
+    disparos: list[bool] = []
+    monkeypatch.setattr(os_updater, "aquecer_sondagem", lambda: disparos.append(True))
+    monkeypatch.setitem(os_updater._SONDAGEM, "upgradable", None)
+    monkeypatch.setitem(os_updater._SONDAGEM, "firmware", None)
+    monkeypatch.setitem(os_updater._SONDAGEM, "ts", 0.0)
+    monkeypatch.setitem(os_updater._SONDAGEM, "em_curso", False)
+
+    assert os_updater._contar_pacotes_e_firmware(1_000.0, 1800.0) == (None, None)
+    assert disparos == [True]
+
+    # Cache fresco não dispara nada de novo.
+    monkeypatch.setitem(os_updater._SONDAGEM, "upgradable", 67)
+    monkeypatch.setitem(os_updater._SONDAGEM, "firmware", 51)
+    monkeypatch.setitem(os_updater._SONDAGEM, "ts", 1_000.0)
+    assert os_updater._contar_pacotes_e_firmware(1_100.0, 1800.0) == (67, 51)
+    assert disparos == [True]
