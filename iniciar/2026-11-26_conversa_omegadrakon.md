@@ -1278,3 +1278,26 @@ embedding no RAG, OTel/Grafana, Eval no CI, reteste IA local) e decisões P2
 - Suíte completa (`.venv/bin/python -m pytest -q`): **5820 passed, 16 skipped, 0 falhas** (18 warnings, `248.51s`).
 - Gate do RAG híbrido (`.venv/bin/python tools/medir_rag_hibrido.py`): `4433 chunks` — relevantes `8/8 -> 8/8`, irrelevantes `0/8 -> 0/8`, paráfrases `6/6 -> 6/6`, estruturais `2/2 -> 2/2` (`exit 0`).
 - Sem bump (`1.47.0+2085`, mudança apenas no servidor; o app já trata `type: "error"` / `rate_limited`).
+
+---
+
+## §27 — Restart verde do od-core e prova viva (26/11 ~17:25)
+
+**Dono:** *regra 7.3 (restart verde autorizado por padrão quando a validação está verde).*
+
+### O que foi feito
+
+- **Commit + push:** `commit 6c75d05` — "Unifica streaming do grafo ao caminho direto (paridade) e fecha lote" (7 arquivos, +687/-241), pushado em `origin/master`. `HEAD == origin/master`, árvore limpa.
+- **Restart verde:** `systemctl --user restart od-core` executado com validação verde (suíte 5820 passed / 16 skipped / 0 falhas; gate RAG híbrido verde).
+- **Prova viva:**
+  - `MainPID: 932556`, `NRestarts: 0`
+  - `GET /health` (com `X-API-Key`): `{"ok": true, "status": "up"}` — todos os checks `up` (orchestrator, llm, database, homeassistant, audit, metrics).
+  - `journalctl --user -u od-core -p err --since "1 hour ago"`: **0 entradas**.
+
+### Estado
+
+Processo no ar e saudável. Sem bump (`1.47.0+2085`, mudança apenas no servidor).
+
+### Próximo passo
+
+Nenhum neste tema. A pauta do dono é `analise/Nicky Locutor/` — aguardando ordem dele.

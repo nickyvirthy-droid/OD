@@ -9,6 +9,26 @@
 
 ---
 
+## 26/11/2026 — Restart verde do od-core e prova viva (streaming grafo)
+
+**Autor:** Antigravity (Gemini 4 Hydrogen) — continuação da entrega de streaming (regra 7.3, restart autorizado por padrão com validação verde).
+
+### Modificados
+
+- `iniciar/session.json` — entrada `streaming_grafo_unificado_2026_11_26`: `proximo` atualizado para concluído (commit 6c75d05, restart verde PID 932556, NRestarts=0, /health ok=true, journal 0 erros).
+- `iniciar/2026-11-26_conversa_omegadrakon.md` — anexado §27 com a prova viva.
+- `txt.txt` — atualizado com o resumo do fechamento (regra 20).
+- `iniciar/ATRIBUICOES.md` (esta entrada).
+
+### Intenção e estado
+
+- **Intenção:** publicar o lote de streaming já validado e colocar o od-core de volta no ar com a nova versão, com prova viva registrada.
+- **Pronto/validado:** commit `6c75d05` pushado em `origin/master`; `systemctl --user restart od-core` executado; `MainPID: 932556`, `NRestarts: 0`; `GET /health` → `ok: true`, `status: up`; journal 0 erros.
+- **Estado:** árvore limpa, HEAD == origin/master, processo saudável. Sem bump (`1.47.0+2085`).
+- **Próximo passo:** nenhum neste tema. Pauta do dono: `analise/Nicky Locutor/` (aguardando ordem).
+
+---
+
 ## 26/11/2026 — Streaming no grafo unificado ao caminho direto
 
 **Autor:** Antigravity (Gemini 4 Hydrogen) — pedido do dono (*"1"*, resolver a

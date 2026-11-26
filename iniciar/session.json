@@ -6,9 +6,9 @@
     "testes": "tests/test_orchestrator_graph_integration.py ganhou TestStreamingGrafoParidade (7 casos cobrindo OD_ORCHESTRATOR_GRAPH=0 e 1: rate_limited, streaming token-a-token real com contagem unica em metricas e historico, llm_unavailable, atalho datetime e ferramenta action_intent sem LLM). Suite completa: 5820 passed / 16 skipped / 0 falhas em 248.51s. Gate RAG hibrido: 4433 chunks, relevantes 8/8 -> 8/8, irrelevantes 0/8 -> 0/8, parafrases 6/6 -> 6/6, estruturais 2/2 -> 2/2 (exit 0).",
     "sem_bump": "1.47.0+2085 (servidor apenas; o APK ja trata type 'error' com message 'rate_limited').",
     "arquivos": "core/orchestrator.py, tests/test_orchestrator_graph_integration.py, docs/ANALISE_SISTEMA_TODO.md, docs/CHANGELOG.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (S26), iniciar/session.json, txt.txt.",
-    "proximo": "Executar restart verde do od-core (regra 7.3) e registrar prova viva.",
-    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (S26)",
-    "updated_at": "2026-11-26T16:06:00-03:00"
+    "proximo": "Concluido: commit 6c75d05 pushado em origin/master; restart verde do od-core executado (PID 932556, NRestarts=0, /health ok=true status up, journal 0 erros). Prova viva registrada em iniciar/2026-11-26_conversa_omegadrakon.md (S27). Sem proximo passo neste tema; pauta do dono eh analise/Nicky Locutor/ (aguardando ordem).",
+    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (S26, S27)",
+    "updated_at": "2026-11-26T17:25:00-03:00"
   },
   "retomada_leitura_iniciar_2026_11_26_14h42": {
     "pedido": "Dono (26/11 14:42): 'leia iniciar', seguido de '1' (14:46): validar e fechar commit/push do lote pendente gate_zero_2026_11_26.",
@@ -7083,6 +7083,15 @@
       "commit": "4125563",
       "branch": "master",
       "iniciado_em": "2026-11-26T10:29:20-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 932556,
+      "commit": "6c75d05",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T17:19:29-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
