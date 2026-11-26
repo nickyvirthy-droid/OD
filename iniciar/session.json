@@ -1,4 +1,14 @@
 {
+  "secoes_do_ciclo_no_painel_2026_11_26": {
+    "pedido": "Dono (26/11 ~02:05): 'Mostre no painel do atualizador as ultimas secoes do ciclo (apt, fwupdmgr, reboot) alem do resumo numerico' (sugestao anotada no §4).",
+    "codigo": "integrations/api/server.py: <div id='so-secoes'> na secao 'Atualizador de SO' e render pela funcao PURA soSecoesHtml(secoes) (padrao do visaoCards): tabela Quando · Secao · Resultado · Detalhe, execucao MAIS RECENTE primeiro, hora pt-BR (soQuando), ok/falhou por secao e detalhe ESCAPADO (soEsc) — o estado e arquivo em disco, HTML cru ali seria injecao. soLoad() alimenta com d.secoes (a rota ja devolvia as 5 ultimas). Vazio honesto: 'nenhuma secao registrada ainda — o ciclo ainda nao rodou'.",
+    "testes": "tests/test_painel_os_updater.py 12 casos (novo teste node sem DOM provando ordem invertida, escape de <b>/& e o vazio; e status_painel entregando as 5 ultimas secoes do estado). test_api + painel: 227 passed.",
+    "prova_viva": "restart 26/11 02:10 — MainPID 2437040, NRestarts=0; GET /admin/os-updater/status 200 com 5 secoes (apt_update, apt_upgrade = '67 pacotes', apt_autoremove = '[DRY-RUN]' ...); /admin 200 com id='so-secoes' e soSecoesHtml (2 ocorrencias); journal -p err 0.",
+    "commit": "c2f29b4 publicado em origin/master.",
+    "sem_bump": "1.47.0+2085 (servidor/painel).",
+    "arquivos": "integrations/api/server.py, tests/test_painel_os_updater.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§6), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T02:12:00-03:00"
+  },
   "botao_aplicar_so_2026_11_26": {
     "pedido": "Dono (26/11 ~01:40): 'Coloque um botao Aplicar atualizacoes no painel do atualizador de SO com confirmacao dupla'.",
     "defeitos_achados": "(1) As 3 rotas /admin/os-updater/* respondiam 503 desde 10/11 porque APIConfig nunca teve o campo os_updater; agora a instancia e criada sob demanda e o status usa status_painel() (estado + cache da sondagem, sem apt). (2) O od-core roda como alex, entao apt full-upgrade ali falharia: a aplicacao real vai pela unit oneshot root od-os-updater-forcar.service (--forcar) por 'sudo -n /usr/bin/systemctl start --no-block'. (3) A unit do timer roda --executar e numa quinta responde acao=aguardar, logo nao serve para o botao.",
@@ -6773,6 +6783,15 @@
       "commit": "596066e",
       "branch": "master",
       "iniciado_em": "2026-11-26T01:36:30-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2437040,
+      "commit": "c2f29b4",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T01:41:59-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

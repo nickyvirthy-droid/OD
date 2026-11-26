@@ -283,3 +283,37 @@ com `--forcar`. `test_api` 224 verdes na bateria (215 + 9) e
 ### Sem bump
 
 `1.47.0+2085` (só servidor/painel; contrato do app intacto).
+
+## §6 — Últimas seções do ciclo no painel do SO (26/11 ~02:10)
+
+**Dono:** *"Mostre no painel do atualizador as últimas seções do ciclo (apt,
+fwupdmgr, reboot) além do resumo numérico"* — era sugestão anotada no §4.
+
+### O que entrou
+
+- `integrations/api/server.py`: a seção "Atualizador de SO" ganhou
+  `<div id="so-secoes">` e o render pela função **pura** `soSecoesHtml(secoes)`
+  — mesmo padrão do `visaoCards`. Tabela **Quando · Seção · Resultado ·
+  Detalhe**, execução **mais recente primeiro**, hora pt-BR
+  (`soQuando`), `ok`/`falhou` por seção e detalhe **escapado** (`soEsc`):
+  o estado é arquivo em disco, HTML cru ali seria injeção no painel.
+- `soLoad()` alimenta a tabela com `d.secoes` (a rota já devolvia as 5 últimas).
+- Vazio honesto: "nenhuma seção registrada ainda — o ciclo ainda não rodou"
+  (lista nula/vazia não vira tabela vazia).
+
+### Verificação
+
+- `tests/test_painel_os_updater.py`: **12 casos** — novo teste **node** (harness
+  sem DOM) provando ordem invertida (`apt_upgrade` antes de `apt_update`),
+  escape de `<b>`/`&` e o vazio; e um teste de que `status_painel` entrega
+  **as 5 últimas** seções do estado (não inventa).
+- `test_api` + painel: **227 passed**.
+- Prova viva (restart 02:10, MainPID **2437040**, `NRestarts=0`):
+  `GET /admin/os-updater/status` 200 com **5 seções** (`apt_update`,
+  `apt_upgrade` = `67 pacotes`, `apt_autoremove` = `[DRY-RUN]` …);
+  `/admin` 200 com `id="so-secoes"` (1) e `soSecoesHtml` (2 ocorrências);
+  journal `-p err`: 0.
+
+### Sem bump
+
+`1.47.0+2085` (só servidor/painel).

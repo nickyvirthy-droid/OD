@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Últimas seções do ciclo no painel do SO (2026-11-26, sem bump)
+
+**Contexto:** o resumo numérico dizia *quanto* falta, não *o que aconteceu* no
+último ciclo — para ver `apt_update`, `apt_upgrade`, `fwupdmgr` e `reboot` era
+preciso abrir o journal. A rota de status já devolvia as 5 últimas `secoes`;
+faltava renderizar.
+
+**Painel:** a seção "Atualizador de SO" ganhou uma tabela **Quando · Seção ·
+Resultado · Detalhe**, com a execução mais recente primeiro, hora em pt-BR,
+`ok`/`falhou` por seção e o detalhe **escapado** (o estado é arquivo em disco —
+HTML cru ali viraria injeção no painel do dono).
+
+**Desenho:** o render é a função **pura** `soSecoesHtml(secoes)` (mesmo padrão
+do `visaoCards`), testada no node sem DOM: ordem invertida, escape de `<b>` e
+`&`, e o vazio honesto ("nenhuma seção registrada ainda — o ciclo ainda não
+rodou") para lista nula/vazia.
+
+**Prova viva** (restart 26/11 02:10, MainPID **2437040**, `NRestarts=0`):
+`GET /admin/os-updater/status` 200 com **5 seções** (`apt_update`,
+`apt_upgrade` com `67 pacotes`, `apt_autoremove` …); `/admin` 200 com
+`id="so-secoes"` e `soSecoesHtml`; journal `-p err` 0 entradas.
+
+**Testes:** `tests/test_painel_os_updater.py` **12 casos** (novo teste node das
+seções + as 5 últimas vindas do estado); `test_api` + painel **227 passed**.
+
+---
+
 ## Botão "Aplicar atualizações" no painel do SO, com dupla confirmação (2026-11-26, sem bump)
 
 **Contexto:** o painel só **mostrava** o estado do atualizador. Aplicar era

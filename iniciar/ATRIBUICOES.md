@@ -9,6 +9,35 @@
 
 ---
 
+## 26/11/2026 — Últimas seções do ciclo no painel do SO
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Mostre no painel do atualizador
+as últimas seções do ciclo (apt, fwupdmgr, reboot) além do resumo numérico"*).
+
+### Criados
+
+- nenhum arquivo novo (transcrição §6).
+
+### Modificados
+
+- `integrations/api/server.py` — `id="so-secoes"` + `soSecoesHtml()` pura
+  (tabela Quando · Seção · Resultado · Detalhe, mais recente primeiro, detalhe
+  escapado), alimentada por `soLoad()`.
+- `tests/test_painel_os_updater.py` — 3 casos novos (node das seções, container,
+  "as 5 últimas do estado") → 12 no arquivo.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§6),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** status 200 com as 5 seções reais do estado; `/admin` com
+container e função; 227 testes (api+painel); journal `-p err` 0; prova viva no
+restart 02:10 (MainPID 2437040). Commit `c2f29b4`.
+
+**Pela metade / próximo passo:** nada pendente desta entrega. Segue aberto só
+o clique real do botão (aplica 67 pacotes + reboot) — decisão do dono.
+
 ## 26/11/2026 — Botão "Aplicar atualizações" no painel do SO
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Coloque um botão 'Aplicar

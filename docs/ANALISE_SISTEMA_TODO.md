@@ -636,11 +636,12 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Log do último ciclo no painel do atualizador de SO** (sugestão de
-      26/11) — a rota de status já devolve as 5 últimas `secoes` do estado
-      (apt_update, apt_upgrade, fwupdmgr, reboot), mas o painel só mostra o
-      resumo numérico: falta uma lista compacta para o dono ver o que
-      aconteceu no último ciclo sem abrir o journal.
+- [x] **Log do último ciclo no painel do atualizador de SO** (sugestão de
+      26/11) — **FEITO 26/11 02:10:** tabela "Quando · Seção · Resultado ·
+      Detalhe" com as 5 últimas seções (`apt_update`, `apt_upgrade`,
+      `fwupdmgr`, `reboot`), mais recente primeiro, detalhe escapado; render
+      na função pura `soSecoesHtml` testada no node. Prova viva: status 200 com
+      5 seções, `/admin` com `id="so-secoes"`, journal `-p err` 0.
 - [x] **Publicar build do app com o card do atualizador de SO** (sugestão de
       26/11) — **FEITO 26/11 01:20:** release **1.47.0 / 2085** publicado em
       `site/` (aapt confirma versionName/versionCode, `/app/version` anuncia o
