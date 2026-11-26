@@ -636,6 +636,11 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Log do último ciclo no painel do atualizador de SO** (sugestão de
+      26/11) — a rota de status já devolve as 5 últimas `secoes` do estado
+      (apt_update, apt_upgrade, fwupdmgr, reboot), mas o painel só mostra o
+      resumo numérico: falta uma lista compacta para o dono ver o que
+      aconteceu no último ciclo sem abrir o journal.
 - [x] **Publicar build do app com o card do atualizador de SO** (sugestão de
       26/11) — **FEITO 26/11 01:20:** release **1.47.0 / 2085** publicado em
       `site/` (aapt confirma versionName/versionCode, `/app/version` anuncia o
