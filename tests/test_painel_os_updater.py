@@ -290,3 +290,117 @@ console.log(JSON.stringify({
             '{"secoes": ' + __import__("json").dumps(secoes) + "}", encoding="utf-8"
         )
         assert osu_mod.status_painel(estado)["secoes"] == secoes[-5:]
+
+
+class TestRecargaAutomatica:
+    """O painel se relê sozinho enquanto o ciclo roda (26/11).
+
+    Motivo: o ciclo real leva minutos (apt full-upgrade + fwupdmgr) e o dono
+    teria de apertar "Atualizar" para saber se acabou. A decisão de agendar é
+    a função pura `soDeveRecarregar`; o agendador `soAgendarRecarga` nunca
+    empilha timers e cancela quando o ciclo termina.
+    """
+
+    @staticmethod
+    def _js() -> str:
+        html = _ADMIN_PAGE_HTML
+        return html[html.index("<script>") + len("<script>"):html.rindex("</script>")]
+
+    _HARNESS = r"""
+'use strict';
+const fs = require('fs'), vm = require('vm');
+const arquivo = process.argv[2];
+function novoEl() {
+  return { style: {}, dataset: {}, _attrs: {}, innerHTML: '', textContent: '',
+    className: '', value: '', href: '', disabled: false,
+    setAttribute(k, v) { this._attrs[k] = String(v); },
+    addEventListener() {}, appendChild() {},
+    classList: { toggle() {}, add() {}, remove() { return true; },
+                 contains() { return false; } } };
+}
+const document = { getElementById() { return novoEl(); },
+  querySelector() { return null; }, querySelectorAll() { return []; },
+  createElement() { return novoEl(); }, addEventListener() {},
+  documentElement: novoEl(), body: novoEl(), readyState: 'complete' };
+const window = { confirm() { return true; }, alert() {}, scrollTo() {} };
+const localStorage = { getItem() { return null; }, setItem() {}, removeItem() {} };
+let agenda = [], limpos = [], seq = 0;
+const ctx = { document, window, localStorage, location: { href: '' },
+  fetch: () => Promise.resolve({ ok: false, status: 401, json: async () => ({}) }),
+  console,
+  setInterval: () => 0,
+  setTimeout: (fn, ms) => { agenda.push({ id: ++seq, ms, fn }); return seq; },
+  clearTimeout: (id) => { limpos.push(id); } };
+vm.createContext(ctx);
+vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
+
+const r = {
+  nulo: ctx.soDeveRecarregar(null),
+  vazio: ctx.soDeveRecarregar({}),
+  string: ctx.soDeveRecarregar({ em_andamento: 'true' }),
+  parado: ctx.soDeveRecarregar({ em_andamento: false }),
+  rodando: ctx.soDeveRecarregar({ em_andamento: true }),
+  ag1: ctx.soAgendarRecarga({ em_andamento: true }),
+  agenda1: agenda.length,
+  ms: agenda.length ? agenda[0].ms : null,
+  ag2: ctx.soAgendarRecarga({ em_andamento: true }),
+  agenda2: agenda.length,
+  ag3: ctx.soAgendarRecarga({ em_andamento: false }),
+  limpos,
+};
+console.log(JSON.stringify(r));
+"""
+
+    def test_decisao_e_agendamento(self, tmp_path: Path) -> None:
+        import json as _json
+        import shutil
+        import subprocess
+
+        node = shutil.which("node")
+        if not node:  # pragma: no cover - máquina sem node
+            return
+        js = tmp_path / "admin_recarga.js"
+        js.write_text(self._js(), encoding="utf-8")
+        har = tmp_path / "har_recarga.js"
+        har.write_text(self._HARNESS, encoding="utf-8")
+        r = subprocess.run([node, str(har), str(js)], capture_output=True,
+                           text=True, encoding="utf-8")
+        assert r.returncode == 0, r.stderr[:800]
+        d = _json.loads(r.stdout.strip().splitlines()[-1])
+
+        # só o booleano true conta (nem null, nem {}, nem "true" string)
+        assert d["nulo"] is False and d["vazio"] is False
+        assert d["string"] is False and d["parado"] is False
+        assert d["rodando"] is True
+
+        # agenda uma única vez, com o intervalo de 5 s
+        assert d["ag1"] is True and d["agenda1"] == 1
+        assert d["ms"] == 5000
+        assert d["ag2"] is True and d["agenda2"] == 1  # não empilha
+        # ciclo terminou: cancela e não agenda
+        assert d["ag3"] is False and len(d["limpos"]) == 1
+
+    def test_html_liga_a_recarga_apos_o_202(self) -> None:
+        assert "soAgendarRecarga(d)" in _ADMIN_PAGE_HTML
+        assert "SO_INTERVALO_MS" in _ADMIN_PAGE_HTML
+        assert "setTimeout(soLoad, 1500)" in _ADMIN_PAGE_HTML
+
+
+class TestArranqueContaComoEmAndamento:
+    """`is-active` responde `activating` no arranque — isso é ciclo rodando."""
+
+    def _com_saida(self, monkeypatch, code: int, out: str) -> bool:
+        monkeypatch.setattr(
+            osu_mod, "_executar", lambda cmd, timeout=10: (code, out, "")
+        )
+        return osu_mod.unidade_em_andamento()
+
+    def test_activating_reloading_e_active_contam(self, monkeypatch) -> None:
+        assert self._com_saida(monkeypatch, 0, "active") is True
+        assert self._com_saida(monkeypatch, 0, "activating") is True
+        assert self._com_saida(monkeypatch, 0, "reloading") is True
+
+    def test_inactive_failed_e_erro_nao_contam(self, monkeypatch) -> None:
+        assert self._com_saida(monkeypatch, 3, "inactive") is False
+        assert self._com_saida(monkeypatch, 3, "failed") is False
+        assert self._com_saida(monkeypatch, 0, "deactivating") is False

@@ -12,6 +12,42 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Painel do SO recarrega sozinho enquanto o ciclo roda (2026-11-26, sem bump)
+
+**Contexto:** o ciclo real leva minutos (`apt full-upgrade` + `fwupdmgr`) e o
+painel só relia quando o dono apertava Atualizar — para saber se tinha acabado
+era Ctrl+R na mão.
+
+**Painel:** se o status disser `em_andamento`, o painel se relê **a cada 5 s**
+(`SO_INTERVALO_MS`) e **para** quando o ciclo termina; ao terminar, avisa
+"ciclo concluído — seções atualizadas abaixo". O agendador
+(`soAgendarRecarga`) **não empilha timers** — um `soLoad` atrasado não vira
+dois laços — e a decisão é a função pura `soDeveRecarregar(d)`, que só aceita
+`em_andamento === true` (nem `null`, nem `"true"` string). Erro de rede/HTTP
+não religa a recarga, para não martelar um servidor fora do ar. Depois do 202
+o painel relê em 1,5 s, para pegar o arranque.
+
+**Defeito medido no caminho:** `unidade_em_andamento()` aceitava só `active`,
+mas `is-active` responde **`activating`** no arranque — a primeira leitura após
+o clique já voltava "parado" e a recarga nem começava. Agora
+`active`/`activating`/`reloading` contam como ciclo em andamento
+(`deactivating` e `failed`, não).
+
+**Prova viva** (restart 26/11 02:32, MainPID **2450715**, `NRestarts=0`):
+`/admin` **200** com `soAgendarRecarga` (4), `SO_INTERVALO_MS` (2),
+`soDeveRecarregar` (2) e `setTimeout(soLoad, 1500)`; `/admin/os-updater/status`
+**200** (`em_andamento: False`, 5 seções — ambos os units `inactive`); journal
+`-p err`: **0**.
+
+**Testes:** `tests/test_painel_os_updater.py` **16 casos** — harness node com
+timers falsos provando decisão (null/`{}`/`"true"`/`false` → não; só `true` →
+sim), agenda única de 5000 ms, não empilhamento e cancelamento ao terminar;
+mais `activating`/`reloading`/`active` contando e `inactive`/`failed`/
+`deactivating` não. `test_api` + `test_os_updater` + `test_health` + painel:
+**302 passed**.
+
+---
+
 ## Últimas seções do ciclo no painel do SO (2026-11-26, sem bump)
 
 **Contexto:** o resumo numérico dizia *quanto* falta, não *o que aconteceu* no

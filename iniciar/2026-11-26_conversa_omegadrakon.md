@@ -317,3 +317,47 @@ fwupdmgr, reboot) além do resumo numérico"* — era sugestão anotada no §4.
 ### Sem bump
 
 `1.47.0+2085` (só servidor/painel).
+
+## §7 — Painel do SO recarrega sozinho enquanto o ciclo roda (26/11 ~02:32)
+
+**Dono:** *"Faça o painel recarregar sozinho o status do SO enquanto o ciclo
+estiver rodando, sem apertar Atualizar"* — era sugestão anotada no §4.
+
+### O que entrou
+
+- `integrations/api/server.py`: `SO_INTERVALO_MS = 5000`; a decisão é a função
+  **pura** `soDeveRecarregar(d)` (só `em_andamento === true` — `null`, `{}` e a
+  string `"true"` não contam); o agendador `soAgendarRecarga(d)` agenda se
+  roda, **cancela** se não roda e **nunca empilha timers** (um `soLoad`
+  atrasado não vira dois laços). Chamado no fim de `soLoad()`.
+- Erro de rede/HTTP **não** religa a recarga: não martela servidor fora do ar.
+- Ao transitar rodando → parado, avisa *"ciclo concluído — seções atualizadas
+  abaixo"* (o acompanhamento terminou sozinho, sem clique).
+- Depois do 202 no botão, `setTimeout(soLoad, 1500)` para pegar o arranque.
+
+### Defeito medido no caminho
+
+`unidade_em_andamento()` aceitava só `active`, mas `is-active` responde
+**`activating`** durante o arranque — a primeira leitura após o clique já
+voltava "parado" e a recarga nem começaria. Agora
+`("", "active", "activating", "reloading")` contam como em andamento;
+`deactivating` e `failed` não.
+
+### Verificação
+
+- `tests/test_painel_os_updater.py`: **16 casos** — harness node com timers
+  falsos: decisão (null/`{}`/`"true"`/`false` → não; `true` → sim), agenda única
+  de **5000 ms**, não empilhamento, cancelamento ao terminar; e
+  `activating`/`reloading`/`active` contando, `inactive`/`failed`/
+  `deactivating` não.
+- `test_api` + `test_os_updater` + `test_health` + painel: **302 passed**.
+- Prova viva (restart 02:32, MainPID **2450715**, `NRestarts=0`): `/admin` 200
+  com `soAgendarRecarga` (4), `SO_INTERVALO_MS` (2), `soDeveRecarregar` (2),
+  `setTimeout(soLoad, 1500)`; status 200 (`em_andamento: False`, 5 seções;
+  ambos os units `inactive`); journal `-p err`: 0.
+- **Não abri navegador** (máquina sem browser): a recarga foi provada nos
+  testes de comportamento, não visualmente.
+
+### Sem bump
+
+`1.47.0+2085` (servidor/painel).

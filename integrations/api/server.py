@@ -2597,12 +2597,43 @@ function soSecoesHtml(secoes) {
     linhas + "</tbody></table>";
 }
 
+// --- Recarga automática enquanto o ciclo roda ----------------------------
+// O ciclo real leva minutos (apt + fwupdmgr). O dono não deve ficar
+// apertando "Atualizar" para saber se acabou: se o status disser
+// `em_andamento`, o painel se relê sozinho a cada 5 s e PARA quando o
+// ciclo termina (ou quando o status deixa de ser legível).
+const SO_INTERVALO_MS = 5000;
+let soTimer = null;
+let soEstavaRodando = false;
+
+// Função PURA (testada no node): só acompanha com `em_andamento === true`.
+// Qualquer outro valor — null, ausente, "true" string — não agenda nada.
+function soDeveRecarregar(d) {
+  return !!(d && d.em_andamento === true);
+}
+
+// Agenda a próxima leitura se o ciclo roda; cancela se não roda. Nunca
+// empilha timers (um soLoad atrasado não vira dois laços).
+function soAgendarRecarga(d) {
+  if (!soDeveRecarregar(d)) {
+    if (soTimer) { clearTimeout(soTimer); soTimer = null; }
+    return false;
+  }
+  if (soTimer) return true;
+  soTimer = setTimeout(function () { soTimer = null; soLoad(); }, SO_INTERVALO_MS);
+  return true;
+}
+
 async function soLoad() {
   const alvo = document.getElementById("so-resumo");
   try {
     const resp = await fetch("/admin/os-updater/status", { headers: authHeaders() });
     const d = await resp.json().catch(() => ({}));
-    if (!resp.ok) { alvo.textContent = "status indisponível (HTTP " + resp.status + ")"; return; }
+    if (!resp.ok) {
+      alvo.textContent = "status indisponível (HTTP " + resp.status + ")";
+      soAgendarRecarga(null);
+      return;
+    }
     const partes = [
       (d.upgradable == null ? "?" : d.upgradable) + " pacotes",
       (d.firmware_upgrades == null ? "?" : d.firmware_upgrades) + " firmwares",
@@ -2613,8 +2644,20 @@ async function soLoad() {
     alvo.textContent = partes.join(" · ");
     document.getElementById("so-secoes").innerHTML = soSecoesHtml(d.secoes);
     document.getElementById("so-aplicar").disabled = !!d.em_andamento;
+    // transição rodando → parado: avisa que a acompanhamento terminou.
+    if (d.em_andamento) {
+      soEstavaRodando = true;
+    } else if (soEstavaRodando) {
+      soEstavaRodando = false;
+      const msg = document.getElementById("so-msg");
+      msg.textContent = "ciclo concluído — seções atualizadas abaixo";
+      msg.className = "msg ok";
+    }
+    soAgendarRecarga(d);
   } catch (e) {
     alvo.textContent = "falha ao ler o status: " + e.message;
+    // não insiste sozinho em erro de rede/autenticação
+    soAgendarRecarga(null);
   }
 }
 
@@ -2638,8 +2681,10 @@ async function soAplicar() {
     });
     const d = await resp.json().catch(() => ({}));
     if (resp.status === 202) {
-      msg.textContent = "ciclo iniciado — acompanhe o status";
+      msg.textContent = "ciclo iniciado — o status se atualiza sozinho";
       msg.className = "msg ok";
+      // relê já no arranque (a unit pode estar em `activating`)
+      setTimeout(soLoad, 1500);
     } else {
       msg.textContent = "não iniciou: " + (d.detalhe || d.erro || ("HTTP " + resp.status));
       msg.className = "msg err";

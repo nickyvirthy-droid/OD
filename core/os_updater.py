@@ -187,12 +187,18 @@ def iniciar_ciclo_forcado() -> tuple[bool, str]:
     return False, (err or out or f"exit {code}").strip()[:300]
 
 
+# `is-active` responde `activating` no arranque e `reloading` ao
+# recarregar: para quem acompanha o painel, isso É ciclo em andamento —
+# tratar só `active` deixava a primeira leitura pós-clique já "parada".
+_ESTADOS_EM_ANDAMENTO = ("", "active", "activating", "reloading")
+
+
 def unidade_em_andamento() -> bool:
-    """True enquanto a unit do ciclo forçado estiver ativa."""
+    """True enquanto a unit do ciclo forçado estiver ativa (ou arrancando)."""
     code, out, _ = _executar(
         [SYSTEMCTL, "is-active", "--quiet", UNIDADE_FORCAR], timeout=10
     )
-    return code == 0 and out.strip() in ("", "active")
+    return code == 0 and out.strip() in _ESTADOS_EM_ANDAMENTO
 
 
 def status_painel(estado_arquivo: Path = ESTADO_ARQUIVO) -> dict[str, Any]:

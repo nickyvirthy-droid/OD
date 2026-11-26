@@ -2588,3 +2588,38 @@ P0: impedir que o llm_cache sirva resposta inventada de conversa comum"*.
   fato"), sem tocar no piso.
 - **Validado:** gate completo **5465 passed / 19 skipped / 0 falha**;
   `test_rag` 98 passed; `od-core` reiniciado, `/health` `ok=true`.
+
+---
+
+## 26/11/2026 — Recarga automática do painel do SO
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Faça o painel recarregar sozinho
+o status do SO enquanto o ciclo estiver rodando, sem apertar Atualizar"*).
+
+### Criados
+
+- nenhum arquivo novo (transcrição §7).
+
+### Modificados
+
+- `integrations/api/server.py` — `SO_INTERVALO_MS`, `soDeveRecarregar` (pura),
+  `soAgendarRecarga` (sem empilhar timers), gancho em `soLoad()`, aviso de
+  conclusão, re-leitura em 1,5 s após o 202.
+- `core/os_updater.py` — `unidade_em_andamento()` passa a contar `activating` e
+  `reloading` (defeito medido: a unit arrancando já lia como parada).
+- `tests/test_painel_os_updater.py` — 4 casos novos (node com timers falsos +
+  estados do `is-active`) → 16 no arquivo.
+- `docs/CHANGELOG.md`, `iniciar/session.json`,
+  `iniciar/2026-11-26_conversa_omegadrakon.md` (§7), `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** 302 testes (api+os_updater+health+painel); `/admin` 200
+servindo as funções; status 200 com `em_andamento: False`; journal `-p err` 0;
+prova viva no restart 02:32 (MainPID 2450715).
+
+**Limitação:** sem navegador na máquina, o comportamento foi provado em teste
+de unidade no node (timers falsos), não visualmente.
+
+**Pela metade / próximo passo:** nada pendente. Segue aberto só o clique real
+do botão (67 pacotes + 51 firmwares, reboot em +5 min) — decisão do dono.

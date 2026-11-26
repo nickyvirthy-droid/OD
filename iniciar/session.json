@@ -1,4 +1,14 @@
 {
+  "recarga_automatica_painel_so_2026_11_26": {
+    "pedido": "Dono (26/11 ~02:28): 'Faca o painel recarregar sozinho o status do SO enquanto o ciclo estiver rodando, sem apertar Atualizar'.",
+    "codigo": "integrations/api/server.py: SO_INTERVALO_MS=5000, soDeveRecarregar(d) (PURA: so em_andamento === true), soAgendarRecarga(d) (agenda se roda, cancela se nao, NUNCA empilha timers), chamado no fim de soLoad(); erro de rede/HTTP nao religa a recarga; apos 202 no botao, setTimeout(soLoad, 1500); ao transitar rodando->parado mostra 'ciclo concluido — secoes atualizadas abaixo'.",
+    "defeito_corrigido": "core/os_updater.py: unidade_em_andamento() aceitava so 'active', mas is-active responde 'activating' no arranque — a primeira leitura pos-clique dizia 'parado' e a recarga nao comecava. Agora _ESTADOS_EM_ANDAMENTO = ('', 'active', 'activating', 'reloading'); deactivating/failed ficam de fora.",
+    "testes": "tests/test_painel_os_updater.py 16 casos — harness node com timers falsos: decisao (null/{}/'true'/false -> nao, true -> sim), agenda unica de 5000 ms, nao empilhamento, cancelamento ao terminar; activating/reloading/active contam, inactive/failed/deactivating nao. test_api + test_os_updater + test_health + painel: 302 passed.",
+    "prova_viva": "restart 26/11 02:32 — MainPID 2450715, NRestarts=0; /admin 200 com soAgendarRecarga (4), SO_INTERVALO_MS (2), soDeveRecarregar (2), setTimeout(soLoad, 1500); /admin/os-updater/status 200 (em_andamento False, 5 secoes, ambos units inactive); journal -p err 0. Nao abri navegador: a maquina nao tem browser, entao o visual da recarga nao foi visto.",
+    "sem_bump": "1.47.0+2085 (servidor/painel).",
+    "arquivos": "integrations/api/server.py, core/os_updater.py, tests/test_painel_os_updater.py, docs/CHANGELOG.md, iniciar/2026-11-26_conversa_omegadrakon.md (§7), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T02:35:00-03:00"
+  },
   "secoes_do_ciclo_no_painel_2026_11_26": {
     "pedido": "Dono (26/11 ~02:05): 'Mostre no painel do atualizador as ultimas secoes do ciclo (apt, fwupdmgr, reboot) alem do resumo numerico' (sugestao anotada no §4).",
     "codigo": "integrations/api/server.py: <div id='so-secoes'> na secao 'Atualizador de SO' e render pela funcao PURA soSecoesHtml(secoes) (padrao do visaoCards): tabela Quando · Secao · Resultado · Detalhe, execucao MAIS RECENTE primeiro, hora pt-BR (soQuando), ok/falhou por secao e detalhe ESCAPADO (soEsc) — o estado e arquivo em disco, HTML cru ali seria injecao. soLoad() alimenta com d.secoes (a rota ja devolvia as 5 ultimas). Vazio honesto: 'nenhuma secao registrada ainda — o ciclo ainda nao rodou'.",
@@ -6792,6 +6802,15 @@
       "commit": "c2f29b4",
       "branch": "master",
       "iniciado_em": "2026-11-26T01:41:59-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2450715,
+      "commit": "b3c1afd",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T01:54:16-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
