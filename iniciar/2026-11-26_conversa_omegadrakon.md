@@ -923,3 +923,60 @@ sido pedido.
 ### Bump
 
 Nenhum (`1.47.0+2085`).
+
+---
+
+## §20 — Fila item 10: espelho com restauração real (26/11 ~11:15)
+
+**Dono:** *"Siga para o item 10 da fila: espelho com restauração real"*.
+
+### O que a prova anterior não cobria
+
+12/11 provou `pip install --no-index` (15 s) e integridade; 18/11 provou o LLM
+do espelho. Faltava um **venv limpo** rodando o projeto e um **container**
+saindo do tar, ambos **sem rede**.
+
+### Prova feita
+
+1. **venv limpo** em `/tmp/od_mirror_venv` (python3.12) +
+   `PIP_NO_INDEX=1 pip install --no-index --find-links od-mirror/pip` →
+   **60 pacotes em 18 s**, nenhum download.
+2. **Gate completo nesse venv** (`PYTHONPATH=. pytest -q`):
+   **5807 passed / 17 skipped / 2 failed em 249 s** — as 2 falhas são as de
+   `test_websocket.py` que já falham no HEAD na suíte inteira.
+3. **Container offline:** `docker load` do `postgres_16-alpine.tar` (tag
+   preservada) + `docker run --network none` → `pg_isready` "accepting
+   connections", `PostgreSQL 16.15`, `select` respondido; dentro do container
+   **só `lo`**. Container removido no fim; a imagem já estava no host.
+4. **Integridade:** `sha256sum -c MANIFEST.txt` → **134/134 OK** (46 s).
+5. venv de prova (520 MB) removido.
+
+### Achado e correção
+
+O README do espelho dizia que `requirements-dev.txt` (10 wheels) estava no
+acervo: os wheels estavam, **o arquivo não** (nem no MANIFEST). Sem ele, o gate
+offline dependia do `requirements-dev.txt` do repositório.
+
+Corrigido: copiado para `/home/alex/dados/od-mirror/`, linha de sha256
+acrescentada ao MANIFEST (134/134 continua OK) e o README do espelho ganhou a
+seção "Teste de restauração real (26/11/2026)".
+
+### Limites declarados
+
+- Wheels **cp312/x86_64**: outra máquina/versão exige `pip download` novo.
+- Só **um** container bootado nesta rodada; os outros 16 tars foram validados
+  por `docker load` + sha256 em 12/11.
+- `od-core` não foi iniciado a partir do espelho: seria uma segunda instância
+  disputando Postgres, MQTT e o bot com a que está no ar. O gate cobre o boot
+  dos módulos.
+- Dados de containers e `.env` seguem fora do espelho por decisão.
+
+### Verificação
+
+- Gate do RAG híbrido (texto novo em `docs/`): **8/8 relevantes · 0/8
+  irrelevantes · 6/6 paráfrases**, igual ao baseline.
+- Nenhum `.py` do projeto alterado: sem gate no venv do projeto e sem restart.
+
+### Bump
+
+Nenhum (`1.47.0+2085`).

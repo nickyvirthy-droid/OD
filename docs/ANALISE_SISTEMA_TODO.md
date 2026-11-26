@@ -125,7 +125,7 @@ registro):
 | 16 | RAG: cache de embedding de documento | Ganho local, sem risco. |
 | 17 | Mapas: rótulos não-latinos e zoom 15 urbano | Rótulos não-latinos **embutidos 26/11** (hebraico, árabe, siríaco, devanagari, tailandês, vietnamita, pontuação; CJK/hangul não existem na fonte Protomaps). z15: só com demanda medida. |
 | 18 | IA local: reteste do 7B Q3_K_M / `-c 4096` | Depende de RAM livre; 60 s × 16 s hoje. |
-| 19 | Espelho: restauração real (venv limpo + container) | Prova de boot offline do espelho. |
+| 19 | Espelho: restauração real (venv limpo + container) | **Feito 26/11** — venv limpo offline rodou o gate (5807/17/2) e o Postgres subiu do tar com `--network none`; MANIFEST 134/134. Ver `docs/ESPELHO_RESTAURACAO.md`. |
 | 20 | NV (DAG/scheduler, security layer) e dados do Orion | Referência arquivada; **sem demanda medida** — não portar. |
 
 ---
@@ -598,7 +598,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | ✅ 26/11 — originais já fora do servidor (zip na HD); leitura do Orion documentada em `docs/PROJETI_REFERENCIA.md`; trilha de backups do APK medida, 1.47.0 arquivado e passo de `aapt` no checklist |
 | 8 | Mapas offline (próximo do inventário) | ✅ 26/11 — 8 faixas de glifos não-latinos embutidas (+648 KB, 11 testes); CJK/hangul e z15 medidos e fechados por falta de demanda (`docs/MAPAS_OFFLINE.md`) |
 | 9 | Modo colapso declarado | ✅ 21/11 (entregue) e **provado ao vivo 26/11**: ligar → groq/gemini bloqueados, resposta local com prefixo "⚡ modo colapso", `/health` degraded; desligar → up. 17 testes |
-| 10 | Espelho com restauração real (precisa execução e prova) | pendente |
+| 10 | Espelho com restauração real (precisa execução e prova) | ✅ 26/11 — venv limpo com os wheels do espelho (60 pacotes, 18 s, `PIP_NO_INDEX=1`) + **gate completo 5807/17/2 (as 2 falhas pré-existentes) em 249 s**; `postgres:16-alpine` carregado do tar e bootado com `--network none` (só `lo`), `pg_isready` + `select` OK; MANIFEST **134/134**. Achado corrigido: `requirements-dev.txt` não estava no espelho — copiado e registrado |
 | 11 | Janela de aplicação do SO com prova de retorno | ✅ 26/11 02:36 — 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, `od-pos-reboot` avisou no Telegram, kernel 6.8.0-151, `reboot pendente: não` |
 
 **Fora da fila (decisão do dono):** quarentena do acervo (38 arquivos), app
@@ -1396,9 +1396,15 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       — **FEITO 12/11: `/home/alex/dados/od-mirror`, 3,3 GB (47 wheels +
       12 imagens + README/MANIFEST com sha256); pip offline validado com
       `--no-index --dry-run`**
-- [ ] **Espelho (restauração real):** criar um venv limpo e subir um container
-      a partir de `od-mirror` sem rede — hoje a prova é resolução de
-      dependências + integridade, não um boot completo
+- [x] **Espelho (restauração real):** criar um venv limpo e subir um container
+      a partir de `od-mirror` sem rede — **FEITO 26/11:** venv em `/tmp` com
+      `PIP_NO_INDEX=1` (60 pacotes, 18 s) rodou o gate completo nele
+      (**5807 passed / 17 skipped / 2 failed** — as 2 de `test_websocket.py`
+      que já falham no HEAD) e o `postgres:16-alpine` saiu do tar espelhado e
+      respondeu `pg_isready`/`select` com `--network none` (só `lo`).
+      MANIFEST **134/134 OK**. Achado: `requirements-dev.txt` era citado no
+      README mas **não estava** no espelho — copiado, no MANIFEST e README
+      atualizado. Dossiê: `docs/ESPELHO_RESTAURACAO.md`
 - [x] **Espelho (modelos):** `.gguf` do 3B + runtime do llama.cpp no acervo —
       **FEITO 18/11:** `models/qwen2.5-coder-3b-instruct-q4_k_m.gguf` (2,0 GB,
       sha256 idêntico ao original) + `runtimes/llama/` (build 10786, 41 MB,

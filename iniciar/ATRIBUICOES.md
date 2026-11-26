@@ -9,6 +9,36 @@
 
 ---
 
+## 26/11/2026 — Espelho offline: restauração real provada (fila item 10)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 10 da fila:
+espelho com restauração real"*).
+
+### Criados
+
+- `docs/ESPELHO_RESTAURACAO.md` — dossiê com os comandos e os números da
+  prova (venv limpo, gate, container offline, MANIFEST, limites).
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (item 10 da fila, P2 nº
+  19 e o checkbox da seção Continuidade), `iniciar/2026-11-26_conversa_omegadrakon.md`
+  (§20), `iniciar/session.json`, `txt.txt`.
+- **Fora do repositório (mídia do dono):** `/home/alex/dados/od-mirror/`
+  recebeu o `requirements-dev.txt` que faltava (com linha nova no `MANIFEST`,
+  agora 134/134) e a seção do teste de 26/11 no `README.md`.
+
+### Intenção e estado
+
+Transformar a prova antiga (resolução de dependências) em boot de verdade:
+venv limpo só com wheels do espelho rodou o gate completo (5807/17/2, as 2
+falhas já existentes no HEAD) e o `postgres:16-alpine` saiu do tar espelhado e
+respondeu com `--network none`. Achado: o `requirements-dev.txt` era citado no
+README mas não estava no acervo — corrigido. Nenhum `.py` do projeto alterado,
+sem restart. `1.47.0+2085`.
+
+---
+
 ## 26/11/2026 — Modo colapso: verificação ao vivo (fila item 9)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 9 da fila:

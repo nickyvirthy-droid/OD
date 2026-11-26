@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Espelho offline: restauração real provada (2026-11-26, sem bump)
+
+**Contexto:** a fila (item 10, P2 nº 19) pedia o que a prova de 12/11 não
+cobria: um venv limpo e um container saindo de `od-mirror` **sem rede**.
+
+**Prova:**
+
+1. **venv limpo** (`python3.12 -m venv /tmp/od_mirror_venv`) + `pip install`
+   com `PIP_NO_INDEX=1 --no-index --find-links od-mirror/pip` → **60 pacotes em
+   18 s**, nenhum download.
+2. **Gate completo dentro desse venv:** **5807 passed / 17 skipped / 2 failed**
+   em 249 s — as 2 falhas são as de `tests/test_websocket.py` que já falham no
+   HEAD quando a suíte roda inteira (passam isoladas).
+3. **Container:** `docker load` do tar espelhado do `postgres:16-alpine` e
+   `docker run --network none` → `pg_isready` "accepting connections",
+   `PostgreSQL 16.15` e `select` respondidos; dentro do container só `lo`.
+   Container removido ao fim.
+4. **Integridade:** `sha256sum -c MANIFEST.txt` → **134/134 OK**.
+
+**Achado corrigido:** o `README` do espelho citava `requirements-dev.txt` e os
+10 wheels dele estavam em `pip/`, mas o **arquivo não estava** no espelho nem
+no `MANIFEST`. Copiado, registrado e o README ganhou a seção da prova — agora
+o gate offline restaura inteiro do espelho.
+
+**Limites:** wheels `cp312`/x86_64 (outra máquina exige reespelhar); só um
+container bootado nesta rodada (os outros 16 tars foram validados por
+`docker load` + `sha256` em 12/11); dados e `.env` ficam fora do espelho por
+decisão. Dossiê: `docs/ESPELHO_RESTAURACAO.md`.
+
+---
+
 ## Modo colapso declarado: verificado ao vivo (2026-11-26, sem bump)
 
 **Contexto:** o item 9 da fila pedia o modo colapso, entregue em 21/11 — mas

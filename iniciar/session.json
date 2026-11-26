@@ -1,4 +1,15 @@
 {
+  "espelho_restauracao_2026_11_26": {
+    "pedido": "Dono (26/11 ~11:0x): 'Siga para o item 10 da fila: espelho com restauracao real'.",
+    "prova": "(1) venv limpo /tmp/od_mirror_venv com PIP_NO_INDEX=1 e --no-index --find-links /home/alex/dados/od-mirror/pip -> 60 pacotes em 18 s, nenhum download. (2) Gate completo nesse venv: 5807 passed / 17 skipped / 2 failed em 249 s (as 2 falhas sao as de tests/test_websocket.py que ja falham no HEAD na suite inteira e passam isoladas). (3) docker load do postgres_16-alpine.tar (tag preservada) + docker run --network none -> pg_isready accepting connections, PostgreSQL 16.15, select respondido; dentro do container so 'lo'; container removido. (4) sha256sum -c MANIFEST.txt -> 134/134 OK em 46 s. (5) venv de prova (520 MB) removido.",
+    "achado": "O README do espelho citava requirements-dev.txt (10 wheels) e os wheels estavam em pip/, mas o ARQUIVO nao estava no espelho nem no MANIFEST. Corrigido: copiado para /home/alex/dados/od-mirror/, sha256 acrescentado ao MANIFEST (134/134 segue OK) e README do espelho ganhou a secao 'Teste de restauracao real (26/11/2026)'.",
+    "limites": "Wheels cp312/x86_64 (outra maquina exige pip download novo). So um container bootado nesta rodada (os outros 16 tars foram validados por docker load + sha256 em 12/11). od-core nao foi iniciado do espelho (seria segunda instancia disputando Postgres/MQTT/Telegram); o gate cobre o boot dos modulos. Dados e .env seguem fora do espelho por decisao.",
+    "verificacao": "Gate do RAG hibrido (texto novo em docs/): 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, igual ao baseline. Nenhum .py do projeto alterado: sem gate no venv do projeto e sem restart.",
+    "sem_bump": "1.47.0+2085.",
+    "arquivos": "docs/ESPELHO_RESTAURACAO.md (novo), docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md (item 10, P2 no 19, checkbox), iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS20), txt.txt; fora do repo: od-mirror/requirements-dev.txt (novo), od-mirror/MANIFEST.txt, od-mirror/README.md.",
+    "proximo": "Item 11 da fila? Conferir a fila: itens 1-4 e 11 estavam feitos; restam os itens 12+ (ver tabela SS4 do TODO).",
+    "updated_at": "2026-11-26T11:15:00-03:00"
+  },
   "colapso_verificado_2026_11_26": {
     "pedido": "Dono (26/11 ~10:3x): 'Siga para o item 9 da fila: modo colapso declarado'.",
     "estado_encontrado": "Recurso JA entregue em 21/11 (P1 no 6): core/colapso.py, action colapso (status/ligar/desligar), prefixo no chat, check nao-critico no /health e monitor no launcher (falhas=3). A fila ainda listava como pendente e o checkbox da secao Continuidade estava aberto.",
