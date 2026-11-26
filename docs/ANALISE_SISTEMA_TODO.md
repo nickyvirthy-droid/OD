@@ -599,7 +599,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 8 | Mapas offline (próximo do inventário) | pendente |
 | 9 | Modo colapso declarado | pendente |
 | 10 | Espelho com restauração real (precisa execução e prova) | pendente |
-| 11 | Janela de aplicação do SO com prova de retorno | **parcial**: pacotes/firmwares aplicados em 26/11 02:13; falta o reboot e a verificação pós-boot (decisão do dono) |
+| 11 | Janela de aplicação do SO com prova de retorno | ✅ 26/11 02:36 — 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, `od-pos-reboot` avisou no Telegram, kernel 6.8.0-151, `reboot pendente: não` |
 
 **Fora da fila (decisão do dono):** quarentena do acervo (38 arquivos), app
 por papel, energia/religar, backup fora da máquina, reteste de IA local,
@@ -699,11 +699,22 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       legível (pacotes e firmwares **por nome**, reboot previsto, erros) usando
       estado temporário — a simulação não polui as seções do painel. 2 casos
       novos em `test_os_updater`.
-- [ ] **Janela de aplicação do SO com prova de retorno** (sugestão de 26/11) —
-      o timer já aplica sozinho aos domingos e agenda reboot em +5 min, mas
-      ninguém verifica se o `od-core`, o Postgres e o painel voltaram depois do
-      reboot: falta um pós-reboot que confirme `/health`, dumps e timers e avise
-      no Telegram (hoje o dono descobre pelo uso).
+- [x] **Janela de aplicação do SO com prova de retorno** (sugestão de 26/11) —
+      **FEITO 26/11:** `tools/validar_pos_reboot.py` + `systemd/od-pos-reboot.service`
+      (oneshot no boot) conferem uptime, `/health`, 5 serviços, 2 timers,
+      `/var/run/reboot-required`, kernel e 5 checks obrigatórios, gravam
+      `data/pos_reboot.json` e mandam o veredito no Telegram. **Prova no reboot
+      real de 02:36:** unit `enabled`, rodou 20 s após o boot, esperou 6,1 s o
+      `od-core`, 5/5 serviços e 2/2 timers `active`, kernel 6.8.0-151,
+      `reboot pendente: não`, Telegram enviado, `exit=0`. `/health` depois:
+      ok=true com 34 checks. 5 casos em `tests/test_validar_pos_reboot.py`.
+- [ ] **Pós-reboot: não soar alarme com container ainda subindo** — no boot de
+      26/11 a checagem rodou 22 s depois do uptime e reportou `/health
+      degraded` com 6 checks falhando (`mqtt`, `tool_kiwix`, `tool_flatnotes`,
+      `tool_stirling_pdf`, `tool_calibre_web`, `tool_homebox`); os containers
+      subiram em seguida e tudo ficou `up`. Resolve: esperar os containers
+      (ou marcar esses checks como transitórios na primeira janela) para o
+      veredito do boot separar "ainda subindo" de "quebrou".
 - [x] **Estado do atualizador de SO no `/health`** (sugestão de 26/11) —
       **FEITO 26/11:** check não-crítico `os_updater` via
       `register_os_updater_health()`; lê o JSON de estado + reboot e conta

@@ -12,6 +12,40 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Validação pós-reboot automática no Telegram (2026-11-26, sem bump)
+
+**Origem:** commit `006502c` (autor do commit: Alex Projeti) **sem registro em
+`iniciar/`** — a autoria da IA não foi identificada (regra 23). Entrada escrita
+na retomada de 26/11 ~02:45, depois do reboot real.
+
+**O que é:** `tools/validar_pos_reboot.py` + `systemd/od-pos-reboot.service`
+(oneshot, `WantedBy=multi-user.target`, `After=network-online.target
+postgresql.service docker.service user@1000.service`). No boot confere: uptime
+(prova de que é pós-reboot e não checagem manual), `/health` com `X-API-Key`
+(espera até 180 s o `od-core` responder), 5 serviços (`od-core`, `od-llm`,
+`od-azura-proxy` de usuário; `postgresql`, `docker` de sistema), 2 timers
+(`od-os-updater`, `od-io-probe`), `/var/run/reboot-required`, kernel em
+execução e 5 checks obrigatórios (`database`, `orchestrator`, `backup`,
+`offsite`, `units_instaladas`). Grava `data/pos_reboot.json` e manda o veredito
+no Telegram. Exit 0 = essencial ok; 1 = algo falhou.
+
+**Prova viva (reboot real de 26/11 02:36, o que estava pendente desde 02:13):**
+unit `enabled`, rodou sozinha 20 s depois do boot: `🟢 Pós-reboot OK (uptime
+0.4 min)`, esperou **6,1 s** o `od-core`, 5/5 serviços `active`, 2/2 timers
+`active`, kernel **6.8.0-151-generic**, `reboot pendente: não`, Telegram
+enviado, `exit=0` (`data/pos_reboot.json` com `ok: true`). `/health` depois do
+boot completo: **ok=true com 34 checks**, nenhum fora de `up`.
+
+**Achado honesto:** no instante da checagem (22 s de uptime) o `/health` estava
+`degraded` com 6 checks falhando (`mqtt`, `tool_kiwix`, `tool_flatnotes`,
+`tool_stirling_pdf`, `tool_calibre_web`, `tool_homebox`) — os containers ainda
+subiam. O relatório registra a verdade daquele segundo, mas o texto do boot
+parece falha; virou checkbox no §4 do TODO (esperar/separar transitório).
+
+**Testes:** `tests/test_validar_pos_reboot.py` **5 casos** (5 passed).
+
+---
+
 ## Fila 4: guarda de off-site no verificador semanal (2026-11-26, sem bump)
 
 **Contexto:** o verificador semanal (`od-pg-restore.timer`) provava que o dump

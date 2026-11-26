@@ -1,4 +1,15 @@
 {
+  "retomada_leitura_iniciar_2026_11_26": {
+    "pedido": "Dono (26/11 ~02:40): 'leia iniciar' — recarregar o checkpoint depois do reboot.",
+    "lido": "iniciar/README.md, RULES (24 regras), session.json (topo: fila_item4_offsite_2026_11_26), ATRIBUICOES, transcricao 2026-11-26 (\u00a71-\u00a710), txt.txt, git e servico.",
+    "estado_encontrado": "HEAD == origin/master == 006502c; arvore limpa exceto o auto-registro do restart em session.json (pid 1219). Maquina REINICIADA as 02:36:27 (uptime 4 min), kernel 6.8.0-151-generic, reboot pendente NAO. od-core MainPID 1219, NRestarts=0, active. /health ok=true com 34 checks, nenhum fora de up. od-pos-reboot.service enabled, rodou 20 s apos o boot: 'Pos-reboot OK', 5/5 servicos active, 2/2 timers active, Telegram enviado, exit=0, data/pos_reboot.json ok=true.",
+    "fila": "Item 4 (offsite no verificador) ja publicado em c92b1af. Item 11 (janela do SO com prova de retorno) FECHADO: 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, pos-reboot provado. Proximo = item 5 (comparador de modelos lado a lado, P1 no 8).",
+    "achado": "O commit 006502c (validacao pos-reboot, autor do commit Alex Projeti) estava publicado SEM registro em iniciar/, CHANGELOG ou ATRIBUICOES (regra 23) — autoria da IA desconhecida, registrado como tal. Segundo achado: no boot a checagem (22 s de uptime) reportou degraded com 6 checks falhando (mqtt, tool_kiwix, tool_flatnotes, tool_stirling_pdf, tool_calibre_web, tool_homebox) porque os containers ainda subiam; virou checkbox no \u00a74 do TODO.",
+    "decisao": "Turno de leitura + registro: nenhum codigo alterado, sem restart e sem bump (1.47.0+2085). Escritos: secao do pos-reboot no CHANGELOG, fila item 11 e checkbox novo no TODO, ATRIBUICOES (2 entradas), transcricao \u00a711 e txt.txt.",
+    "sem_bump": "1.47.0+2085 mantido",
+    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (\u00a711)",
+    "updated_at": "2026-11-26T02:50:00-03:00"
+  },
   "fila_item4_offsite_2026_11_26": {
     "pedido": "Dono (26/11 ~03:35): 'Siga para o item 4 da fila: guarda de offsite junto do verificador semanal'.",
     "decisao": "O item apontava o tools/checar_offsite_pg.py (sha256 do dump no canal do Telegram e nos snapshots das 2 HDs). A primeira versao comparava nome/idade do data/offsite_state.json e foi DESCARTADA por inventar criterio paralelo. Ficou a integracao do checador existente.",
@@ -6863,6 +6874,15 @@
       "commit": "4fc600b",
       "branch": "master",
       "iniciado_em": "2026-11-26T02:15:50-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 1219,
+      "commit": "006502c",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T02:36:37-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

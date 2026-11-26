@@ -9,6 +9,64 @@
 
 ---
 
+## 26/11/2026 — Retomada "leia iniciar": reboot de 02:36 validado, item 11 fechado
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).
+
+### Criados
+
+- `iniciar/2026-11-26_conversa_omegadrakon.md` §11 — transcrição do turno.
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `retomada_leitura_iniciar_2026_11_26`
+  (topo) com o estado medido do pós-reboot.
+- `docs/CHANGELOG.md` — seção "Validação pós-reboot automática no Telegram"
+  (o commit `006502c` não tinha entrada).
+- `docs/ANALISE_SISTEMA_TODO.md` — fila item **11 ✅** com a prova do reboot;
+  checkbox "Janela de aplicação do SO com prova de retorno" fechado; checkbox
+  novo do alarme com container subindo (§4).
+- `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** cumprir as regras 3 e 4 (ler antes de assumir contexto e
+  registrar a troca) e fechar o buraco de registro do commit `006502c`, que
+  estava publicado sem `iniciar/`, CHANGELOG ou atribuição (regra 23).
+- **Medido:** árvore limpa exceto o auto-registro do restart em `session.json`;
+  `HEAD == origin/master == 006502c`; máquina **reiniciada 02:36** (uptime 4
+  min no início do turno) com kernel **6.8.0-151-generic** e `reboot pendente:
+  não`; `od-pos-reboot.service` **enabled**, rodou 20 s após o boot e mandou o
+  veredito no Telegram (`🟢 Pós-reboot OK`, 5/5 serviços, 2/2 timers, `exit=0`,
+  `data/pos_reboot.json` com `ok: true`); `/health` **ok=true com 34 checks**,
+  nenhum fora de `up`; `od-core` MainPID 1219, `NRestarts=0`.
+- **Estado:** nada alterado em código; sem restart e sem bump (leitura +
+  registro). `tests/test_validar_pos_reboot.py` 5 passed.
+- **Pela metade / próximo passo:** item 5 da fila (comparador de modelos lado a
+  lado). Achado registrado: o pós-reboot alarmou `degraded` com os containers
+  ainda subindo — checkbox no §4.
+
+## 26/11/2026 — Validação pós-reboot automática no Telegram (origem não identificada)
+
+**Autor:** **não identificado** (regra 23) — commit `006502c`, autor do commit
+*Alex Projeti*, sem registro em `iniciar/`, CHANGELOG ou atribuição. Achado na
+retomada de 26/11 ~02:45; nada foi adivinhado sobre quem escreveu.
+
+### Criados (pelo commit, não por mim)
+
+- `tools/validar_pos_reboot.py` — oneshot de boot: uptime, `/health` (espera
+  180 s), 5 serviços, 2 timers, `/var/run/reboot-required`, kernel, 5 checks
+  obrigatórios, estado em `data/pos_reboot.json` e Telegram.
+- `systemd/od-pos-reboot.service` — `WantedBy=multi-user.target`, instalada e
+  habilitada em `/etc/systemd/system`.
+- `tests/test_validar_pos_reboot.py` — 5 casos (5 passed).
+
+### Estado
+
+**Provada no reboot real de 26/11 02:36:** `enabled`, rodou sozinha, `exit=0`,
+Telegram enviado, kernel 6.8.0-151, `reboot pendente: não`. Só o **registro**
+faltava — CHANGELOG, TODO e transcrição §11 escritos por mim neste turno.
+
 ## 26/11/2026 — Últimas seções do ciclo no painel do SO
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Mostre no painel do atualizador

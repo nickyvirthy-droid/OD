@@ -495,3 +495,53 @@ inventar outro critério ao lado do que o dono já tinha. Ficou a integração:
 ### Bump
 
 Nenhum (`1.47.0+2085`, servidor).
+
+## §11 — Retomada "leia iniciar" depois do reboot: item 11 fechado (26/11 ~02:45)
+
+**Dono:** *"leia iniciar"*.
+
+### O que foi lido
+
+`iniciar/README.md`, as 24 regras de `iniciar/RULES.md`, o topo do
+`session.json` (**§10 / item 4 da fila**: guarda de off-site no verificador
+semanal, commit `c92b1af`), `iniciar/ATRIBUICOES.md`, a transcrição de 26/11
+inteira (§1–§10), o `txt.txt`, o git e o serviço.
+
+### Estado medido
+
+- `HEAD == origin/master == 006502c`; árvore limpa exceto o auto-registro do
+  restart em `session.json` (pid 1219).
+- A máquina **reiniciou às 02:36:27** (uptime 4 min no início do turno),
+  kernel **6.8.0-151-generic**, `reboot pendente: não` — o reboot que estava
+  pendente desde a aplicação das 02:13 **aconteceu**.
+- `od-pos-reboot.service` **enabled** e rodou sozinha 20 s depois do boot:
+  `🟢 Pós-reboot OK`, esperou 6,1 s o `od-core`, **5/5** serviços `active`,
+  **2/2** timers `active`, Telegram enviado, `exit=0`
+  (`data/pos_reboot.json` com `ok: true`).
+- `od-core` MainPID **1219**, `NRestarts=0`, `active`; `/health`
+  **ok=true com 34 checks**, nenhum fora de `up`.
+
+### Achados do turno
+
+1. O commit `006502c` (validação pós-reboot) estava **publicado sem registro**
+   em `iniciar/`, CHANGELOG ou `ATRIBUICOES` — autor do commit *Alex Projeti*,
+   autoria da IA **desconhecida** (regra 23: registra-se como desconhecida).
+   Foi registrado agora, sem inventar origem.
+2. No boot a checagem rodou com 22 s de uptime e reportou `/health` `degraded`
+   com 6 checks falhando (`mqtt`, `tool_kiwix`, `tool_flatnotes`,
+   `tool_stirling_pdf`, `tool_calibre_web`, `tool_homebox`) — os containers
+   ainda subiam e ficaram todos `up` depois. Verdade daquele segundo, mas o
+   texto do boot soa como falha: virou checkbox no §4 do TODO.
+
+### Fila de prioridades
+
+Item **11** (janela de aplicação do SO com prova de retorno) **fechado** com a
+prova acima. Item 4 já estava ✅. Próximo: **item 5 — comparador de modelos
+lado a lado (P1 nº 8)**.
+
+### Decisão do turno
+
+Leitura + registro, nada de código: sem restart e sem bump (`1.47.0+2085`).
+Escritos: seção do pós-reboot no `docs/CHANGELOG.md`, fila item 11 e checkbox
+novo em `docs/ANALISE_SISTEMA_TODO.md`, duas entradas em
+`iniciar/ATRIBUICOES.md`, este §11, `session.json` e aviso no `txt.txt`.
