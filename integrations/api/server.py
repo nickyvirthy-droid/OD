@@ -136,6 +136,21 @@ DEFAULT_PROFILE = "guardian"
 
 API_NAME = "Omega Drakon REST API"
 
+
+def _bloco_os_updater() -> dict[str, Any]:
+    """Bloco `os_updater` do /health (26/11) — números do atualizador de SO.
+
+    O check `os_updater` resume o mesmo estado em uma linha de texto; este
+    bloco existe para o painel e o app mostrarem os números sem parsear
+    string. Falha nunca derruba o /health: vira `{"ok": False, "error": ...}`.
+    """
+    try:
+        from core.os_updater import resumo_health
+
+        return {**resumo_health(), "ok": True}
+    except Exception as exc:  # atualizador quebrado não derruba a saúde
+        return {"ok": False, "error": type(exc).__name__}
+
 # Site do projeto (landing + APK) servido estaticamente em /site*.
 # Caminho padrão: pasta site/ na raiz do repo (config.site_dir sobrescreve).
 DEFAULT_SITE_DIR = Path(__file__).resolve().parents[2] / "site"
@@ -1985,6 +2000,20 @@ async function whoAmI() {
 window.odFormatoGerenciado = true;
 
 function visaoCards(health, sup, stats) {
+    // Atualizador de SO (26/11): o bloco health.os_updater traz os números do
+    // check `os_updater` já estruturados (pacotes, firmwares, reboot, falhas),
+    // sem parsear o texto do detail. Reboot pendente é aviso; falha de ciclo
+    // é problema de verdade (vermelho).
+    const so = health.os_updater || {};
+    // Sem o bloco (servidor antigo) é "—" honesto, nunca zero verde.
+    const soOk = !!health.os_updater && so.ok !== false;
+    const soTxt = soOk
+      ? (so.upgradable == null ? "?" : so.upgradable) + " pac · " +
+        (so.firmware_upgrades == null ? "?" : so.firmware_upgrades) + " fw · " +
+        (so.precisa_reboot ? "reboot pendente" : "sem reboot") +
+        (so.falhas_consecutivas ? " · " + so.falhas_consecutivas + " falha(s)" : "")
+      : "—";
+    const soErr = !soOk || so.falhas_consecutivas > 0 ? "err" : "";
     const cards = [
       ["Estado", health.status || (health.ok ? "up" : "?"), health.ok ? "ok" : "err"],
       ["Uptime", fmtUptime(stats.uptime_s != null ? stats.uptime_s : health.uptime_s), ""],
@@ -1992,6 +2021,7 @@ function visaoCards(health, sup, stats) {
       ["Latência média", stats.avg_latency_ms != null ? stats.avg_latency_ms + " ms" : "—", ""],
       ["Loops", sup.restarts + " restart", sup.ok ? "ok" : "err"],
       ["Cache LLM", stats.cache && stats.cache.entries != null ? stats.cache.entries : "—", ""],
+      ["Sistema (SO)", soTxt, soErr],
       ["Stack Nômade", stats.nomad_tools ? stats.nomad_tools.up + "/" + stats.nomad_tools.total : "—",
         stats.nomad_tools && stats.nomad_tools.fora.length ? "err" : ""],
       ["Alertas", stats.notifier
@@ -5917,6 +5947,10 @@ class APIHandler(BaseHTTPRequestHandler):
                     }
             else:
                 result.setdefault("task_queue", {"enabled": False})
+            # Atualizador de SO (26/11): bloco estruturado para o painel/app.
+            # Fica FORA do cache de 8s como a fila — e a sondagem de pacotes
+            # tem cache próprio de 30 min dentro de resumo_health().
+            result["os_updater"] = _bloco_os_updater()
             self._json(200, result)
             return
         orch = self.api.orchestrator
@@ -5933,6 +5967,7 @@ class APIHandler(BaseHTTPRequestHandler):
         corpo["task_queue"] = (
             tq.snapshot() if tq is not None else {"enabled": False}
         )
+        corpo["os_updater"] = _bloco_os_updater()
         self._json(200, corpo)
 
     def profiles(self) -> None:

@@ -75,6 +75,8 @@ class _StatusScreenState extends State<StatusScreen> {
           // Status geral
           _buildHealthCard(),
           const SizedBox(height: 16),
+          // Atualizador do sistema operacional (bloco os_updater do /health)
+          _buildOsUpdaterCard(),
           // Checks
           _buildChecksCard(),
           const SizedBox(height: 16),
@@ -122,6 +124,70 @@ class _StatusScreenState extends State<StatusScreen> {
     );
   }
 
+  /// Card "Atualizador de SO" — lê o bloco `os_updater` do /health.
+  ///
+  /// Mesmos números do check `os_updater`, porém estruturados (o servidor
+  /// manda `upgradable`, `firmware_upgrades`, `falhas_consecutivas` e
+  /// `precisa_reboot`) — nada de parsear o texto do `detail`. Só `is` +
+  /// fallback: bloco ausente (servidor antigo) some sem quebrar a aba.
+  Widget _buildOsUpdaterCard() {
+    final so = _health?['os_updater'];
+    if (so is! Map) return const SizedBox.shrink();
+    if (so['ok'] == false) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              const Icon(Icons.help_outline, color: Colors.grey, size: 20),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Estado do atualizador indisponível',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+    final reboot = so['precisa_reboot'] == true;
+    final falhas = so['falhas_consecutivas'];
+    final pacotes = so['upgradable'];
+    final firmwares = so['firmware_upgrades'];
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  reboot ? Icons.system_update_alt : Icons.verified_user,
+                  color: reboot ? Colors.orange : Colors.green,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Atualizador de SO',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+            const Divider(),
+            _infoRow('Pacotes', pacotes == null ? '?' : '$pacotes'),
+            _infoRow('Firmwares', firmwares == null ? '?' : '$firmwares'),
+            _infoRow('Falhas do ciclo', falhas == null ? '0' : '$falhas'),
+            _infoRow('Reboot pendente', reboot ? 'sim' : 'não'),
+            _infoRow('Kernel', '${so['kernel'] ?? '?'}'),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildChecksCard() {
     final checks = _health?['checks'] as Map<String, dynamic>? ?? {};
     if (checks.isEmpty) return const SizedBox.shrink();
@@ -140,11 +206,20 @@ class _StatusScreenState extends State<StatusScreen> {
             ...checks.entries.map((entry) {
               final check = entry.value as Map<String, dynamic>;
               final ok = check['ok'] == true;
+              // `ok` com `status=degraded` é aviso, não verde: era o caso do
+              // os_updater com reboot pendente (26/11).
+              final degraded = ok && check['status'] == 'degraded';
               return ListTile(
                 dense: true,
                 leading: Icon(
-                  ok ? Icons.check : Icons.close,
-                  color: ok ? Colors.green : Colors.red,
+                  ok
+                      ? (degraded
+                          ? Icons.warning_amber
+                          : Icons.check)
+                      : Icons.close,
+                  color: degraded
+                      ? Colors.orange
+                      : (ok ? Colors.green : Colors.red),
                   size: 20,
                 ),
                 title: Text(entry.key),

@@ -547,6 +547,38 @@ class TestAPIPublicEndpoints:
         assert data["status"] == "up"
         assert data["llms"] == ["echo"]
 
+    def test_health_traz_o_bloco_os_updater(self, serve, monkeypatch) -> None:
+        """26/11: o /health emite os números do atualizador de SO (painel/app).
+
+        A sondagem real (`apt list`) é substituída — o teste prova o CONTRATO
+        do bloco, não a contagem da máquina.
+        """
+        from core import os_updater
+
+        monkeypatch.setattr(
+            os_updater,
+            "resumo_health",
+            lambda *a, **k: {
+                "precisa_reboot": True,
+                "pendente_reboot": False,
+                "upgradable": 67,
+                "firmware_upgrades": 51,
+                "falhas_consecutivas": 1,
+                "sucessos_consecutivos": 0,
+                "ultima_execucao": 1794273354.0,
+                "kernel": "6.8.0-147-generic",
+            },
+        )
+        srv = serve(None)
+        status, body, _ = _request(srv.bound_port, "GET", "/health")
+        data = _json_response((status, body, _))
+        so = data["os_updater"]
+        assert status == 200 and so["ok"] is True
+        assert so["upgradable"] == 67 and so["firmware_upgrades"] == 51
+        assert so["precisa_reboot"] is True
+        assert so["falhas_consecutivas"] == 1
+        assert so["kernel"] == "6.8.0-147-generic"
+
     def test_health_degraded_without_orchestrator(self, serve) -> None:
         srv = serve(None)
         status, body, _ = _request(srv.bound_port, "GET", "/health")
@@ -1585,14 +1617,16 @@ class TestVisaoDoSistema:
         assert "Vis\u00e3o do sistema (System Overview)" in html
         assert 'id="sys-resumo"' in html and 'id="sys"' in html
         # um card por subsistema: o que J\u00e1 existia + os 4 que faltavam
-        for rotulo in ("Estado", "Loops", "Stack N\u00f4made", "Alertas",
-                       "Backup", "Off-site", "RAG", "Auto-update",
+        for rotulo in ("Estado", "Loops", "Sistema (SO)", "Stack N\u00f4made",
+                       "Alertas", "Backup", "Off-site", "RAG", "Auto-update",
                        "Downloads", "Ferramentas"):
             assert f'"{rotulo}"' in html, rotulo
         # cada card l\u00ea o bloco que o /dashboard/stats J\u00e1 emite
         for bloco in ("vector_store", "auto_update", "downloads",
                       "ferramentas", "nomad_tools", "notifier", "offsite"):
             assert f"stats.{bloco}" in html, bloco
+        # o card do SO l\u00ea o bloco pr\u00f3prio do /health (26/11), n\u00e3o o stats
+        assert "health.os_updater" in html
 
     def test_construtor_de_cards_nao_busca_nada(self) -> None:
         """Fonte \u00fanica: visaoCards \u00e9 função PURA — recebe os payloads e
@@ -1640,6 +1674,12 @@ vm.runInContext(fs.readFileSync(arquivo, 'utf8'), ctx, { filename: arquivo });
 
 const health = { ok: true, status: "up" };
 const sup = { restarts: 0, ok: true };
+const soOk = { ok: true, precisa_reboot: true, upgradable: 67,
+  firmware_upgrades: 51, falhas_consecutivas: 0 };
+const healthSo = { ok: true, status: "up", os_updater: soOk };
+const healthSoRuim = { ok: true, status: "up",
+  os_updater: { ok: true, precisa_reboot: false, upgradable: 0,
+                firmware_upgrades: 0, falhas_consecutivas: 2 } };
 const cheio = {
   uptime_s: 3671, processed: 42, avg_latency_ms: 12, cache: { entries: 3 },
   nomad_tools: { up: 9, total: 9, fora: [] },
@@ -1660,9 +1700,9 @@ problema.downloads.erros = 1;
 problema.ferramentas.ultimo_erro = "restaura\u00e7\u00e3o falhou";
 problema.offsite.ultimo_diario = null;
 const saida = {
-  cheio: ctx.visaoCards(health, sup, cheio),
+  cheio: ctx.visaoCards(healthSo, sup, cheio),
   vazio: ctx.visaoCards(health, sup, {}),
-  problema: ctx.visaoCards(health, sup, problema),
+  problema: ctx.visaoCards(healthSoRuim, sup, problema),
 };
 console.log(JSON.stringify(saida));
 """
@@ -1688,20 +1728,27 @@ console.log(JSON.stringify(saida));
         cartoes = {c[0]: c for c in saida["cheio"]}
         # com dado de verdade, NENHUM subsistema fica em "—"
         for rotulo in ("RAG", "Auto-update", "Downloads", "Ferramentas",
-                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site"):
+                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site",
+                       "Sistema (SO)"):
             assert cartoes[rotulo][1] != "\u2014", rotulo
         assert cartoes["RAG"][1].startswith("42 docs")
+        # SO (26/11): n\u00fameros estruturados do bloco health.os_updater
+        assert cartoes["Sistema (SO)"][1] == "67 pac · 51 fw · reboot pendente"
+        assert cartoes["Sistema (SO)"][2] == ""
         # sem dado: os blocos caem em "—" e NUNCA em verde
         vazio = {c[0]: c for c in saida["vazio"]}
         for rotulo in ("RAG", "Auto-update", "Downloads", "Ferramentas",
-                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site"):
+                       "Alertas", "Stack N\u00f4made", "Backup", "Off-site",
+                       "Sistema (SO)"):
             assert vazio[rotulo][1] == "\u2014", rotulo
             assert vazio[rotulo][2] != "ok", rotulo
         # problema real -> vermelho: auto-disable, erro de download,
-        # erro do depot e off-site que nunca saiu de casa
+        # erro do depot, off-site que nunca saiu de casa e ciclo do SO falhando
         prob = {c[0]: c for c in saida["problema"]}
-        for rotulo in ("Auto-update", "Downloads", "Ferramentas", "Off-site"):
+        for rotulo in ("Auto-update", "Downloads", "Ferramentas", "Off-site",
+                       "Sistema (SO)"):
             assert prob[rotulo][2] == "err", rotulo
+        assert "2 falha(s)" in prob["Sistema (SO)"][1]
 
 
 class TestAcessoPeloMenuELateralChat:
