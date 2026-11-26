@@ -636,11 +636,21 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **Publicar build do app com o card do atualizador de SO** (sugestão de
-      26/11) — o código do card (aba Status) e dos checks `degraded` em laranja
-      está no repositório e testado, mas o APK **não foi recompilado**: no
-      celular do dono só chega com bump SemVer + `app/build_apk.sh` (deploy do
-      app exige ordem explícita).
+- [x] **Publicar build do app com o card do atualizador de SO** (sugestão de
+      26/11) — **FEITO 26/11 01:20:** release **1.47.0 / 2085** publicado em
+      `site/` (aapt confirma versionName/versionCode, `/app/version` anuncia o
+      mesmo sha256); gate completo 5767 passed / 16 skipped / 0 falha.
+- [ ] **Instalar os timers/units restantes que só existem no repositório**
+      (sugestão de 26/11) — neste release apareceram dois casos da mesma família
+      (`od-os-updater` e `od-io-probe`, ambos `not-found` apesar de a unit estar
+      em `systemd/`). Vale um verificador que compare `systemd/*.service|timer`
+      com `systemctl list-unit-files` e avise no `/health`/Telegram: hoje um
+      timer esquecido só aparece como sintoma indireto (arquivo velho →
+      `latencia` degraded).
+- [ ] **Botão "Aplicar atualizações" no painel do SO** (sugestão de 26/11) —
+      aplicar hoje é `sudo systemctl start od-os-updater.service` na mão; o
+      painel mostra os números mas não age. Como o ciclo agenda reboot em
+      +5 min, exige confirmação dupla e registro do reboot previsto.
 - [ ] **Relatório de simulação completa do ciclo do SO** (sugestão de 26/11) —
       `--dry-run` roda o ciclo inteiro e imprime o JSON, mas não mostra o que
       cada seção faria (pacotes/firmwares por nome, reboot previsto): falta um
