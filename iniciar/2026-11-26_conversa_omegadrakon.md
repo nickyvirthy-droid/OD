@@ -111,3 +111,58 @@ ciclo × estado limpo byte a byte no `detail`) e `tests/test_health.py` +
 
 `1.46.1+2084` (servidor; contrato do app intacto, o check entra no mesmo
 `/health` que o app já lê).
+
+## §3 — Atualizador de SO no painel e na aba Status do app (26/11 ~00:57)
+
+**Dono:** *"Mostre o check os_updater no painel /admin e na aba do app que já
+lê o /health"*.
+
+### O que existia
+
+- `/health` com o check `os_updater` em **uma linha de texto** (`detail`);
+- `/admin` com a "Visão do sistema" montada por `visaoCards()` (fonte única,
+  sem fetch próprio — guardado por teste) e a pill `x/y checks`;
+- aba **Status** do app listando TODOS os checks de forma genérica.
+
+### O que mudou
+
+- `integrations/api/server.py`: `_bloco_os_updater()` emite o bloco
+  estruturado no `/health` (fora do cache de 8s, como a fila) e o card
+  **"Sistema (SO)"** em `visaoCards()`: `67 pac · 51 fw · reboot pendente`,
+  com `err` quando há falha de ciclo e `—` honesto quando o bloco não vem
+  (servidor antigo). O primeiro rascunho pintava `? pac · ? fw` sem bloco e o
+  teste node pegou na hora — corrigido com `!!health.os_updater`.
+- `app/lib/screens/status_screen.dart`: card "Atualizador de SO" (Pacotes,
+  Firmwares, Falhas do ciclo, Reboot pendente, Kernel) e checks `degraded`
+  agora em **laranja** (antes o `os_updater` com reboot pendente aparecia
+  verde, igual a um componente saudável).
+- `app/test/status_screen_test.dart` (novo, 3 casos): números na tela,
+  falha do ciclo, e servidor antigo sem o bloco não quebrando a aba.
+- `tests/test_api.py`: `test_health_traz_o_bloco_os_updater` e o harness node
+  de `visaoCards` cobrindo verdade (`67 pac · 51 fw · reboot pendente`),
+  traço (`—`) e vermelho (`2 falha(s)`).
+
+### Verificação
+
+- Python: `test_api` **215 passed**, `test_os_updater` 52,
+  `test_health`+`test_launcher_health_external` 39.
+- Flutter: `analyze` **No issues found**; `flutter test` **267 passed /
+  2 skipped**.
+- Prova viva após restart 00:57 (MainPID **2385376**, `NRestarts=0`):
+  `/health` 200, `ok=true`, 33 checks, bloco `{"upgradable": 67,
+  "firmware_upgrades": 51, "falhas_consecutivas": 0, "precisa_reboot": true,
+  "kernel": "6.8.0-147-generic", "ok": true}`; `/admin` 200 com o card
+  "Sistema (SO)" e `health.os_updater` no HTML; journal `-p err` 0.
+- Nota: nos primeiros segundos o `/health` disse `ok=false` porque o `mqtt`
+  ainda não tinha conectado (transitório conhecido do boot); depois `ok=true`.
+
+### Limitação
+
+**APK não recompilado**: o card dedicado chega ao celular no próximo build com
+bump SemVer — deploy do app exige ordem do dono. No app instalado hoje o
+`os_updater` já aparece na lista de checks (o servidor manda), só sem o card
+próprio e com o ícone antigo.
+
+### Sem bump
+
+`1.46.1+2084` (servidor + código do app; o APK não foi publicado).

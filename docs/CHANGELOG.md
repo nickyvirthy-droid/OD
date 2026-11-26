@@ -12,6 +12,52 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Atualizador de SO visível no painel e na aba Status do app (2026-11-26, sem bump)
+
+**Contexto:** o check `os_updater` só existia como uma linha de texto no
+`/health` — o painel `/admin` mostrava a contagem `x/y` de checks e a aba
+Status do app listava o nome com o `detail` cru. Nem um nem outro davam
+números para ler.
+
+**Servidor:** o `/health` passou a emitir o bloco estruturado `os_updater`
+(`upgradable`, `firmware_upgrades`, `falhas_consecutivas`, `precisa_reboot`,
+`kernel`), montado por `_bloco_os_updater()` **fora** do cache de 8s — mesma
+escolha da fila. Falha do módulo vira `{"ok": false, "error": ...}` e nunca
+derroba a rota.
+
+**Painel `/admin`:** card **"Sistema (SO)"** em `visaoCards()` lendo
+`health.os_updater` (fonte única, sem `fetch` novo — a guarda do teste
+continua valendo):
+
+```
+67 pac · 51 fw · reboot pendente      ← com reboot pendente
+0 pac · 0 fw · sem reboot · 2 falha(s)  ← ciclo falhando (card vermelho)
+—                                      ← servidor antigo/sem bloco
+```
+
+**Aba Status do app:** card "Atualizador de SO" com Pacotes, Firmwares,
+Falhas do ciclo, Reboot pendente e Kernel. Além disso, checks com
+`status=degraded` passaram a usar **ícone de alerta laranja** em vez do verde
+de "tudo certo" — era exatamente o que acontecia com o `os_updater` e o
+reboot pendente.
+
+**Verificação:** `tests/test_api.py` 215 passed (novo
+`test_health_traz_o_bloco_os_updater`; o harness node de `visaoCards` cobre
+verdade/traço/vermelho do card novo), `test_os_updater` 52,
+`test_health`+`test_launcher_health_external` 39. Flutter: `analyze` sem
+issues e **267 passed / 2 skipped** (novo `app/test/status_screen_test.dart`,
+3 casos).
+
+**Prova viva** (restart 26/11 00:57, MainPID **2385376**, `NRestarts=0`):
+`/health` 200 com **33 checks**, `ok=true`, bloco
+`{"upgradable": 67, "firmware_upgrades": 51, "falhas_consecutivas": 0,
+"precisa_reboot": true, "kernel": "6.8.0-147-generic", "ok": true}` e check
+`degraded` com o motivo; `/admin` 200 com o card e `health.os_updater` no
+HTML; journal `-p err` 0 entradas. **O APK não foi recompilado** — o card
+novo chega ao celular no próximo build com bump (deploy do app exige ordem).
+
+---
+
 ## Estado do atualizador de SO no `/health` (2026-11-26, sem bump)
 
 **Contexto:** com o timer no ar, `precisa_reboot`, `upgradable` e

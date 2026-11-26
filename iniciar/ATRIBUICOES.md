@@ -9,6 +9,39 @@
 
 ---
 
+## 26/11/2026 — Atualizador de SO visível no painel `/admin` e na aba Status
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Mostre o check os_updater no
+painel /admin e na aba do app que já lê o /health"*).
+
+### Criados
+
+- `app/test/status_screen_test.dart` — 3 casos (números na tela, falha do
+  ciclo, servidor antigo sem o bloco).
+
+### Modificados
+
+- `integrations/api/server.py` — bloco estruturado `os_updater` no `/health`
+  (`_bloco_os_updater()`, fora do cache de 8s) e card "Sistema (SO)" em
+  `visaoCards()`.
+- `app/lib/screens/status_screen.dart` — card "Atualizador de SO" e checks
+  `degraded` em laranja.
+- `tests/test_api.py` — teste do bloco no `/health` + harness node do card.
+- `docs/CHANGELOG.md`, `iniciar/session.json`,
+  `iniciar/2026-11-26_conversa_omegadrakon.md` (§3), `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** `/health` com bloco numérico ao vivo; painel com o card
+"Sistema (SO)" (67 pac · 51 fw · reboot pendente); app com card próprio e
+ícone de alerta para `degraded`. Python 306 passed na bateria tocada
+(api/os_updater/health/launcher) e Flutter `analyze` limpo + 267 passed. Prova
+viva no restart 00:57 (MainPID 2385376), journal `-p err` 0. Commit `7629334`.
+
+**Pela metade / próximo passo:** o **APK não foi recompilado** — o card novo
+só chega ao celular no próximo build com bump SemVer (deploy do app precisa de
+ordem do dono). No app atual o check já aparece na lista genérica.
+
 ## 26/11/2026 — Estado do atualizador de SO no `/health`
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Coloque o estado do atualizador

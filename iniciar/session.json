@@ -1,4 +1,17 @@
 {
+  "os_updater_no_painel_e_no_app_2026_11_26": {
+    "pedido": "Dono (26/11 ~00:55): 'Mostre o check os_updater no painel /admin e na aba do app que ja le o /health'.",
+    "servidor": "integrations/api/server.py: _bloco_os_updater() emite o bloco estruturado os_updater no /health (upgradable, firmware_upgrades, falhas_consecutivas, precisa_reboot, kernel) FORA do cache de 8 s, como a fila; falha do modulo vira {ok:false,error} e nunca derruba a rota.",
+    "painel": "Card 'Sistema (SO)' em visaoCards(): '67 pac · 51 fw · reboot pendente', com err quando o ciclo falha e '—' honesto quando o bloco nao vem (o primeiro rascunho pintava '? pac' e o harness node pegou). Fonte unica mantida: sem fetch novo dentro de visaoCards.",
+    "app": "app/lib/screens/status_screen.dart: card 'Atualizador de SO' (Pacotes, Firmwares, Falhas do ciclo, Reboot pendente, Kernel) e checks com status=degraded em laranja (antes o os_updater com reboot pendente aparecia verde). Novo app/test/status_screen_test.dart com 3 casos.",
+    "testes": "Python: test_api 215 passed (novo test_health_traz_o_bloco_os_updater + harness node do card), test_os_updater 52, test_health+test_launcher_health_external 39 (306 na bateria tocada). Flutter: analyze No issues found; flutter test 267 passed / 2 skipped.",
+    "prova_viva": "restart 26/11 00:57 — MainPID 2385376, NRestarts=0; /health 200 com 33 checks (nos primeiros segundos ok=false pelo mqtt transitorio, depois ok=true) e bloco {upgradable:67, firmware_upgrades:51, falhas_consecutivas:0, precisa_reboot:true, kernel:6.8.0-147-generic, ok:true}; check os_updater degraded; /admin 200 com 'Sistema (SO)' e health.os_updater no HTML; journal -p err 0.",
+    "limitacao": "APK NAO recompilado: o card dedicado so chega ao celular no proximo build com bump SemVer (deploy do app exige ordem do dono). No app instalado o check ja aparece na lista generica.",
+    "commit": "7629334 publicado em origin/master.",
+    "sem_bump": "1.46.1+2084 (servidor + codigo do app; APK nao publicado).",
+    "arquivos": "integrations/api/server.py, app/lib/screens/status_screen.dart, app/test/status_screen_test.dart (novo), tests/test_api.py, docs/CHANGELOG.md, iniciar/2026-11-26_conversa_omegadrakon.md (§3), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T01:01:00-03:00"
+  },
   "os_updater_no_health_2026_11_26": {
     "pedido": "Dono (26/11 ~00:45): 'Coloque o estado do atualizador de SO (reboot pendente, pacotes, falhas) como check no /health' (era sugestão anotada no §4).",
     "codigo": "core/os_updater.py: resumo_health() (estado JSON + /var/run/reboot-required) e _contar_pacotes_e_firmware() com cache em memoria de 30 min — 'apt list --upgradable' medido em 0,54 s e o /health roda a cada 8 s. runtime/launcher.py: register_os_updater_health() registra o check nao-critico os_updater, chamado no build_api_server() depois da fila. Estado ausente/ilegivel -> zeros, nunca excecao.",
@@ -6698,6 +6711,15 @@
       "commit": "6dd0490",
       "branch": "master",
       "iniciado_em": "2026-11-26T00:46:52-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2385376,
+      "commit": "7629334",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T00:57:45-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"
