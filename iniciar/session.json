@@ -1,4 +1,15 @@
 {
+  "os_updater_no_health_2026_11_26": {
+    "pedido": "Dono (26/11 ~00:45): 'Coloque o estado do atualizador de SO (reboot pendente, pacotes, falhas) como check no /health' (era sugestão anotada no §4).",
+    "codigo": "core/os_updater.py: resumo_health() (estado JSON + /var/run/reboot-required) e _contar_pacotes_e_firmware() com cache em memoria de 30 min — 'apt list --upgradable' medido em 0,54 s e o /health roda a cada 8 s. runtime/launcher.py: register_os_updater_health() registra o check nao-critico os_updater, chamado no build_api_server() depois da fila. Estado ausente/ilegivel -> zeros, nunca excecao.",
+    "regra": "falhas_consecutivas>0 -> ok=false/degraded; reboot pendente -> ok=true com status=degraded e motivo no detail (reboot nao e componente fora do ar, mesma regra do dead letter); limpo -> up.",
+    "prova_viva": "restart 26/11 00:46:52 — MainPID 2372820, NRestarts=0, active; GET /health 200 ok=true com 33 checks (antes 32); checks.os_updater = {ok: true, status: degraded, detail: 'reboot pendente — pacotes=67 firmwares=51 falhas=0 reboot_pendente=sim kernel=6.8.0-147-generic', latency_ms: 3.7, critical: false}; journal --user -p err 0 entradas.",
+    "testes": "tests/test_os_updater.py 52 passed (3 novos), tests/test_health.py + tests/test_launcher_health_external.py 39 passed.",
+    "commit": "6dd0490 publicado em origin/master.",
+    "sem_bump": "1.46.1+2084 (servidor; o check entra no mesmo /health que o app ja le).",
+    "arquivos": "core/os_updater.py, runtime/launcher.py, tests/test_os_updater.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§2), iniciar/ATRIBUICOES.md, txt.txt.",
+    "updated_at": "2026-11-26T00:50:00-03:00"
+  },
   "os_updater_timer_instalado_2026_11_26": {
     "pedido": "Dono (26/11 ~00:35): 'sudo esta no env, pode ser usado pelo OmegaDrakon' — liberando o pendente de 25/11 (instalar o timer do od-os-updater).",
     "como_sudo": "SUDO_PASSWORD do .env lido em shell e entregue por 'printf | sudo -S -p ''' (nunca impresso em log/journal/arquivo/resposta). 'sudo -n true' falha; 'sudo -l' = (ALL : ALL) ALL para alex.",
@@ -6678,6 +6689,15 @@
       "commit": "1f3a2a8",
       "branch": "master",
       "iniciado_em": "2026-11-25T16:03:10-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 2372820,
+      "commit": "6dd0490",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T00:46:52-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

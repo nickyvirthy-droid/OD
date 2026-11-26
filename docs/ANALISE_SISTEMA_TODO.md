@@ -641,10 +641,14 @@ esperar o timeout.
       ninguém verifica se o `od-core`, o Postgres e o painel voltaram depois do
       reboot: falta um pós-reboot que confirme `/health`, dumps e timers e avise
       no Telegram (hoje o dono descobre pelo uso).
-- [ ] **Estado do atualizador de SO no `/health`** (sugestão de 26/11) —
-      `precisa_reboot`, `upgradable` e `falhas_consecutivas` só aparecem nas
-      rotas `/admin/os-updater/*`; um check não-crítico no `/health` faria o
-      painel e o app mostrarem reboot pendente sem abrir a aba certa.
+- [x] **Estado do atualizador de SO no `/health`** (sugestão de 26/11) —
+      **FEITO 26/11:** check não-crítico `os_updater` via
+      `register_os_updater_health()`; lê o JSON de estado + reboot e conta
+      pacotes/firmwares com cache de 30 min (apt list = 0,55 s medidos).
+      Falhas → `ok=false`; reboot pendente → `degraded` com motivo. Prova viva:
+      `/health` 200 com 33 checks e `os_updater` em 3,7 ms
+      (`pacotes=67 firmwares=51 falhas=0 reboot_pendente=sim
+      kernel=6.8.0-147-generic`).
 - [x] **Restart do `od-core` para ativar o reconhecimento de segurança pelo chat**
       (sugestão de 25/11) — **FEITO 25/11 14:27:** MainPID 1768401, `NRestarts=0`,
       `/health` ok com 32 checks, journal `-p err` 0; prova viva `POST /message`

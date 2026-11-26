@@ -12,6 +12,37 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Estado do atualizador de SO no `/health` (2026-11-26, sem bump)
+
+**Contexto:** com o timer no ar, `precisa_reboot`, `upgradable` e
+`falhas_consecutivas` só apareciam nas rotas `/admin/os-updater/*` — quem
+olhava o `/health` ou o painel não via que a máquina pedia reinício.
+
+**Desenho (medido):** check `os_updater` não-crítico registrado por
+`register_os_updater_health()` no launcher. Ele **não** roda `apt` a cada
+requisição: `core.os_updater.resumo_health()` lê o JSON de estado + o flag
+`/var/run/reboot-required` e a contagem de pacotes/firmwares tem cache em
+memória de **30 min** (`apt list --upgradable` custou **0,55 s** medidos
+nesta máquina). Estado ausente/corrompido vira zeros honestos, nunca
+exceção.
+
+**Regra de status:** falhas consecutivas do ciclo → `ok=false`
+(`degraded`); reboot pendente → `ok=true` com `status=degraded` e o motivo
+no `detail` (reboot pendente não é componente fora do ar — mesma regra do
+dead letter da fila); tudo limpo → `up`.
+
+**Prova viva** (restart 26/11 00:46:52, MainPID **2372820**, `NRestarts=0`):
+`/health` 200, `ok=true`, **33 checks**, `os_updater` em **3,7 ms** →
+`reboot pendente — pacotes=67 firmwares=51 falhas=0 reboot_pendente=sim
+kernel=6.8.0-147-generic`; journal `-p err` 0 entradas.
+
+**Testes:** `tests/test_os_updater.py` **52 passed** (3 novos: leitura do
+estado + zero sem arquivo, degradação por reboot pendente, falha do ciclo ×
+estado limpo) e `tests/test_health.py` + `tests/test_launcher_health_external.py`
+39 passed. Commit `6dd0490`.
+
+---
+
 ## Atualizador do SO no ar: timer semanal instalado, unit corrigida e canal Telegram ligado (2026-11-26, sem bump)
 
 **Contexto:** o `txt.txt` de 25/11 apontava 62 atualizações, 2 firmwares e

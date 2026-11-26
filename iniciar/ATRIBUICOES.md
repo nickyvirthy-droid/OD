@@ -9,6 +9,38 @@
 
 ---
 
+## 26/11/2026 — Estado do atualizador de SO no `/health`
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Coloque o estado do atualizador
+de SO (reboot pendente, pacotes, falhas) como check no /health"*).
+
+### Criados
+
+- nenhum arquivo novo (transcrição §2 do dia).
+
+### Modificados
+
+- `core/os_updater.py` — `resumo_health()` + `_contar_pacotes_e_firmware()`
+  (cache de 30 min; `apt list` medido em 0,54 s).
+- `runtime/launcher.py` — `register_os_updater_health()` e chamada no
+  `build_api_server()`.
+- `tests/test_os_updater.py` — 3 testes novos (52 passed no arquivo).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox do §4 fechado),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§2),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** check `os_updater` **não-crítico** no `/health` com
+`pacotes`, `firmwares`, `falhas` e `reboot_pendente`; prova viva após restart
+(MainPID 2372820): `/health` 200 com **33 checks**, check em **3,7 ms**,
+`degraded` com motivo "reboot pendente", journal `-p err` 0. Testes: 52 no
+módulo + 39 em health/launcher. Commit `6dd0490`.
+
+**Pela metade / próximo passo:** nada pendente desta entrega. Continua aberta
+a decisão do dono sobre **aplicar** os 67 pacotes + 51 firmwares agora
+(agenda reboot +5 min) — o check agora mostra isso no `/health`.
+
 ## 26/11/2026 — Timer do atualizador de SO instalado (`sudo` liberado)
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"sudo está no env, pode ser usado

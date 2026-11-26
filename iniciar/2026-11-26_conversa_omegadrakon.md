@@ -70,3 +70,44 @@ Sem essa ordem, a primeira aplicação acontece sozinha no domingo 29/11.
 ### Sem bump
 
 Nenhum código de servidor/app mudou de contrato: `1.46.1+2084`.
+
+## §2 — Estado do atualizador de SO no `/health` (26/11 ~00:47)
+
+**Dono:** *"Coloque o estado do atualizador de SO (reboot pendente, pacotes,
+falhas) como check no /health"* — sugestão anotada no §4 às 00:45.
+
+### Desenho e medida
+
+- `core/os_updater.py`: `resumo_health(estado_arquivo, agora, intervalo_sondagem)`
+  lê o JSON de estado e o flag `/var/run/reboot-required`; a contagem de
+  pacotes/firmwares passa por `_contar_pacotes_e_firmware` com **cache em
+  memória de 30 min** (medido: `apt list --upgradable` = **0,54 s**; o
+  `/health` roda a cada 8 s, não daria para pagar isso por requisição).
+  Estado ausente/ilegível → zeros, nunca exceção.
+- `runtime/launcher.py`: `register_os_updater_health(monitor)` registra o check
+  `os_updater` **não-crítico**, chamado no `build_api_server()` depois do
+  check da fila (não depende dela).
+- Regra de status: falhas consecutivas → `ok=false`/`degraded`; reboot
+  pendente → `ok=true` com `status=degraded` e motivo no `detail` (reboot não
+  é componente fora do ar — mesma regra do dead letter da fila); limpo → `up`.
+
+### Prova viva
+
+- Restart 26/11 **00:46:52** → MainPID **2372820**, `NRestarts=0`, active.
+- `GET /health` → 200, `ok=true`, **33 checks** (antes 32).
+- `checks.os_updater` = `{"ok": true, "status": "degraded", "detail": "reboot
+  pendente — pacotes=67 firmwares=51 falhas=0 reboot_pendente=sim
+  kernel=6.8.0-147-generic", "latency_ms": 3.7, "critical": false}`.
+- `journalctl --user -u od-core -p err`: 0 entradas.
+
+### Testes
+
+`tests/test_os_updater.py` **52 passed** (3 novos: leitura do estado + zeros
+sem arquivo e registro não-crítico; degradação por reboot pendente; falha do
+ciclo × estado limpo byte a byte no `detail`) e `tests/test_health.py` +
+`tests/test_launcher_health_external.py` **39 passed**.
+
+### Sem bump
+
+`1.46.1+2084` (servidor; contrato do app intacto, o check entra no mesmo
+`/health` que o app já lê).
