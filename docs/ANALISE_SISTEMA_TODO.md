@@ -636,6 +636,11 @@ esperar o timeout.
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
+- [ ] **Publicar build do app com o card do atualizador de SO** (sugestão de
+      26/11) — o código do card (aba Status) e dos checks `degraded` em laranja
+      está no repositório e testado, mas o APK **não foi recompilado**: no
+      celular do dono só chega com bump SemVer + `app/build_apk.sh` (deploy do
+      app exige ordem explícita).
 - [ ] **Relatório de simulação completa do ciclo do SO** (sugestão de 26/11) —
       `--dry-run` roda o ciclo inteiro e imprime o JSON, mas não mostra o que
       cada seção faria (pacotes/firmwares por nome, reboot previsto): falta um
