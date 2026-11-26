@@ -1,4 +1,12 @@
 {
+  "checkbox_comparador_2026_11_26": {
+    "pedido": "Dono (26/11 ~11:4x): 'Corrija o checkbox desatualizado do comparador na linha 972 do TODO'.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md: o checkbox que juntava 'comparador lado a lado + monitor de hardware' foi separado. Comparador agora [x] com arquivos, rotas, painel, timeouts isolados e tempos da prova viva; monitor de hardware (CPU/RAM/VRAM por modelo) virou [ ] proprio, com o motivo (compara latencia e texto, nao consumo; sem demanda medida).",
+    "verificacao": "Apenas documentacao: nenhum .py alterado, sem testes e sem restart. Sem bump (1.47.0+2085).",
+    "arquivos": "docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS21), iniciar/ATRIBUICOES.md, iniciar/session.json, txt.txt.",
+    "proximo": "Se o dono quiser: monitor de hardware do comparador; ou fechar o gate em zero (test_websocket por ordem).",
+    "updated_at": "2026-11-26T11:40:00-03:00"
+  },
   "espelho_restauracao_2026_11_26": {
     "pedido": "Dono (26/11 ~11:0x): 'Siga para o item 10 da fila: espelho com restauracao real'.",
     "prova": "(1) venv limpo /tmp/od_mirror_venv com PIP_NO_INDEX=1 e --no-index --find-links /home/alex/dados/od-mirror/pip -> 60 pacotes em 18 s, nenhum download. (2) Gate completo nesse venv: 5807 passed / 17 skipped / 2 failed em 249 s (as 2 falhas sao as de tests/test_websocket.py que ja falham no HEAD na suite inteira e passam isoladas). (3) docker load do postgres_16-alpine.tar (tag preservada) + docker run --network none -> pg_isready accepting connections, PostgreSQL 16.15, select respondido; dentro do container so 'lo'; container removido. (4) sha256sum -c MANIFEST.txt -> 134/134 OK em 46 s. (5) venv de prova (520 MB) removido.",

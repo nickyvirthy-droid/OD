@@ -980,3 +980,18 @@ seção "Teste de restauração real (26/11/2026)".
 ### Bump
 
 Nenhum (`1.47.0+2085`).
+
+---
+
+## §21 — Checkbox do comparador corrigido (26/11 ~11:40)
+
+**Dono:** *"Corrija o checkbox desatualizado do comparador na linha 972 do TODO"*.
+
+- A linha juntava duas coisas ("comparador lado a lado + monitor de hardware")
+  e continuava aberta depois do item 5. Separei:
+  - **[x] Comparador lado a lado** — entregue 26/11, com os arquivos, as rotas,
+    a seção do painel, os timeouts isolados e os tempos da prova viva.
+  - **[ ] Monitor de hardware (CPU/RAM/VRAM por modelo)** — aberto e nomeado
+    como pendência real: o comparador mede latência e texto, não consumo.
+    Sem demanda medida; VRAM só existe no lado local.
+- Só documentação: nenhum `.py` tocado, sem teste e sem restart; sem bump.

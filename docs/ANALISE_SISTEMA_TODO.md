@@ -969,10 +969,18 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       → "Olá, escuridão, minha velha amiga". Pedido do dono no `txt.txt`
       (17/11: "letra de musica internacional poderia ter uma lista paralela
       com a tradução").
-- [ ] **Comparador de modelos lado a lado + monitor de hardware** — ideia
-      trazida do GSN Offline (17/11): mesmo prompt no Gemini, Groq e Local ao
-      mesmo tempo, com CPU/RAM/VRAM por modelo no painel. Resolve: ver na
-      prática qual IA responde melhor e quanto custa, hoje só medido por log.
+- [x] **Comparador de modelos lado a lado** — ideia trazida do GSN Offline
+      (17/11): mesmo prompt no Gemini, Groq e Local ao mesmo tempo. **ENTREGUE
+      26/11** (fila item 5): `core/comparador_modelos.py`, `GET
+      /admin/comparador/modelos` + `POST /admin/comparador/comparar` e seção no
+      `/admin`; timeout e falha por modelo isolados; prova viva com groq
+      564,5 ms / gemini 2.625,4 ms / gemma-local 18.584,5 ms. Sem persistir
+      comparações.
+- [ ] **Monitor de hardware do comparador (CPU/RAM/VRAM por modelo)** — o
+      comparador de 26/11 mostra latência e texto, não o custo de máquina.
+      Falta amostrar CPU/RAM/VRAM durante cada chamada no painel. Sem
+      demanda medida até agora: a VRAM é local (llama-server) e as nuvens não
+      expõem consumo.
 - [x] Task Queue: manter as tasks **concluídas visíveis** na API com retenção
       limitada — **ENTREGUE 14/11** (histórico em `completed/`, poda automática,
       `OD_TASK_QUEUE_KEEP_COMPLETED=200`)

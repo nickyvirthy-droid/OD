@@ -9,6 +9,22 @@
 
 ---
 
+## 26/11/2026 — Checkbox do comparador separado (TODO)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Corrija o checkbox desatualizado
+do comparador na linha 972 do TODO"*).
+
+- `docs/ANALISE_SISTEMA_TODO.md`: “Comparador de modelos lado a lado + monitor de
+  hardware” foi partido em **dois** itens — o comparador **✅ 26/11** (arquivos,
+  rotas, painel, timeouts e tempos da prova viva) e o **monitor de CPU/RAM/VRAM
+  por modelo** como pendência própria, com o motivo de ainda não ter sido feito.
+- `iniciar/2026-11-26_conversa_omegadrakon.md` (§21), `iniciar/session.json`,
+  `txt.txt`.
+
+Só documentação: nenhum `.py` alterado, sem teste e sem restart; `1.47.0+2085`.
+
+---
+
 ## 26/11/2026 — Espelho offline: restauração real provada (fila item 10)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 10 da fila:
