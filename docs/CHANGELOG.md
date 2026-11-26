@@ -12,6 +12,31 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Fila 4: guarda de off-site no verificador semanal (2026-11-26, sem bump)
+
+**Contexto:** o verificador semanal (`od-pg-restore.timer`) provava que o dump
+**restaura**, mas não que a cópia que **saiu da máquina** é o dump atual. O
+`tools/checar_offsite_pg.py` já fazia a conferência por sha256 (canal privado do
+Telegram + snapshots das 2 HDs) — só era chamado à mão.
+
+**Agora:** o runner roda `checar_offsite_pg.py --json` na mesma rodada e só
+alarma em **divergência** (`canal: …` / `HD …` com sha256 diferente, truncado
+ou ausente), com mensagem própria `🧭 Off-site DIVERGENTE`. Deliberadamente
+**não** alarma `aguardando`/`ausente` (HD desplugada, snapshot pendente): é a
+verdade, e alarme falso treina o dono a ignorar o canal — fica registrado como
+`provado: false`. Checador sem JSON, com timeout ou que nem roda também vira
+divergência (guarda que parou é sinal). O código de saída do restore não muda
+por causa do off-site: são problemas diferentes, ambos no estado
+(`offsite_ok`, `offsite`, `offsite_aviso_em`).
+
+**Prova viva (rodada real `--dry-run`):** restore OK; dump
+`od-2026-11-25_0250.sql.gz` com **sha256 idêntico** no canal e nas 2 HDs;
+estado `offsite_ok: true`, `provado: true`, **nenhuma** mensagem enviada.
+
+**Testes:** `tests/test_verificar_restauracao_pg.py` **13 casos** (7 novos).
+
+---
+
 ## Fila de prioridades 1–3: crash, units e simulação (2026-11-26, sem bump)
 
 **1) Aviso de ciclo que morre antes do fim.** O aviso final do Python só sai se

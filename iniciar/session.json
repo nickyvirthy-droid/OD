@@ -1,4 +1,15 @@
 {
+  "fila_item4_offsite_2026_11_26": {
+    "pedido": "Dono (26/11 ~03:35): 'Siga para o item 4 da fila: guarda de offsite junto do verificador semanal'.",
+    "decisao": "O item apontava o tools/checar_offsite_pg.py (sha256 do dump no canal do Telegram e nos snapshots das 2 HDs). A primeira versao comparava nome/idade do data/offsite_state.json e foi DESCARTADA por inventar criterio paralelo. Ficou a integracao do checador existente.",
+    "codigo": "runtime/verificar_restauracao_pg.py: verificar_offsite() roda checar_offsite_pg.py --json, resume {ok, divergente, provado, problemas, canal, hds}; alarme SO em divergencia (sha256 diferente/truncado/ausente) com '🧭 Off-site DIVERGENTE'; aguardando/ausente (HD desplugada, snapshot pendente) NAO alarma e fica provado=false; checador sem JSON/timeout/que nao roda = divergencia; estado offsite_ok/offsite/offsite_aviso_em; codigo de saida do restore nao muda; main() liga a guarda.",
+    "testes": "tests/test_verificar_restauracao_pg.py 13 casos (7 novos).",
+    "prova_viva": "rodada real --dry-run: restore OK; dump od-2026-11-25_0250.sql.gz com sha256 3bfaff1cc9ec identico no canal e nas 2 HDs; offsite_ok true, provado true, zero mensagens.",
+    "sem_bump": "1.47.0+2085 (servidor).",
+    "arquivos": "runtime/verificar_restauracao_pg.py, tests/test_verificar_restauracao_pg.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/2026-11-26_conversa_omegadrakon.md (§10), iniciar/ATRIBUICOES.md, txt.txt.",
+    "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
+    "updated_at": "2026-11-26T03:45:00-03:00"
+  },
   "fila_prioridades_1_3_2026_11_26": {
     "pedido": "Dono (26/11 ~03:00): 'sim. depois coloque em uma lista de prioridades e vamos do primeiro ao ultimo'.",
     "item1_onfailure": "FEITO: OnFailure=od-os-updater-falha.service nas duas units do ciclo; nova unit /etc/systemd/system/od-os-updater-falha.service roda `core.os_updater --avisar-falha` -> systemctl show (ActiveState/Result) + 3 ultimas secoes + 6 linhas de journal no Telegram; sem falha nao manda nada; canal caido devolve ok=false. systemctl show confirma; --avisar-falha devolve 'nenhuma unit em falha'.",

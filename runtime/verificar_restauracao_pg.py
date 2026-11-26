@@ -35,6 +35,18 @@ VERIFICADOR = RAIZ / "tools" / "testar_restauracao_pg.py"
 TIMEOUT_S = 300
 TRECHO_SAIDA = 1200
 
+# --- Guarda de off-site (item 4 da fila, 26/11) ---------------------------
+# O verificador semanal só olhava o restore do Postgres. Um backup que restaura
+# mas saiu corrompido/truncado da máquina não é backup: aqui ele roda também o
+# `tools/checar_offsite_pg.py` (sha256 do dump no canal do Telegram e nos
+# snapshots das 2 HDs) e avisa quando o arquivo de fora NÃO é o dump atual.
+#
+# Deliberadamente NÃO alarma "aguardando" nem "ausente": HD desplugada ou
+# snapshot ainda não feito são verdade, não defeito — alarme falso treina o
+# dono a ignorar o canal.
+CHECADOR_OFFSITE = RAIZ / "tools" / "checar_offsite_pg.py"
+TIMEOUT_OFFSITE_S = 180
+
 log = logging.getLogger("od.verificar_restauracao_pg")
 
 
@@ -105,6 +117,70 @@ def montar_enviar() -> Callable[[str], None] | None:
     return enviar
 
 
+def verificar_offsite() -> dict:
+    """Roda o `tools/checar_offsite_pg.py --json` e resume para o runner.
+
+    Devolve `{ok, divergente, provado, problemas, canal, hds}`. `ok` aqui
+    significa "nada divergente"; **não** significa "cópia provada" (HD fora do
+    ar deixa `provado=False` sem virar alarme). JSON ilegível vira problema:
+    relatório que não sai também é sinal de que a guarda parou.
+    """
+    try:
+        resultado = subprocess.run(
+            [sys.executable, str(CHECADOR_OFFSITE), "--json"],
+            cwd=RAIZ,
+            capture_output=True,
+            text=True,
+            errors="replace",
+            timeout=TIMEOUT_OFFSITE_S,
+        )
+    except Exception as exc:
+        return {
+            "ok": False, "divergente": True, "provado": False,
+            "problemas": [f"checador não rodou: {type(exc).__name__}: {exc}"],
+            "canal": {}, "hds": [],
+        }
+    try:
+        resumo = json.loads(resultado.stdout)
+    except ValueError:
+        return {
+            "ok": False, "divergente": True, "provado": False,
+            "problemas": [
+                "checador não devolveu JSON (código "
+                f"{resultado.returncode}): {(resultado.stderr or '')[-200:]}"
+            ],
+            "canal": {}, "hds": [],
+        }
+    problemas: list[str] = []
+    canal = resumo.get("canal") or {}
+    if canal.get("status") == "divergente":
+        problemas.append(f"canal: {canal.get('motivo')}")
+    for hd in resumo.get("hds") or []:
+        if hd.get("status") == "divergente":
+            problemas.append(f"HD {hd.get('alvo')}: {hd.get('motivo')}")
+    divergente = bool(resumo.get("divergente")) or bool(problemas)
+    return {
+        "ok": not divergente,
+        "divergente": divergente,
+        "provado": bool(resumo.get("ok")),
+        "dump": resumo.get("dump"),
+        "problemas": problemas,
+        "canal": canal,
+        "hds": resumo.get("hds") or [],
+    }
+
+
+def mensagem_offsite(resultado: dict) -> str:
+    linhas = "\n".join(f"• {p}" for p in resultado.get("problemas") or [])
+    return (
+        "🧭 Off-site DIVERGENTE (junto do verificador semanal)\n\n"
+        "O arquivo que saiu da máquina não é o dump atual (sha256 diferente, "
+        "truncado ou ausente). Restore OK não cobre isso: no dia do desastre "
+        "seria cópia velha ou quebrada.\n\n"
+        f"{linhas}"
+    )
+
+
 def mensagem_falha(codigo: int, saida: str) -> str:
     trecho = saida[-TRECHO_SAIDA:] if saida else "(sem saída)"
     return (
@@ -122,8 +198,14 @@ def rodar(
     verificador: Callable[[], tuple[int, str]] | None = None,
     enviar: Callable[[str], None] | None = None,
     agora: float | None = None,
+    offsite: Callable[[], dict] | None = None,
 ) -> int:
-    """Uma rodada: verifica, registra o estado e avisa se falhar."""
+    """Uma rodada: verifica restore + off-site, registra o estado e avisa.
+
+    `offsite` é injetável para teste; por padrão audita o estado do serviço
+    de off-site. Falha de off-site **não** muda o código de saída do restore
+    (são problemas diferentes), mas vai no estado e no Telegram.
+    """
     agora = time.time() if agora is None else agora
     verificador = verificador or rodar_verificador
     estado = carregar_estado(estado_path)
@@ -155,6 +237,40 @@ def rodar(
         estado.pop("erro_aviso", None)
         log.info("restore do Postgres OK")
 
+    # Guarda de off-site na MESMA rodada (26/11). Silêncio quando está em dia.
+    # `offsite=None` (chamada de teste sem a guarda) não audita nada.
+    if offsite is not None:
+        try:
+            audit = offsite()
+        except Exception as exc:  # auditoria quebrada não esconde o restore
+            audit = {"ok": False, "problemas": [f"auditoria falhou: {exc}"],
+                     "perfis": {}}
+        estado["offsite"] = audit
+        if not audit.get("ok"):
+            estado["offsite_ok"] = False
+            texto = mensagem_offsite(audit)
+            if enviar is not None:
+                try:
+                    enviar(texto)
+                    estado["offsite_aviso_em"] = agora
+                except Exception as exc:
+                    estado["offsite_erro_aviso"] = (
+                        f"{type(exc).__name__}: {exc}"[:300]
+                    )
+                    log.warning("aviso de off-site não saiu: %s", exc)
+            else:
+                log.warning(
+                    "off-site atrasado e sem canal de Telegram para avisar"
+                )
+            log.error(
+                "off-site atrasado: %s", "; ".join(audit.get("problemas") or [])
+            )
+        else:
+            # sem alarme: inclui "HD fora do ar" e "snapshot pendente"
+            estado["offsite_ok"] = True
+            estado.pop("offsite_erro_aviso", None)
+            estado.pop("offsite_aviso_em", None)
+
     gravar_estado(estado_path, estado)
     return codigo
 
@@ -178,7 +294,12 @@ def main(argv: list[str] | None = None) -> int:
             pass
     enviar = None if args.dry_run else montar_enviar()
     verificador = (lambda: rodar_verificador(args.dump)) if args.dump else None
-    return rodar(enviar=enviar, verificador=verificador)
+    return rodar(
+        enviar=enviar,
+        verificador=verificador,
+        # produção: guarda de off-site junto do restore (26/11)
+        offsite=verificar_offsite,
+    )
 
 
 if __name__ == "__main__":

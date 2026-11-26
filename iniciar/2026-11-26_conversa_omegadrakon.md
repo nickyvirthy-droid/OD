@@ -458,3 +458,40 @@ real; a prova ficou no `systemctl show` + teste de unidade.
 
 Tabela "Fila de prioridades combinada com o dono" no §4 do TODO: 1–3 ✅,
 4–10 pendentes, 11 parcial (falta o reboot validado).
+
+## §10 — Fila item 4: guarda de off-site no verificador semanal (26/11 ~03:40)
+
+**Dono:** *"Siga para o item 4 da fila: guarda de offsite junto do verificador
+semanal"*.
+
+### Decisão de desenho
+
+O item apontava o `tools/checar_offsite_pg.py` (já existente, confere sha256 do
+dump no canal do Telegram e nos snapshots das 2 HDs). A primeira versão que
+escrevi comparava nome/idade do `offsite_state.json` — **descartada**: era
+inventar outro critério ao lado do que o dono já tinha. Ficou a integração:
+
+- `verificar_offsite()` em `runtime/verificar_restauracao_pg.py` roda
+  `checar_offsite_pg.py --json` e resume `{ok, divergente, provado,
+  problemas, canal, hds}`;
+- alarma **só divergência** (sha256 diferente/truncado/ausente), com
+  `🧭 Off-site DIVERGENTE`;
+- `aguardando`/`ausente` (HD desplugada, snapshot pendente) **não** alarma —
+  registra `provado: false`, como o próprio checador define;
+- checador sem JSON/timeout/que nem roda = divergência (guarda parada é sinal);
+- o código de saída do restore não muda por causa do off-site; os dois ficam no
+  estado (`ok` × `offsite_ok`) e cada um tem sua mensagem.
+
+### Verificação
+
+- `tests/test_verificar_restauracao_pg.py`: **13 casos** (7 novos) — divergência
+  no canal, HD fora do ar sem alarme, restore ok + off-site divergente (uma
+  mensagem só do off-site), checador sem JSON, checador que não roda, e
+  `main()` ligando a guarda.
+- Rodada real (`--dry-run`, sem Telegram): restore OK; dump
+  `od-2026-11-25_0250.sql.gz` com **sha256 idêntico** no canal e nas 2 HDs;
+  estado `offsite_ok: true`, `provado: true`, zero mensagens.
+
+### Bump
+
+Nenhum (`1.47.0+2085`, servidor).

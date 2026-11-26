@@ -2697,3 +2697,35 @@ decisão do dono. Causa: drop-in de teste não lido pelo `daemon-reload`.
 
 **Pela metade / próximo passo:** fila item 4 (guarda de offsite no verificador
 semanal), depois 5 (comparador de modelos).
+
+---
+
+## 26/11/2026 — Fila item 4: guarda de off-site no verificador semanal
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Siga para o item 4 da fila:
+guarda de offsite junto do verificador semanal"*).
+
+### Criados
+
+- nenhum arquivo novo (transcrição §10).
+
+### Modificados
+
+- `runtime/verificar_restauracao_pg.py` — `verificar_offsite()` chamando
+  `tools/checar_offsite_pg.py --json`; alarme só em divergência; estado
+  `offsite_ok`/`offsite`/`offsite_aviso_em`; `main()` liga a guarda.
+- `tests/test_verificar_restauracao_pg.py` — 7 casos novos → 13.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox + fila item 4),
+  `iniciar/session.json`, `iniciar/2026-11-26_conversa_omegadrakon.md` (§10),
+  `txt.txt`.
+
+### Intenção e estado
+
+**Pronto e validado:** 13 testes do runner; rodada real com restore OK e dump
+com sha256 idêntico no canal e nas 2 HDs (`offsite_ok: true`, sem mensagem).
+
+**Descartado de propósito:** uma primeira versão comparava nome/idade do
+`offsite_state.json`; era um critério paralelo ao `checar_offsite_pg.py` já
+existente — removida antes de commitar.
+
+**Pela metade / próximo passo:** fila item 5 (comparador de modelos lado a lado).

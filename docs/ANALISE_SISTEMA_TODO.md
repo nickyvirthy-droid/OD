@@ -592,7 +592,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 1 | Aviso de ciclo que morre antes do fim (`OnFailure`) | ✅ 26/11 02:2x |
 | 2 | Verificador de units repo × systemd no `/health` | ✅ 26/11 02:3x |
 | 3 | Relatório de simulação completa do ciclo (`--relatorio`) | ✅ 26/11 02:4x |
-| 4 | Guarda de offsite junto do verificador semanal | pendente |
+| 4 | Guarda de offsite junto do verificador semanal | ✅ 26/11 03:3x |
 | 5 | Comparador de modelos lado a lado (P1 nº 8) | pendente |
 | 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | pendente |
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | pendente |
@@ -733,10 +733,16 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       uma vez (`Persistent=true`): respondeu `acao: aguardar`, nada instalado,
       nenhum reboot agendado. Continua aberto só isto: **aplicar agora**
       (67 pacotes + 51 firmwares, agenda reboot +5 min) é decisão do dono.
-- [ ] **Rodar a guarda de offsite junto do verificador semanal** (sugestão de
-      25/11) — `tools/checar_offsite_pg.py` hoje é chamada manual; plugá-la no
-      runner do `od-pg-restore.timer` faria a divergência de cópia offsite
-      alarmar sozinha, com o cuidado de HD desplugada não virar alarme falso.
+- [x] **Rodar a guarda de offsite junto do verificador semanal** — **FEITO
+      26/11 03:4x:** o runner do `od-pg-restore.timer` agora chama
+      `tools/checar_offsite_pg.py --json` na mesma rodada do restore
+      (`verificar_offsite()` em `runtime/verificar_restauracao_pg.py`) e avisa
+      no Telegram só quando é **DIVERGÊNCIA** (sha256 diferente, truncado,
+      ausente). HD desplugada / snapshot pendente (`aguardando`/`ausente`)
+      continuam sem alarme — ficam registrados como `provado: false`. Falha
+      do próprio checador (sem JSON, timeout) também é divergência. Prova
+      viva: dump `od-2026-11-25_0250.sql.gz` com sha256 idêntico no canal e
+      nas 2 HDs (`offsite_ok: true`, sem mensagem). 7 casos novos no arquivo.
 - [ ] **Comparador de modelos lado a lado (P1 nº 8)** (sugestão de 25/11) — hoje
       "usar a melhor IA" é decidido por log/benchmark antigo (05/11); falta a
       comparação ao vivo, mesmo prompt em dois modelos, com a resposta e a
