@@ -631,3 +631,50 @@ reconfirmada no próximo reboot.
 ### Bump
 
 Nenhum (`1.47.0+2085`; unit de boot, sem código/versão novos).
+
+## §14 — /health marca container subindo como `starting` (26/11 ~03:45)
+
+**Dono:** *"Faça o /health marcar os checks de container como transitórios nos
+primeiros minutos após o boot"*.
+
+### Desenho
+
+- `eh_check_transitorio()`: `tool_*` (ferramentas em container) e `mqtt`
+  (broker) — os mesmos do veredito pós-reboot, agora também no agregado.
+- Janela de carência no `HealthMonitor` (`boot_window_s`, padrão **300 s** no
+  launcher; `OD_HEALTH_JANELA_BOOT_S=0` desliga, valor inválido volta ao
+  padrão). `segundos_desde_boot()` lê `/proc/uptime` e nunca levanta.
+- Dentro da janela, check transitório falhando sai com `status: "starting"`,
+  `ok: false` (a verdade não é escondida), `transitorio: true` e detalhe
+  "transitório: container/broker subindo após o boot"; **não derruba** o
+  agregado, que ganhou a lista `transitorios` no `/health`.
+- Só esses dois grupos: banco, orchestrator, backup, LLM continuam derrubando
+  na hora. `metrics.failed_checks` continua contando a falha.
+- `ProactiveNotifier._check_health` ignora item com `transitorio: true` — sem
+  alarme no Telegram por container começando.
+- Padrão do monitor é **desligado** e `tests/conftest.py` fixa
+  `OD_HEALTH_JANELA_BOOT_S=0`: nenhum teste depende do uptime da máquina.
+
+### Verificação
+
+- 10 casos novos: `tests/test_health.py` 5, `test_launcher_health_external`
+  3 (300 s padrão / `0` desliga / lixo volta ao padrão) e `test_notifier` 2.
+  Bateria tocada **156 passed**; `tests/test_api.py` **215 passed**.
+- **Gate completo:** 5778 passed / 16 skipped / **2 falhas** —
+  `test_websocket::TestOrchestratorStreaming::test_process_stream_rate_limit`
+  e `…test_process_stream_llm_token_a_token`. As duas **passam sozinhas e no
+  arquivo inteiro** e falham igual no HEAD **sem** esta mudança (medido com
+  `git stash`: 5768 passed + as mesmas 2) → falha de ordem pré-existente, não
+  regressão do lote. Virou tarefa no §4 do TODO.
+- **No ar:** restart ~03:4x — MainPID **61637**, `NRestarts=0`, `/health`
+  ok=true com 34 checks e `transitorios: []` (a janela já fechou: uptime >
+  5 min), journal `-p err` 0.
+
+### Limite declarado
+
+A prova do estado `starting` **ao vivo** só acontece no próximo reboot; agora
+a janela está fechada. Hoje está coberto por teste com uptime injetado.
+
+### Bump
+
+Nenhum (`1.47.0+2085`; servidor, campos novos no check).

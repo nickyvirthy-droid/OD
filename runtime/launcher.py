@@ -1229,9 +1229,18 @@ def build_health(
     reais via register_external_health_checks() quando os componentes
     existem no runtime.
     """
-    from observability.health import HealthMonitor
+    from observability.health import JANELA_BOOT_PADRAO_S, HealthMonitor
 
-    monitor = HealthMonitor()
+    # Janela (padrão 5 min) em que `tool_*`/`mqtt` falhando são "starting": no
+    # boot os containers sobem depois do od-core. `OD_HEALTH_JANELA_BOOT_S=0`
+    # desliga (volta a marcar degradado na primeira leitura).
+    try:
+        _janela_boot = float(
+            os.environ.get("OD_HEALTH_JANELA_BOOT_S", JANELA_BOOT_PADRAO_S)
+        )
+    except ValueError:
+        _janela_boot = JANELA_BOOT_PADRAO_S
+    monitor = HealthMonitor(boot_window_s=max(0.0, _janela_boot))
 
     def _check_orchestrator(mon: Any) -> dict[str, Any]:
         if orchestrator is None:

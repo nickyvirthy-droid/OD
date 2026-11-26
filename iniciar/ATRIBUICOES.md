@@ -9,6 +9,53 @@
 
 ---
 
+## 26/11/2026 — `/health` marca container subindo como `starting`
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Faça o /health marcar os checks
+de container como transitórios nos primeiros minutos após o boot"*).
+
+### Criados
+
+- nenhum arquivo novo.
+
+### Modificados
+
+- `observability/health.py` — `STATUS_STARTING`, `CHECKS_TRANSITORIOS`
+  (`mqtt`), `PREFIXO_TRANSITORIO` (`tool_`), `eh_check_transitorio()`,
+  `segundos_desde_boot()`, `HealthMonitor(boot_window_s=…, boot_age=…)` com
+  `na_janela_de_boot()`/`em_transitorio()`/`boot_window_s`; no `health()` o
+  check transitório falhando sai `starting` + `transitorio: true` e não
+  derruba o agregado, que ganhou a lista `transitorios`.
+- `runtime/launcher.py` — `build_health()` liga a janela (padrão 300 s,
+  `OD_HEALTH_JANELA_BOOT_S` sobrepõe, `0` desliga, valor inválido volta ao
+  padrão).
+- `integrations/notifier.py` — `_check_health` ignora item `transitorio`.
+- `tests/conftest.py` — `OD_HEALTH_JANELA_BOOT_S=0` na suíte (nenhum teste
+  depende do uptime da máquina).
+- `tests/test_health.py` (5 casos), `tests/test_launcher_health_external.py`
+  (3), `tests/test_notifier.py` (2).
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox + tarefa nova
+  dos 2 testes de `test_websocket`), `iniciar/session.json`,
+  `iniciar/2026-11-26_conversa_omegadrakon.md` (§14), `txt.txt`.
+
+### Intenção e estado
+
+**Intenção:** o `/health` é a fonte que app, painel, pós-reboot e notifier
+lem — se ele chama de falha o que é container começando (boot de 26/11: 6
+checks aos 22 s), o alarme falso se espalha por todas as camadas.
+
+**Pronto e validado:** `starting` + `transitorio: true` sem esconder `ok:
+false`; só `tool_*`/`mqtt`; falha real intacta; notifier não alarma; 10 casos
+novos e **156 passed** na bateria tocada; `test_api` **215 passed**; restart
+26/11 ~03:4x MainPID **61637**, `/health` ok=true 34 checks,
+`transitorios: []`, journal `-p err` 0.
+
+**Pela metade / próximo passo:** a janela está **fechada** agora (uptime >
+5 min), então a prova viva do `starting` só acontece no próximo reboot — hoje
+está coberta por teste com uptime injetado. O gate completo fecha **5778
+passed / 16 skipped / 2 falhas**, e as 2 falham igual no HEAD sem esta mudança
+(`test_websocket` ordem-dependente) — registrado no §4 do TODO.
+
 ## 26/11/2026 — Unit `od-pos-reboot` reinstalada com `TimeoutStartSec=360`
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Reinstale a unit od-pos-reboot

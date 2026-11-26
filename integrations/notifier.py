@@ -801,7 +801,10 @@ async def _check_health(notifier: "ProactiveNotifier") -> list[CheckResult]:
         disparam o agregado — o dedupe impede mensagem dupla;
       * `down` (check crítico) grita na hora (crit);
       * `degraded` espera HEALTH_DEGRADADO_APOS_S para não gritar com o
-        transitório de um restart/compose up.
+        transitório de um restart/compose up;
+      * check com `transitorio: true` (container/broker subindo na janela de
+        boot — ver `observability/health.py`) não conta como falha: o /health
+        já separou, e gritar no boot seria alarme falso.
     Roda por ÚLTIMO no tick de propósito: as tools já encheram o cache
     de 10s que o HealthMonitor compartilha com a sonda `tool:*`.
     """
@@ -811,7 +814,8 @@ async def _check_health(notifier: "ProactiveNotifier") -> list[CheckResult]:
     aggregate = await monitor.health()
     checks = aggregate.get("checks") or {}
     falhas = {
-        nome: item for nome, item in checks.items() if not item.get("ok")
+        nome: item for nome, item in checks.items()
+        if not item.get("ok") and not item.get("transitorio")
     }
     if not falhas:
         _limpar_saude(notifier)

@@ -708,6 +708,19 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       `od-core`, 5/5 serviços e 2/2 timers `active`, kernel 6.8.0-151,
       `reboot pendente: não`, Telegram enviado, `exit=0`. `/health` depois:
       ok=true com 34 checks. 5 casos em `tests/test_validar_pos_reboot.py`.
+- [x] **`/health`: container subindo vira `starting`, não falha** — **FEITO
+      26/11:** `HealthMonitor` ganhou janela de boot (padrão 300 s no launcher,
+      `OD_HEALTH_JANELA_BOOT_S=0` desliga): `tool_*`/`mqtt` falhando dentro dela
+      saem com `status: "starting"`, `transitorio: true` e não derrubam o
+      agregado (lista `transitorios` no `/health`); o notifier ignora esses
+      itens. Falha real continua derrubando na hora. 10 casos novos; restart
+      26/11 com MainPID 61637 e `-p err` 0.
+- [ ] **2 testes de `test_websocket` falham na suíte completa por ordem** —
+      `test_process_stream_rate_limit` e `test_process_stream_llm_token_a_token`
+      passam sozinhos e no arquivo inteiro, mas falham no gate completo; o
+      mesmo par falha no HEAD sem o lote de 26/11 (reproduzido com `git stash`:
+      5768 passed + as 2). Resolve: isolar o estado global que vaza (limiter/
+      cache de LLM compartilhado entre arquivos) — hoje o gate não fecha 0.
 - [x] **Pós-reboot: não soar alarme com container ainda subindo** — **FEITO
       26/11:** `tools/validar_pos_reboot.py` ganhou carência própria para os
       checks de container/broker (`tool_*`, `mqtt`): depois de o `od-core`

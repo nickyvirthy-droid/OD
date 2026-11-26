@@ -1704,3 +1704,57 @@ class TestAlertaComStatusEOndeResponder:
         finally:
             import os
             os.environ.pop("OD_LOG_DIR", None)
+
+
+# ===========================================================================
+# Janela de boot do /health (26/11/2026)
+# ===========================================================================
+
+class TestHealthTransitorio:
+    """Check de container marcado `transitorio` não vira alarme no Telegram."""
+
+    @pytest.mark.asyncio
+    async def test_transitorio_nao_alerta(self) -> None:
+        from integrations.notifier import _check_health
+        from observability.health import HealthMonitor
+
+        monitor = HealthMonitor(boot_window_s=300.0, boot_age=lambda: 22.0)
+        monitor.register(
+            "tool_homebox",
+            lambda mon: {"ok": False, "status": "down", "detail": "subindo"},
+            critical=False,
+        )
+
+        class _Stub:
+            health_monitor = monitor
+            _problem_since: dict = {}
+
+        saida = await _check_health(_Stub())
+        resultados = saida if isinstance(saida, list) else [saida]
+
+        assert len(resultados) == 1
+        assert resultados[0].ok is True
+        assert "transit" not in resultados[0].detail.lower()
+
+    @pytest.mark.asyncio
+    async def test_falha_real_no_boot_continua_alertando(self) -> None:
+        from integrations.notifier import _check_health
+        from observability.health import HealthMonitor
+
+        monitor = HealthMonitor(boot_window_s=300.0, boot_age=lambda: 22.0)
+        monitor.register(
+            "database",
+            lambda mon: {"ok": False, "status": "down", "detail": "sem conexão"},
+            critical=True,
+        )
+
+        class _Stub:
+            health_monitor = monitor
+            _problem_since: dict = {}
+
+        saida = await _check_health(_Stub())
+        resultados = saida if isinstance(saida, list) else [saida]
+
+        assert len(resultados) == 1
+        assert resultados[0].ok is False
+        assert "database" in resultados[0].detail

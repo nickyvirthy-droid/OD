@@ -12,6 +12,50 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## `/health`: container subindo é `starting`, não falha (2026-11-26, sem bump)
+
+**Contexto:** no boot de 26/11 o `/health` saiu `degraded` com 6 checks
+(`mqtt`, `tool_kiwix`, `tool_flatnotes`, `tool_stirling_pdf`,
+`tool_calibre_web`, `tool_homebox`) porque os containers ainda subiam. Quem lê
+o endpoint (app, painel, pós-reboot, notifier) via problema onde não havia.
+
+**Agora, no `HealthMonitor` (`observability/health.py`):**
+
+- `eh_check_transitorio()` — `tool_*` e `mqtt` são de container/broker;
+  `segundos_desde_boot()` lê `/proc/uptime` sem nunca levantar.
+- Janela de carência (`boot_window_s`, padrão do launcher **300 s**,
+  `OD_HEALTH_JANELA_BOOT_S=0` desliga): dentro dela, check transitório que
+  falha sai como `status: "starting"`, `ok: false` (**a verdade não é
+  escondida**), `transitorio: true` e o detalhe diz
+  "transitório: container/broker subindo após o boot".
+- O agregado do `/health` **não cai** por causa deles e ganha a lista
+  `transitorios: [nomes]`; `metrics.failed_checks` continua contando a falha.
+- **Só** `tool_*`/`mqtt`: banco, orchestrator, backup, LLM etc. seguem
+  derrubando o status na hora.
+- `ProactiveNotifier._check_health` ignora item com `transitorio: true` — o
+  Telegram não grita no boot por container começando.
+- O padrão do monitor é **janela desligada** e o `tests/conftest.py` fixa
+  `OD_HEALTH_JANELA_BOOT_S=0` na suíte: nenhum teste depende do uptime da
+  máquina (rodar o gate após um reboot mudaria resultados).
+
+**Testes:** `tests/test_health.py` 5 casos novos (starting × janela fechada ×
+falha real × janela desligada × uptime indisponível/quebrado),
+`tests/test_launcher_health_external.py` 3 (300 s padrão, `0` desliga, valor
+inválido volta ao padrão) e `tests/test_notifier.py` 2 (transitório não alerta,
+falha real alerta). Bateria tocada: **156 passed**; `test_api` **215 passed**.
+
+**Gate completo:** **5778 passed / 16 skipped / 2 falhas** — as 2 são
+`tests/test_websocket.py::TestOrchestratorStreaming::test_process_stream_rate_limit`
+e `…test_process_stream_llm_token_a_token`, que **falham igual no HEAD sem esta
+mudança** (reproduzido com `git stash`: 5768 passed e as mesmas 2): são
+ordem-dependentes e ficaram registradas como tarefa no §4 do TODO.
+
+**No ar:** restart 26/11 ~03:4x, MainPID 61637, `NRestarts=0`, `/health`
+ok=true com 34 checks e `transitorios: []` (a janela já fechou — uptime > 5 min),
+journal `-p err` 0.
+
+---
+
 ## Pós-reboot: containers subindo não são falha (2026-11-26, sem bump)
 
 **Contexto:** no boot real de 26/11 02:36 o `od-pos-reboot` rodou com 22 s de

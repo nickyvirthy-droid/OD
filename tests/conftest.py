@@ -58,6 +58,13 @@ for _variavel_de_runtime in (
 ):
     os.environ.pop(_variavel_de_runtime, None)
 
+# Janela de boot do /health (26/11/2026): `build_health()` marca `tool_*`/`mqtt`
+# falhando como `starting` nos primeiros 5 min depois do boot. A suíte não pode
+# depender do uptime da MÁQUINA — rodar o gate logo após um reboot mudaria o
+# status de `/health` em todo teste que simula `mqtt`/tool fora do ar. Desligada
+# por padrão; o teste da janela liga com `monkeypatch.setenv`.
+os.environ["OD_HEALTH_JANELA_BOOT_S"] = "0"
+
 
 @pytest.fixture(autouse=True)
 def _limitacoes_isoladas(tmp_path, monkeypatch):

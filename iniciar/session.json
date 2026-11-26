@@ -1,11 +1,23 @@
 {
+  "health_transitorios_no_boot_2026_11_26": {
+    "pedido": "Dono (26/11 ~03:25): 'Faca o /health marcar os checks de container como transitorios nos primeiros minutos apos o boot'.",
+    "codigo": "observability/health.py: STATUS_STARTING, CHECKS_TRANSITORIOS={mqtt}, PREFIXO_TRANSITORIO='tool_', eh_check_transitorio(), segundos_desde_boot() (/proc/uptime, nunca levanta), HealthMonitor(boot_window_s, boot_age) + na_janela_de_boot()/em_transitorio()/boot_window_s; no health() o check transitorio falhando sai status='starting', ok=false (verdade), transitorio=true, detail 'transitorio: container/broker subindo apos o boot', NAO derruba o agregado e entra em aggregate['transitorios']; metrics.failed_checks continua contando. runtime/launcher.py build_health(): janela padrao 300 s, OD_HEALTH_JANELA_BOOT_S sobrepoe, 0 desliga, valor invalido volta ao padrao. integrations/notifier.py _check_health ignora item transitorio. tests/conftest.py fixa OD_HEALTH_JANELA_BOOT_S=0 na suite (nada depende do uptime da maquina).",
+    "testes": "10 casos novos: test_health 5 (starting x janela fechada x falha real x janela desligada x uptime None/quebrado), test_launcher_health_external 3 (300 padrao/0/lixo), test_notifier 2 (transitorio nao alerta, falha real alerta). Bateria tocada 156 passed; test_api 215 passed.",
+    "gate": "COMPLETO 5778 passed / 16 skipped / 2 falhas. As 2 (test_websocket::TestOrchestratorStreaming::test_process_stream_rate_limit e ::test_process_stream_llm_token_a_token) falham IGUAL no HEAD sem esta mudanca (git stash: 5768 passed + as mesmas 2) = ordem-dependente pre-existente; checkbox criado no §4 do TODO.",
+    "prova_viva": "restart 26/11 ~03:4x — MainPID 61637, NRestarts=0, active; /health ok=true 34 checks, status up, transitorios=[] (janela fechada: uptime > 5 min); journal -p err 0 entradas.",
+    "limite": "A prova do estado 'starting' ao vivo exige o proximo reboot; agora a janela esta fechada. Coberto por teste com boot_age injetado.",
+    "sem_bump": "1.47.0+2085 (servidor; contrato do app aceita campos novos de check).",
+    "arquivos": "observability/health.py, runtime/launcher.py, integrations/notifier.py, tests/conftest.py, tests/test_health.py, tests/test_launcher_health_external.py, tests/test_notifier.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a714), txt.txt.",
+    "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
+    "updated_at": "2026-11-26T03:50:00-03:00"
+  },
   "unit_pos_reboot_360_2026_11_26": {
     "pedido": "Dono (26/11 ~03:12): 'Reinstale a unit od-pos-reboot com o TimeoutStartSec=360 usando o sudo do .env e confirme com systemctl show'.",
     "feito": "SUDO_PASSWORD do .env por pipe (sudo -S, nunca impresso): install -m 0644 -o root -g root systemd/od-pos-reboot.service /etc/systemd/system/ + daemon-reload.",
     "prova": "antes: TimeoutStartUSec=5min, FragmentPath=/etc/systemd/system/od-pos-reboot.service; depois: TimeoutStartUSec=6min, UnitFileState=enabled, NeedDaemonReload=no; grep na unit instalada = TimeoutStartSec=360 (linha 19); diff contra o arquivo do repo VAZIO.",
     "nao_feito": "Nao dei start na unit: oneshot de boot, enviaria um segundo Telegram de 'checagem manual'. Prova de execucao real segue a do boot 26/11 02:36 e a do proximo reboot.",
     "sem_bump": "1.47.0+2085 (mudanca de unit, sem codigo/versao nova).",
-    "arquivos": "(fora do git) /etc/systemd/system/od-pos-reboot.service; docs/CHANGELOG.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a713), txt.txt.",
+    "arquivos": "(fora do git) /etc/systemd/system/od-pos-reboot.service; docs/CHANGELOG.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (§13), txt.txt.",
     "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
     "updated_at": "2026-11-26T03:15:00-03:00"
   },
@@ -17,19 +29,19 @@
     "prova": "execucao real --sem-envio: 'Pos-reboot OK (uptime 13.2 min)', /health up 34 checks, exit=0, sem containers pendentes. Prova no boot real fica para o proximo reboot; caminho coberto por teste com /health simulado.",
     "pendente_dono": "A unit copiada em /etc/systemd/system ainda tem TimeoutStartSec=300: reinstalar exige sudo/ordem explicita (regra 7). O codigo ja suporta a janela de 60 s mesmo assim.",
     "sem_bump": "1.47.0+2085 (ferramenta de boot; servico e app intactos).",
-    "arquivos": "tools/validar_pos_reboot.py, systemd/od-pos-reboot.service, tests/test_validar_pos_reboot.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a712), txt.txt.",
+    "arquivos": "tools/validar_pos_reboot.py, systemd/od-pos-reboot.service, tests/test_validar_pos_reboot.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (§12), txt.txt.",
     "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
     "updated_at": "2026-11-26T03:05:00-03:00"
   },
   "retomada_leitura_iniciar_2026_11_26": {
     "pedido": "Dono (26/11 ~02:40): 'leia iniciar' — recarregar o checkpoint depois do reboot.",
-    "lido": "iniciar/README.md, RULES (24 regras), session.json (topo: fila_item4_offsite_2026_11_26), ATRIBUICOES, transcricao 2026-11-26 (\u00a71-\u00a710), txt.txt, git e servico.",
+    "lido": "iniciar/README.md, RULES (24 regras), session.json (topo: fila_item4_offsite_2026_11_26), ATRIBUICOES, transcricao 2026-11-26 (§1-§10), txt.txt, git e servico.",
     "estado_encontrado": "HEAD == origin/master == 006502c; arvore limpa exceto o auto-registro do restart em session.json (pid 1219). Maquina REINICIADA as 02:36:27 (uptime 4 min), kernel 6.8.0-151-generic, reboot pendente NAO. od-core MainPID 1219, NRestarts=0, active. /health ok=true com 34 checks, nenhum fora de up. od-pos-reboot.service enabled, rodou 20 s apos o boot: 'Pos-reboot OK', 5/5 servicos active, 2/2 timers active, Telegram enviado, exit=0, data/pos_reboot.json ok=true.",
     "fila": "Item 4 (offsite no verificador) ja publicado em c92b1af. Item 11 (janela do SO com prova de retorno) FECHADO: 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, pos-reboot provado. Proximo = item 5 (comparador de modelos lado a lado, P1 no 8).",
-    "achado": "O commit 006502c (validacao pos-reboot, autor do commit Alex Projeti) estava publicado SEM registro em iniciar/, CHANGELOG ou ATRIBUICOES (regra 23) — autoria da IA desconhecida, registrado como tal. Segundo achado: no boot a checagem (22 s de uptime) reportou degraded com 6 checks falhando (mqtt, tool_kiwix, tool_flatnotes, tool_stirling_pdf, tool_calibre_web, tool_homebox) porque os containers ainda subiam; virou checkbox no \u00a74 do TODO.",
-    "decisao": "Turno de leitura + registro: nenhum codigo alterado, sem restart e sem bump (1.47.0+2085). Escritos: secao do pos-reboot no CHANGELOG, fila item 11 e checkbox novo no TODO, ATRIBUICOES (2 entradas), transcricao \u00a711 e txt.txt.",
+    "achado": "O commit 006502c (validacao pos-reboot, autor do commit Alex Projeti) estava publicado SEM registro em iniciar/, CHANGELOG ou ATRIBUICOES (regra 23) — autoria da IA desconhecida, registrado como tal. Segundo achado: no boot a checagem (22 s de uptime) reportou degraded com 6 checks falhando (mqtt, tool_kiwix, tool_flatnotes, tool_stirling_pdf, tool_calibre_web, tool_homebox) porque os containers ainda subiam; virou checkbox no §4 do TODO.",
+    "decisao": "Turno de leitura + registro: nenhum codigo alterado, sem restart e sem bump (1.47.0+2085). Escritos: secao do pos-reboot no CHANGELOG, fila item 11 e checkbox novo no TODO, ATRIBUICOES (2 entradas), transcricao §11 e txt.txt.",
     "sem_bump": "1.47.0+2085 mantido",
-    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (\u00a711)",
+    "transcricao": "iniciar/2026-11-26_conversa_omegadrakon.md (§11)",
     "updated_at": "2026-11-26T02:50:00-03:00"
   },
   "fila_item4_offsite_2026_11_26": {
@@ -6905,6 +6917,15 @@
       "commit": "006502c",
       "branch": "master",
       "iniciado_em": "2026-11-26T02:36:37-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 61637,
+      "commit": "0522f85",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T03:21:47-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

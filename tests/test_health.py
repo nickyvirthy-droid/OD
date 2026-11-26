@@ -29,6 +29,7 @@ from integrations.api import APIConfig, APIServer
 from observability.health import (
     STATUS_DEGRADED,
     STATUS_DOWN,
+    STATUS_STARTING,
     STATUS_UP,
     ComponentHealth,
     HealthMonitor,
@@ -252,8 +253,107 @@ class TestHealthMonitor:
 
 
 # ---------------------------------------------------------------------------
+# Janela de boot: container subindo não é falha (26/11)
+# ---------------------------------------------------------------------------
+
+
+def _monitor_boot(segundos: float | None, janela: float = 300.0) -> HealthMonitor:
+    return HealthMonitor(boot_window_s=janela, boot_age=lambda: segundos)
+
+
+def _registra(monitor: HealthMonitor, nome: str, ok: bool,
+              critical: bool = False) -> None:
+    monitor.register(
+        nome,
+        lambda mon: {"ok": ok, "status": "up" if ok else "down",
+                     "detail": "" if ok else f"{nome} fora"},
+        critical=critical,
+    )
+
+
+class TestJanelaDeBoot:
+    """`tool_*`/`mqtt` falhando nos primeiros minutos é `starting`, não falha.
+
+    Medido no boot de 26/11: /health saiu degraded com 6 checks porque os
+    containers ainda subiam — o app e o pós-reboot liam isso como problema.
+    """
+
+    @pytest.mark.asyncio
+    async def test_container_subindo_vira_starting_e_nao_derruba(self) -> None:
+        monitor = _monitor_boot(22.0)
+        _registra(monitor, "database", True, critical=True)
+        _registra(monitor, "tool_homebox", False)
+        _registra(monitor, "mqtt", False)
+
+        resultado = await monitor.health()
+
+        assert resultado["ok"] is True
+        assert resultado["status"] == STATUS_UP
+        assert resultado["transitorios"] == ["tool_homebox", "mqtt"]
+        for nome in ("tool_homebox", "mqtt"):
+            item = resultado["checks"][nome]
+            assert item["ok"] is False          # a verdade não é escondida
+            assert item["status"] == STATUS_STARTING
+            assert item["transitorio"] is True
+            assert "transitório" in item["detail"]
+        # métricas continuam contando a falha como falha
+        assert monitor.metrics.failed_checks == 2
+
+    @pytest.mark.asyncio
+    async def test_depois_da_janela_volta_a_degradar(self) -> None:
+        monitor = _monitor_boot(400.0)
+        _registra(monitor, "tool_homebox", False)
+
+        resultado = await monitor.health()
+
+        assert resultado["ok"] is False
+        assert resultado["status"] == STATUS_DEGRADED
+        assert resultado["transitorios"] == []
+        assert resultado["checks"]["tool_homebox"]["status"] == STATUS_DOWN
+        assert "transitorio" not in resultado["checks"]["tool_homebox"]
+
+    @pytest.mark.asyncio
+    async def test_falha_real_no_boot_continua_derrubando(self) -> None:
+        monitor = _monitor_boot(22.0)
+        _registra(monitor, "database", False, critical=True)
+        _registra(monitor, "tool_homebox", False)
+
+        resultado = await monitor.health()
+
+        assert resultado["ok"] is False
+        assert resultado["status"] == STATUS_DOWN
+        assert resultado["checks"]["database"]["status"] == STATUS_DOWN
+        assert resultado["checks"]["tool_homebox"]["status"] == STATUS_STARTING
+
+    @pytest.mark.asyncio
+    async def test_janela_desligada_por_padrao(self) -> None:
+        monitor = HealthMonitor()  # padrão: 0 s -> sem carência
+        _registra(monitor, "tool_homebox", False)
+
+        resultado = await monitor.health()
+
+        assert monitor.boot_window_s == 0.0
+        assert resultado["status"] == STATUS_DEGRADED
+        assert resultado["checks"]["tool_homebox"]["status"] == STATUS_DOWN
+
+    @pytest.mark.asyncio
+    async def test_uptime_indisponivel_ou_quebrado_nao_marca_transitorio(self) -> None:
+        sem_uptime = _monitor_boot(None)
+        _registra(sem_uptime, "tool_homebox", False)
+        assert (await sem_uptime.health())["status"] == STATUS_DEGRADED
+
+        def explode() -> float:
+            raise OSError("sem /proc")
+
+        quebrado = HealthMonitor(boot_window_s=300.0, boot_age=explode)
+        _registra(quebrado, "tool_homebox", False)
+        assert (await quebrado.health())["status"] == STATUS_DEGRADED
+
+
+# ---------------------------------------------------------------------------
 # Integração com a API REST (GET /health)
 # ---------------------------------------------------------------------------
+
 
 class TestAPIHealthIntegration:
     """Fase 7.3: /health responde o agregado quando config.health existe."""

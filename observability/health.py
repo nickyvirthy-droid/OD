@@ -26,6 +26,13 @@ Decisões registradas (ver CHANGELOG):
     o monitor (resiliência — padrão do projeto)
   - A API REST passa a responder o agregado do monitor quando recebe
     config.health; sem monitor, mantém o comportamento legado
+  - Check de container/broker que ainda está subindo nos primeiros minutos
+    do boot não é falha (2026-11-26): vira `status="starting"` com
+    `transitorio: true` e NÃO derruba o agregado — o boot de 26/11 mostrou
+    `mqtt`/`tool_*` em `degraded` aos 22 s de uptime com os containers ainda
+    começando (gêmeo do que `tools/validar_pos_reboot.py` faz no veredito).
+    A janela é LIGADA pelo launcher; o padrão do monitor é desligada para
+    nenhum teste depender do uptime da máquina.
   - Zerar dependências externas: stdlib puro
 """
 
@@ -35,6 +42,7 @@ import inspect
 import threading
 import time
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Awaitable, Callable, Optional, Union
 
 from core.logger import get_logger
@@ -46,6 +54,28 @@ log = get_logger("omega.observability.health")
 STATUS_UP = "up"
 STATUS_DEGRADED = "degraded"
 STATUS_DOWN = "down"
+STATUS_STARTING = "starting"
+
+# Checks que dependem de container/broker e por isso sobem DEPOIS do od-core
+# (mesma régua de `tools/validar_pos_reboot.py`, duplicada de propósito: a
+# ferramenta de boot roda só com stdlib).
+CHECKS_TRANSITORIOS = frozenset({"mqtt"})
+PREFIXO_TRANSITORIO = "tool_"
+# Janela padrão usada pelo launcher: 5 min depois do boot.
+JANELA_BOOT_PADRAO_S = 300.0
+
+
+def eh_check_transitorio(nome: str) -> bool:
+    """Check de container/broker (pode estar apenas começando no boot)."""
+    return nome in CHECKS_TRANSITORIOS or nome.startswith(PREFIXO_TRANSITORIO)
+
+
+def segundos_desde_boot() -> Optional[float]:
+    """Uptime em segundos, ou None quando não dá para medir (nunca levanta)."""
+    try:
+        return float(Path("/proc/uptime").read_text().split()[0])
+    except (OSError, ValueError, IndexError):
+        return None
 
 
 @dataclass(slots=True)
@@ -128,8 +158,13 @@ class HealthMonitor:
         self,
         *,
         clock: Optional[Callable[[], float]] = None,
+        boot_window_s: float = 0.0,
+        boot_age: Optional[Callable[[], Optional[float]]] = None,
     ) -> None:
         self._clock = clock or time.monotonic
+        # 0 = desligado (padrão: nenhum teste depende do uptime da máquina).
+        self._boot_window_s = float(boot_window_s)
+        self._boot_age = boot_age or segundos_desde_boot
         self._checks: dict[str, tuple[HealthCheckFn, bool]] = {}
         self._metrics = HealthMetrics()
         self._last: Optional[dict[str, Any]] = None
@@ -138,6 +173,25 @@ class HealthMonitor:
     @property
     def metrics(self) -> HealthMetrics:
         return self._metrics
+
+    @property
+    def boot_window_s(self) -> float:
+        """Janela de carência de container/broker após o boot (0 = desligada)."""
+        return self._boot_window_s
+
+    def na_janela_de_boot(self) -> bool:
+        """True quando ainda é cedo o bastante para container estar subindo."""
+        if self._boot_window_s <= 0:
+            return False
+        try:
+            idade = self._boot_age()
+        except Exception:  # sonda de uptime quebrada nunca muda o agregado
+            return False
+        return idade is not None and idade < self._boot_window_s
+
+    def em_transitorio(self, nome: str) -> bool:
+        """Check de container/broker falhando dentro da janela de boot."""
+        return eh_check_transitorio(nome) and self.na_janela_de_boot()
 
     # -- Registro -------------------------------------------------------------
 
@@ -178,16 +232,30 @@ class HealthMonitor:
             checks = list(self._checks.items())
             self._metrics.runs += 1
         results: dict[str, Any] = {}
+        transitorios: list[str] = []
         degraded = False
         down = False
         for name, (check_fn, critical) in checks:
             result = await self._run_one(name, check_fn, critical)
-            results[name] = result.to_dict()
-            if not result.ok:
-                if critical:
-                    down = True
-                else:
-                    degraded = True
+            item = result.to_dict()
+            results[name] = item
+            if result.ok:
+                continue
+            if self.em_transitorio(name):
+                # Container/broker ainda subindo: registra a verdade, mas não
+                # pinta o /health de vermelho por isso.
+                item["status"] = STATUS_STARTING
+                item["transitorio"] = True
+                item["detail"] = (
+                    (result.detail + "; " if result.detail else "")
+                    + "transitório: container/broker subindo após o boot"
+                )
+                transitorios.append(name)
+                continue
+            if critical:
+                down = True
+            else:
+                degraded = True
         if down:
             status = STATUS_DOWN
         elif degraded:
@@ -198,6 +266,7 @@ class HealthMonitor:
             "ok": status == STATUS_UP,
             "status": status,
             "checks": results,
+            "transitorios": transitorios,
             "ts": self._clock(),
         }
         with self._lock:

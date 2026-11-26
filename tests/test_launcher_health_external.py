@@ -322,3 +322,23 @@ class TestBuildNotifierObservabilidade:
 
         launcher._ENV_CACHE["OD_NOTIFIER_ENABLED"] = "0"
         assert build_notifier(None, health=build_health()) is None
+
+
+# ---------------------------------------------------------------------------
+# Janela de boot do /health (26/11/2026)
+# ---------------------------------------------------------------------------
+
+class TestJanelaDeBootDoHealth:
+    """`build_health` liga a carência de container/broker por padrão."""
+
+    def test_padrao_de_cinco_minutos(self, monkeypatch) -> None:
+        monkeypatch.delenv("OD_HEALTH_JANELA_BOOT_S", raising=False)
+        assert build_health().boot_window_s == 300.0
+
+    def test_env_zero_desliga(self, monkeypatch) -> None:
+        monkeypatch.setenv("OD_HEALTH_JANELA_BOOT_S", "0")
+        assert build_health().boot_window_s == 0.0
+
+    def test_env_invalido_volta_ao_padrao(self, monkeypatch) -> None:
+        monkeypatch.setenv("OD_HEALTH_JANELA_BOOT_S", "lixo")
+        assert build_health().boot_window_s == 300.0
