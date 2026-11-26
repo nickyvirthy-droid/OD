@@ -1,4 +1,15 @@
 {
+  "colapso_verificado_2026_11_26": {
+    "pedido": "Dono (26/11 ~10:3x): 'Siga para o item 9 da fila: modo colapso declarado'.",
+    "estado_encontrado": "Recurso JA entregue em 21/11 (P1 no 6): core/colapso.py, action colapso (status/ligar/desligar), prefixo no chat, check nao-critico no /health e monitor no launcher (falhas=3). A fila ainda listava como pendente e o checkbox da secao Continuidade estava aberto.",
+    "prova_viva": "Sem restart e com estado revertido: (1) action colapso acao=ligar -> ativo true; /health check colapso degraded 'ATIVO (manual) - declarado pelo dono'. (2) POST /message -> llm_used gemma-local, resposta com prefixo '⚡ modo colapso - respondendo so com a IA local'; journal: 'Modo colapso - nuvem bloqueada | provider=groq' e '| provider=gemini' (as duas nuvens puladas) e 'Message processed | llm=gemma-local'. (3) action colapso acao=desligar -> ativo false, /health up 'normal (nuvem disponivel)'; data/colapso.json termina desligado.",
+    "testes": "tests/test_colapso.py 17 passed. Gate do RAG hibrido (texto novo em docs/): 8/8 relevantes, 0/8 irrelevantes, 6/6 parafrases, igual ao baseline. Nenhum .py alterado: sem gate completo e sem restart.",
+    "limite": "Nao existe card proprio do colapso no painel; o estado e o check colapso do /health. Adicao barata se o dono quiser.",
+    "sem_bump": "1.47.0+2085.",
+    "arquivos": "docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md (item 9 da fila e checkbox da Continuidade), iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS19), txt.txt.",
+    "proximo": "Item 10 da fila: espelho com restauracao real (precisa execucao e prova).",
+    "updated_at": "2026-11-26T10:35:00-03:00"
+  },
   "mapas_glifos_2026_11_26": {
     "pedido": "Dono (26/11 ~10:0x): 'Siga para o item 8 da fila: mapas offline proximos do inventario' (checkbox 'Mapas offline (proximo): rotulos nao-latinos e zoom 15').",
     "medido": "site/maps/brasil.pmtiles: PMTiles v3, MVT/gzip, 3.079.554.972 B (2,87 GiB), z0-14, bbox do Brasil, 4.842.245 tiles enderecados. Amostra de 200 MB da secao de tiles (25.675 tiles descomprimidos): arabe 175.848 ocorrencias, hebraico 169.215, siríaco 147.075, pontuacao CJK/kana 22.022, devanagari 16.882; campos name:* existem nos tiles. Glifos embutidos antes: so 0-1279. Fonte de origem provada por sha256: assets publicos da Protomaps (basemaps-assets).",

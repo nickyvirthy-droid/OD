@@ -12,6 +12,33 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Modo colapso declarado: verificado ao vivo (2026-11-26, sem bump)
+
+**Contexto:** o item 9 da fila pedia o modo colapso, entregue em 21/11 — mas
+nunca tinha sido **provado no processo vivo** desde então, e a fila ainda o
+listava como pendente.
+
+**Prova viva (26/11, sem restart, estado revertido):**
+
+1. `POST /executa` action `colapso` `{acao: "ligar"}` → `ativo: true`,
+   "Modo colapso ligado (só IA local)".
+2. `/health` → check `colapso` **degraded**, "ATIVO (manual) — declarado pelo
+   dono" (o agregado não cai: o check é não-crítico).
+3. `POST /message` → `llm_used: gemma-local`, resposta com o prefixo
+   **"⚡ modo colapso — respondendo só com a IA local"**; journal mostrou
+   `Modo colapso — nuvem bloqueada | provider=groq` e `provider=gemini` — as
+   duas nuvens da cadeia foram puladas, só a local respondeu.
+4. `POST /executa` `{acao: "desligar"}` → `ativo: false`, `/health` de volta a
+   `up` ("normal (nuvem disponível)"); `data/colapso.json` termina
+   `ativo: false`.
+
+**Testes:** `tests/test_colapso.py` **17 passed** (estado persistido, falhas,
+manual x automático, streaming, action). **Limite declarado:** não existe
+card próprio do colapso no painel — o estado é o check `colapso` do `/health`;
+se o dono quiser um card, é adição barata.
+
+---
+
 ## Mapas offline: glifos não-latinos embutidos e limites medidos (2026-11-26, sem bump)
 
 **Contexto:** o mapa offline (`site/maps/brasil.pmtiles`, 2,87 GiB, PMTiles v3,

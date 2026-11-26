@@ -597,7 +597,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | ✅ 26/11 — `docs/NV_DAG_SCHEDULER_REFERENCE.md` (13/11) + `docs/SECURITY_LAYER_ARCHITECTURE.md` novo, com o mapeamento de cada camada no OD |
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | ✅ 26/11 — originais já fora do servidor (zip na HD); leitura do Orion documentada em `docs/PROJETI_REFERENCIA.md`; trilha de backups do APK medida, 1.47.0 arquivado e passo de `aapt` no checklist |
 | 8 | Mapas offline (próximo do inventário) | ✅ 26/11 — 8 faixas de glifos não-latinos embutidas (+648 KB, 11 testes); CJK/hangul e z15 medidos e fechados por falta de demanda (`docs/MAPAS_OFFLINE.md`) |
-| 9 | Modo colapso declarado | pendente |
+| 9 | Modo colapso declarado | ✅ 21/11 (entregue) e **provado ao vivo 26/11**: ligar → groq/gemini bloqueados, resposta local com prefixo "⚡ modo colapso", `/health` degraded; desligar → up. 17 testes |
 | 10 | Espelho com restauração real (precisa execução e prova) | pendente |
 | 11 | Janela de aplicação do SO com prova de retorno | ✅ 26/11 02:36 — 67 pacotes + 51 firmwares aplicados 02:13, reboot feito 02:36, `od-pos-reboot` avisou no Telegram, kernel 6.8.0-151, `reboot pendente: não` |
 
@@ -1377,8 +1377,14 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       timer instalado e rodando: dumps de 13/11 17:32/17:33 e 14/11 02:50 em
       `data/pg_dumps/` (33 KB, 14 tabelas), journal `OD // PG DUMP OK`.**
       **Falta:** commit do código da unit (hoje está só na árvore)
-- [ ] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
-      quando a nuvem falhar N vezes (ou por ordem do dono)
+- [x] **Modo colapso declarado:** trocar para a cadeia local e avisar no chat/UI
+      quando a nuvem falhar N vezes (ou por ordem do dono) — **FEITO 21/11**
+      (`core/colapso.py`, action `colapso`, prefixo no chat, check no `/health`);
+      **provado ao vivo 26/11**: com o colapso ligado, groq e gemini foram
+      bloqueados no journal e a resposta veio de `gemma-local` com o prefixo
+      "⚡ modo colapso — respondendo só com a IA local"; `/health` degraded com
+      "ATIVO (manual)"; ao desligar, voltou a `up`. **Limite:** não há card
+      próprio no painel — o estado aparece no check `colapso` do `/health`.
 - [x] **IA local melhor:** medir Qwen2.5-7B q4_K_M contra o 3B atual (mesmo
       benchmark de 11/11) e só então trocar — **MEDIDO 12/11: 7B 5/6 × 3B 3/6,
       mas 60,15 s × 16,26 s de p50 e só 2,3 GB livres com ele no ar. NÃO trocado;

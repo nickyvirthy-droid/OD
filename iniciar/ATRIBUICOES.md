@@ -9,6 +9,32 @@
 
 ---
 
+## 26/11/2026 — Modo colapso: verificação ao vivo (fila item 9)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 9 da fila:
+modo colapso declarado"*).
+
+### Criados
+
+- nenhum arquivo novo.
+
+### Modificados
+
+- `docs/CHANGELOG.md` — seção da prova viva (sem bump).
+- `docs/ANALISE_SISTEMA_TODO.md` — item 9 da fila ✅ e o checkbox da seção
+  Continuidade fechados com a evidência.
+- `iniciar/2026-11-26_conversa_omegadrakon.md` (§19), `iniciar/session.json`,
+  `txt.txt`.
+
+### Intenção e estado
+
+O recurso já existia desde 21/11; faltava provar no processo vivo que ele
+bloqueia as nuvens e avisa. Provado e revertido (liga → groq/gemini pulados,
+resposta local com prefixo, `/health` degraded; desliga → up). Nenhum código
+alterado, sem restart. `1.47.0+2085`. Limite: sem card próprio no painel.
+
+---
+
 ## 26/11/2026 — Mapas offline: glifos não-latinos embutidos (fila item 8)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Siga para o item 8 da fila:

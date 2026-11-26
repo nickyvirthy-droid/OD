@@ -879,3 +879,47 @@ Nenhum (`1.47.0+2085`).
 ### Bump
 
 Nenhum (`1.47.0+2085`).
+
+---
+
+## §19 — Fila item 9: modo colapso provado ao vivo (26/11 ~10:35)
+
+**Dono:** *"Siga para o item 9 da fila: modo colapso declarado"*.
+
+### Estado encontrado
+
+- **Já entregue em 21/11** (P1 nº 6): `core/colapso.py` (estado persistido em
+  `data/colapso.json`, N falhas de nuvem para declarar, sonda TCP para
+  revogar), action `colapso` (`status`/`ligar`/`desligar`), prefixo no chat,
+  check não-crítico no `/health`, monitor no launcher (log "Monitor de modo
+  colapso habilitado | falhas=3").
+- A fila ainda listava o item como pendente e o checkbox da seção
+  Continuidade continuava aberto — por isso a verificação ao vivo.
+
+### Prova viva (sem restart; estado revertido no fim)
+
+1. `colapso acao=ligar` → `ativo: true`; `/health` check `colapso`
+   **degraded** ("ATIVO (manual) — declarado pelo dono").
+2. `POST /message` → `llm_used: gemma-local`, resposta com o prefixo
+   **"⚡ modo colapso — respondendo só com a IA local"**; journal:
+   `Modo colapso — nuvem bloqueada | provider=groq` e `| provider=gemini`
+   (as duas nuvens puladas), `Message processed | llm=gemma-local`.
+3. `colapso acao=desligar` → `ativo: false`; `/health` volta a `up`
+   ("normal (nuvem disponível)"); `data/colapso.json` termina desligado.
+
+### Verificação
+
+- `tests/test_colapso.py`: **17 passed**.
+- Gate do RAG híbrido (texto novo em `docs/`): **8/8 · 0/8 · 6/6**, igual ao
+  baseline.
+- Nenhum `.py` alterado: sem gate completo e sem restart.
+
+### Limite declarado
+
+Não há card próprio do colapso no painel: o estado é o check `colapso` do
+`/health`. Se o dono quiser o card, é adição barata — não fiz por não ter
+sido pedido.
+
+### Bump
+
+Nenhum (`1.47.0+2085`).
