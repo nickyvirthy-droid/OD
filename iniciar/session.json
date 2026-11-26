@@ -1,4 +1,14 @@
 {
+  "unit_pos_reboot_360_2026_11_26": {
+    "pedido": "Dono (26/11 ~03:12): 'Reinstale a unit od-pos-reboot com o TimeoutStartSec=360 usando o sudo do .env e confirme com systemctl show'.",
+    "feito": "SUDO_PASSWORD do .env por pipe (sudo -S, nunca impresso): install -m 0644 -o root -g root systemd/od-pos-reboot.service /etc/systemd/system/ + daemon-reload.",
+    "prova": "antes: TimeoutStartUSec=5min, FragmentPath=/etc/systemd/system/od-pos-reboot.service; depois: TimeoutStartUSec=6min, UnitFileState=enabled, NeedDaemonReload=no; grep na unit instalada = TimeoutStartSec=360 (linha 19); diff contra o arquivo do repo VAZIO.",
+    "nao_feito": "Nao dei start na unit: oneshot de boot, enviaria um segundo Telegram de 'checagem manual'. Prova de execucao real segue a do boot 26/11 02:36 e a do proximo reboot.",
+    "sem_bump": "1.47.0+2085 (mudanca de unit, sem codigo/versao nova).",
+    "arquivos": "(fora do git) /etc/systemd/system/od-pos-reboot.service; docs/CHANGELOG.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a713), txt.txt.",
+    "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
+    "updated_at": "2026-11-26T03:15:00-03:00"
+  },
   "pos_reboot_transitorios_2026_11_26": {
     "pedido": "Dono (26/11 ~02:55): 'Faca o pos-reboot separar containers ainda subindo de falha real antes de avisar no Telegram'.",
     "defeito": "No boot de 26/11 02:36 a checagem rodou com 22 s de uptime e mandou 'degraded' com 6 checks falhando (mqtt, tool_kiwix, tool_flatnotes, tool_stirling_pdf, tool_calibre_web, tool_homebox) — containers ainda subindo; todos ficaram up em seguida. O texto do boot parecia falha.",

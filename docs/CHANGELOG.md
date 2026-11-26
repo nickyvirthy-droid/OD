@@ -36,7 +36,10 @@ treinar o dono a ignorar o canal.
   pendência explícita: `containers/broker ainda falhando: …`, com
   `containers_pendentes` no `data/pos_reboot.json`.
 - `systemd/od-pos-reboot.service`: `TimeoutStartSec` 300 → **360 s** (180 s do
-  core + 60 s dos containers + serviço/Telegram).
+  core + 60 s dos containers + serviço/Telegram). **Instalada em
+  `/etc/systemd/system` em 26/11 03:1x:** `TimeoutStartUSec=6min`,
+  `UnitFileState=enabled`, `NeedDaemonReload=no` e `diff` vazio contra o arquivo
+  do repositório.
 
 **Testes:** `tests/test_validar_pos_reboot.py` **9 casos** (4 novos):
 container começando não vira falha; container que não sobe no prazo vira

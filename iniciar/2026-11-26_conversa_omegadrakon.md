@@ -594,3 +594,40 @@ fica menor que o do repositório até essa ordem.
 ### Bump
 
 Nenhum (`1.47.0+2085`; ferramenta de boot).
+
+## §13 — Unit `od-pos-reboot` reinstalada com 360 s (26/11 ~03:15)
+
+**Dono:** *"Reinstale a unit od-pos-reboot com o TimeoutStartSec=360 usando o
+sudo do .env e confirme com systemctl show"*.
+
+### Feito
+
+`SUDO_PASSWORD` do `.env` entregue por pipe (`sudo -S`), nunca impresso:
+
+```
+install -m 0644 -o root -g root systemd/od-pos-reboot.service /etc/systemd/system/od-pos-reboot.service
+systemctl daemon-reload
+```
+
+### Prova (`systemctl show`)
+
+| Campo | Antes | Depois |
+|---|---|---|
+| `TimeoutStartUSec` | `5min` | **`6min`** |
+| `FragmentPath` | `/etc/systemd/system/od-pos-reboot.service` | idem |
+| `UnitFileState` | enabled | **enabled** |
+| `NeedDaemonReload` | no | **no** |
+
+`grep TimeoutStartSec` na unit instalada: linha 19 = `TimeoutStartSec=360`;
+`diff` contra `systemd/od-pos-reboot.service` **vazio** (instalado = repositório).
+
+### Não feito (de propósito)
+
+Não dei `systemctl start` na unit: é oneshot de boot, rodaria o validador e
+mandaria uma segunda mensagem de "checagem manual" ao Telegram. A prova de
+execução real é a do boot de 02:36 (exit 0, Telegram enviado) e vai ser
+reconfirmada no próximo reboot.
+
+### Bump
+
+Nenhum (`1.47.0+2085`; unit de boot, sem código/versão novos).

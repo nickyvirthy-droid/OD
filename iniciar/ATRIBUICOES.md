@@ -9,6 +9,40 @@
 
 ---
 
+## 26/11/2026 — Unit `od-pos-reboot` reinstalada com `TimeoutStartSec=360`
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"Reinstale a unit od-pos-reboot
+com o TimeoutStartSec=360 usando o sudo do .env e confirme com systemctl
+show"*).
+
+### Criados
+
+- nenhum arquivo novo.
+
+### Modificados
+
+- `/etc/systemd/system/od-pos-reboot.service` (fora do git) — cópia do arquivo
+  do repositório, `root:root`, 0644, `daemon-reload` feito.
+- `docs/CHANGELOG.md`, `iniciar/session.json`,
+  `iniciar/2026-11-26_conversa_omegadrakon.md` (§13), `txt.txt`.
+
+### Intenção e estado
+
+**Intenção:** fechar o pendente declarado na entrega anterior — a unit
+instalada ainda tinha `TimeoutStartSec=300` e o limite podia cortar o
+veredito no pior caso (180 s do core + 60 s dos containers + Telegram).
+
+**Pronto e validado:** `systemctl show` antes → `TimeoutStartUSec=5min`,
+`FragmentPath=/etc/systemd/system/od-pos-reboot.service`; depois →
+**`TimeoutStartUSec=6min`**, `UnitFileState=enabled`, `NeedDaemonReload=no`;
+`diff systemd/od-pos-reboot.service /etc/systemd/system/…` **vazio**. A senha
+veio do `SUDO_PASSWORD` do `.env` por pipe (`sudo -S`), nunca impressa.
+
+**Pela metade / limite:** não executei a unit para "provar" o arranque — ela é
+oneshot de boot, roda o validador e mandaria uma segunda mensagem
+("checagem manual") ao Telegram; a prova de execução real continua sendo a do
+boot de 02:36 e a do próximo reboot.
+
 ## 26/11/2026 — Pós-reboot separa container subindo de falha real
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Faça o pós-reboot separar
