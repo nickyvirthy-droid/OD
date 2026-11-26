@@ -6,22 +6,23 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-User=alex
-Group=alex
+# Root é obrigatório: apt/dpkg precisam escrever em /var/lib/apt, /var/lib/dpkg e
+# rodar os scripts de manutenção (chown/setuid); fwupdmgr idem em /var/lib/fwupd.
+# Testado em 26/11 com User=alex + ProtectSystem=strict: FALHA nesses 5 caminhos.
 WorkingDirectory=/home/alex/OmegaDrakon
 ExecStart=/home/alex/OmegaDrakon/.venv/bin/python -m core.os_updater --executar
+# Sem prompt de debconf em apt full-upgrade
+Environment=DEBIAN_FRONTEND=noninteractive
+# Canal de aviso (Telegram do dono) — mesmo padrão do od-pg-dump
+EnvironmentFile=-/home/alex/OmegaDrakon/.env
 # Timeout generoso para upgrades grandes + reboot
 TimeoutStartSec=3600
+# O estado é lido/escrito também pelo od-core (rota /admin/os-updater) como alex
+ExecStartPost=-/bin/chown alex:alex /home/alex/OmegaDrakon/data/os_updater_estado.json
 # Logs vão para journal
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=od-os-updater
 
-# Segurança
-NoNewPrivileges=yes
+# Segurança (mantém o que não quebra apt/dpkg)
 PrivateTmp=yes
-ProtectSystem=strict
-ReadWritePaths=/home/alex/OmegaDrakon/data /var/run/reboot-required
-# Precisa de CAP_DAC_OVERRIDE para apt/fwupdmgr funcionar
-CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_SYS_REBOOT
-AmbientCapabilities=CAP_DAC_OVERRIDE CAP_SYS_REBOOT

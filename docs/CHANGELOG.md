@@ -12,6 +12,54 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Atualizador do SO no ar: timer semanal instalado, unit corrigida e canal Telegram ligado (2026-11-26, sem bump)
+
+**Contexto:** o `txt.txt` de 25/11 apontava 62 atualizações, 2 firmwares e
+`*** System restart required ***`. O `core/os_updater.py` já existia (CLI,
+19 testes, 3 rotas `/admin/os-updater/*`), mas as units estavam só no
+repositório — `systemctl is-enabled od-os-updater.timer` dava `not-found` e a
+última execução registrada (09/11) foi dry-run. Com `sudo` liberado em 26/11,
+o timer foi instalado.
+
+**Dois defeitos encontrados na instalação — medidos, não presumidos:**
+
+1. **O unit não conseguiria atualizar nada.** Com `User=alex` +
+   `ProtectSystem=strict` e `ReadWritePaths` só em `data/` e
+   `/var/run/reboot-required`, uma unidade transitória com as mesmas
+   propriedades falhou em escrever em `/var/lib/apt/lists`, `/var/lib/dpkg`,
+   `/var/cache/apt/archives`, `/var/log/apt` e `/var/lib/fwupd` (5/5 FALHA).
+   O timer rodaria todo domingo e falharia. A unit passou a rodar como root
+   (dpkg roda os scripts de manutenção com chown/setuid) com `PrivateTmp=yes`,
+   `DEBIAN_FRONTEND=noninteractive` e `ExecStartPost` devolvendo o
+   `data/os_updater_estado.json` ao dono `alex` (o od-core lê esse arquivo).
+   Prova: unidade transitória root rodou `apt update` (67 pacotes), `apt list
+   --upgradable` (67) e `fwupdmgr get-upgrades` (51) com sucesso.
+2. **O ciclo das 03:00 rodaria em silêncio.** O `main()` construía o
+   `OSUpdater` sem `notificador_telegram` — o aviso existia na classe e nunca
+   era ligado na CLI, que é justamente o que o systemd executa. Entraram
+   `notificar_telegram()` (stdlib puro, token/chat do `.env`) e
+   `EnvironmentFile=-/home/alex/OmegaDrakon/.env` no unit, no padrão do
+   `od-pg-dump`. O dry-run agora suprime a notificação: `_notificar` respeita
+   o contrato de "sem I/O real" (antes um `--dry-run` chegava a bater na API).
+
+**Estado no ar:** `od-os-updater.timer` **enabled + active**, próxima
+execução domingo 29/11 às ~03:16 (-03, com `RandomizedDelaySec=30m`).
+`--status` como root: kernel `6.8.0-147-generic`, 67 upgradable, 51 firmwares,
+`precisa_reboot=true`. A ativação disparou o serviço uma vez (`Persistent=true`
+sem marcador anterior); o ciclo respondeu `acao: aguardar` — **nada foi
+instalado e nenhum reboot foi agendado** (`/run/systemd/shutdown` inexistente).
+Canal provado nos dois contextos: execução manual e dentro do unit com
+`EnvironmentFile` → `CANAL_OK True` / `CANAL_NO_UNIT True`.
+
+**Testes:** `tests/test_os_updater.py` 49 passed (3 novos: canal ausente
+devolve `False` sem abrir conexão, envio real de `sendMessage` com o chat do
+dono, e dry-run não notificando).
+
+**Pendente (decisão do dono, exige reboot):** aplicar os 67 pacotes + 51
+firmwares agora em vez de esperar domingo. Comando no `txt.txt`.
+
+---
+
 ## I2 (Hybrid Search) LIGADO com piso próprio medido — 8/8 · 0/8 · 6/6 · 2/2 (2026-11-25, sem bump)
 
 **Contexto:** o I2 estava fiado desde 18/11 e mantido **OFF** porque o overlap

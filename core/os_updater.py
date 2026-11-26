@@ -25,6 +25,8 @@ import os
 import subprocess
 import sys
 import time
+import urllib.error
+import urllib.request
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -111,6 +113,45 @@ def _precisa_reboot() -> bool:
     return Path("/var/run/reboot-required").exists()
 
 
+def _env(clave: str) -> str:
+    """Lê do ambiente e, se faltar (execução manual), do .env do projeto."""
+    valor = (os.environ.get(clave) or "").strip()
+    if valor:
+        return valor
+    try:
+        from runtime.launcher import load_env  # import tardio: launcher é pesado
+
+        return (load_env().get(clave) or "").strip()
+    except Exception:  # noqa: BLE001 - sem .env legível simplesmente não há canal
+        return ""
+
+
+def notificar_telegram(texto: str) -> bool:
+    """Aviso no Telegram do dono (regra 15). Sem canal → False, nunca exceção.
+
+    O serviço systemd carrega o `.env` por `EnvironmentFile`; na execução
+    manual as chaves vêm do `.env` via `runtime.launcher.load_env`.
+    """
+    token = _env("TELEGRAM_BOT_TOKEN")
+    chat = _env("OD_TELEGRAM_ADMINS").split(",")[0].strip()
+    if not token or not chat:
+        log.warn("OSUpdater: sem Telegram configurado — aviso só no journal")
+        return False
+    try:
+        corpo = json.dumps({"chat_id": int(chat), "text": texto[:4000]}).encode()
+        req = urllib.request.Request(
+            f"https://api.telegram.org/bot{token}/sendMessage",
+            data=corpo,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(req, timeout=25.0) as resp:
+            return resp.status == 200
+    except (ValueError, urllib.error.URLError, OSError) as exc:
+        log.warn("OSUpdater: aviso Telegram falhou", erro=str(exc)[:200])
+        return False
+
+
 def _apt_lista_upgradable() -> list[str]:
     """Lista pacotes atualizáveis."""
     code, out, _ = _executar(["apt", "list", "--upgradable"])
@@ -171,6 +212,10 @@ class OSUpdater:
         tmp.replace(self.estado_arquivo)
 
     def _notificar(self, titulo: str, mensagem: str) -> None:
+        if self.dry_run:
+            # Contrato do dry-run: nenhum I/O real — nem comando, nem mensagem.
+            log.info("[DRY-RUN] notificação suprimida", titulo=titulo)
+            return
         if self._notificador:
             try:
                 self._notificador(f"{titulo}\n{mensagem}")
@@ -427,6 +472,8 @@ def main() -> int:
         day=args.day,
         hour=args.hour,
         dry_run=args.dry_run,
+        # Sem canal o ciclo das 03:00 aplicaria updates em silêncio (regra 15)
+        notificador_telegram=notificar_telegram,
     )
 
     if args.status:

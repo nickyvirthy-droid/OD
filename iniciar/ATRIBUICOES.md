@@ -9,6 +9,42 @@
 
 ---
 
+## 26/11/2026 — Timer do atualizador de SO instalado (`sudo` liberado)
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"sudo está no env, pode ser usado
+pelo OmegaDrakon"*), fechando o pendente de 25/11.
+
+### Criados
+
+- `iniciar/2026-11-26_conversa_omegadrakon.md` — transcrição do turno.
+
+### Modificados
+
+- `systemd/od-os-updater.service` — roda como root (com `User=alex` +
+  `ProtectSystem=strict` o apt/dpkg não escreviam em 5 de 5 diretórios),
+  `PrivateTmp=yes`, `DEBIAN_FRONTEND=noninteractive`,
+  `EnvironmentFile=-.env`, `ExecStartPost` devolvendo o estado ao `alex`.
+- `core/os_updater.py` — `notificar_telegram()` + `_env()`; `main()` passa o
+  notificador; `_notificar` suprime envio em dry-run.
+- `tests/test_os_updater.py` — 3 testes novos (canal ausente, envio real,
+  dry-run sem envio); 49 passed.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado),
+  `docs/ARCHITECTURE_v2.md` (linha dizia "06:00 diário"), `iniciar/session.json`,
+  `txt.txt` (aviso ao dono).
+
+### Intenção e estado
+
+**Pronto e validado:** timer **enabled + active** (próxima execução dom 29/11
+~03:16), `systemd-analyze verify` limpo, `--status` como root confirmando
+67 upgradable / 51 firmwares / reboot pendente, canal Telegram provado nos dois
+contextos (`CANAL_OK True`, `CANAL_NO_UNIT True`), 49 testes do módulo passando.
+A ativação disparou o serviço uma vez (`Persistent=true` sem marcador):
+respondeu `acao: aguardar`, nada instalado, nenhum reboot agendado.
+
+**Pela metade / próximo passo:** **aplicar** as 67 atualizações + 51 firmwares
+agora é decisão do dono, porque o ciclo agenda reboot em +5 min. Sem ordem, a
+primeira aplicação real acontece sozinha no domingo 29/11 às ~03:16.
+
 ## 25/11/2026 — I2 (RAG híbrido) ligado com piso próprio medido
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"Recalibre o piso do RAG híbrido

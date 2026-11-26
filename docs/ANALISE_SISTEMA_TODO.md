@@ -642,16 +642,21 @@ esperar o timeout.
       "reconhece a segurança" → `fastpath:network_conhecer` em **29,1 ms**
       ("nada a reconhecer", fila vazia). Lote afetado 444 passed antes do
       restart.
-- [ ] **Instalar e ativar o timer do `od-os-updater` nesta máquina** (achado de
-      25/11, pedido do dono no `txt`) — a ferramenta existe e responde
-      (`--status`: 56 pacotes, 51 firmwares, reboot pendente), mas
-      `systemctl is-enabled od-os-updater.timer` dá **not-found**: as units
-      estão no repositório e não foram instaladas, então nada roda sozinho. A
-      última execução registrada (09/11) foi dry-run. Ação do dono (sudo):
-      `sudo cp systemd/od-os-updater.{service,timer} /etc/systemd/system/ &&
-      sudo systemctl daemon-reload && sudo systemctl enable --now
-      od-os-updater.timer`. Para aplicar já: `sudo systemctl start
-      od-os-updater.service` (agenda reboot +5 min se necessário).
+- [x] **Instalar e ativar o timer do `od-os-updater` nesta máquina** (achado de
+      25/11, pedido do dono no `txt`) — **FEITO 26/11 com `sudo` liberado:**
+      units copiadas, `daemon-reload`, `od-os-updater.timer` **enabled +
+      active** (próxima execução domingo 29/11 ~03:16). A instalação revelou
+      dois defeitos corrigidos no mesmo passo: (a) a unit como estava
+      (`User=alex` + `ProtectSystem=strict`) não escrevia em
+      `/var/lib/apt`, `/var/lib/dpkg`, `/var/cache/apt`, `/var/log/apt` nem
+      `/var/lib/fwupd` — 5/5 FALHA medidos numa unidade transitória; passou a
+      rodar como root com `PrivateTmp` e devolve o estado ao `alex` no fim;
+      (b) o `main()` não passava o notificador, então o ciclo das 03:00 rodaria
+      em silêncio — `notificar_telegram()` + `EnvironmentFile=.env` entraram e
+      o canal foi provado nos dois contextos. A ativação disparou o serviço
+      uma vez (`Persistent=true`): respondeu `acao: aguardar`, nada instalado,
+      nenhum reboot agendado. Continua aberto só isto: **aplicar agora**
+      (67 pacotes + 51 firmwares, agenda reboot +5 min) é decisão do dono.
 - [ ] **Rodar a guarda de offsite junto do verificador semanal** (sugestão de
       25/11) — `tools/checar_offsite_pg.py` hoje é chamada manual; plugá-la no
       runner do `od-pg-restore.timer` faria a divergência de cópia offsite

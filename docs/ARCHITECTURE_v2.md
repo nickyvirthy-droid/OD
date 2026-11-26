@@ -162,7 +162,7 @@ OpenAICompatProvider (llama.cpp local qwen2.5-coder-3b, :8081)
 | `od-memory-consolidate.service` | 04:20 domingos | Dedupe + expiração efêmero memória longa |
 | `od-io-probe.service` | 5 min | Sonda p50/p95 → `data/io_monitor.json` |
 | `od-vigia-mensagens.service` | 04:30 diário | Auditoria chat + relatórios → `data/relatorios/` |
-| `od-os-updater.service` | 06:00 diário | `apt update && apt upgrade -y` (auto) |
+| `od-os-updater.service` | domingos 03:00 (+30 min aleatórios) | `apt update && apt full-upgrade -y`, `fwupdmgr`, reboot se `/var/run/reboot-required` |
 | `od-kiwix.service` | — | Kiwix (14 ZIMs, 40 GB, quente SSD + frio HD USB) |
 
 ### 4.2 Backups & Continuidade

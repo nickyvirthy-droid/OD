@@ -1092,3 +1092,58 @@ class TestMain:
         assert not any(c["cmd"][0] == "shutdown" for c in falso.chamadas)
         # Estado do script relativo → tmp_path/data/ (nunca o repo).
         assert (tmp_path / "data" / "os_updater_estado.json").exists()
+
+
+# ---------------------------------------------------------------------------
+# Notificação Telegram (regra 15: ciclo das 03:00 não pode rodar em silêncio)
+# ---------------------------------------------------------------------------
+
+
+class _RespostaTelegram:
+    status = 200
+
+    def __enter__(self) -> "_RespostaTelegram":
+        return self
+
+    def __exit__(self, *exc: object) -> bool:
+        return False
+
+
+def test_notificar_telegram_sem_canal_devolve_false(monkeypatch) -> None:
+    """Sem TELEGRAM_BOT_TOKEN/OD_TELEGRAM_ADMINS: False, sem exceção e sem rede."""
+    monkeypatch.setattr(os_updater, "_env", lambda _chave: "")
+
+    def urlopen_proibido(*a, **k):
+        raise AssertionError("não deveria abrir conexão sem canal configurado")
+
+    monkeypatch.setattr(os_updater.urllib.request, "urlopen", urlopen_proibido)
+    assert os_updater.notificar_telegram("teste") is False
+
+
+def test_notificar_telegram_envia_send_message(monkeypatch) -> None:
+    """Com canal: POST em sendMessage com o chat do dono e o texto."""
+    valores = {"TELEGRAM_BOT_TOKEN": "tok-fake", "OD_TELEGRAM_ADMINS": "660518870"}
+    monkeypatch.setattr(os_updater, "_env", lambda chave: valores.get(chave, ""))
+    capturado: dict[str, object] = {}
+
+    def urlopen_falso(req, timeout=0):
+        capturado["url"] = req.full_url
+        capturado["corpo"] = json.loads(req.data.decode())
+        return _RespostaTelegram()
+
+    monkeypatch.setattr(os_updater.urllib.request, "urlopen", urlopen_falso)
+    assert os_updater.notificar_telegram("🔧 ciclo ok") is True
+    assert capturado["url"] == "https://api.telegram.org/bottok-fake/sendMessage"
+    assert capturado["corpo"] == {"chat_id": 660518870, "text": "🔧 ciclo ok"}
+
+
+def test_dry_run_nao_notifica(monkeypatch, tmp_path) -> None:
+    """Dry-run não faz I/O real: o notificador nem é chamado."""
+    enviados: list[str] = []
+    updater = os_updater.OSUpdater(
+        estado_arquivo=tmp_path / "estado.json",
+        notificador_telegram=enviados.append,
+        dry_run=True,
+    )
+    updater._notificar("🔧 OSUpdater", "não deveria sair")
+    assert enviados == []
