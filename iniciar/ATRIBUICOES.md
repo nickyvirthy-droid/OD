@@ -9,6 +9,35 @@
 
 ---
 
+## 26/11/2026 — Comparador de modelos lado a lado no painel (fila item 5)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"continue"*, retomando a fila
+combinada; o próximo item era o comparador de modelos).
+
+### Criados
+
+- `core/comparador_modelos.py` — mesmo prompt em 2–4 modelos da cadeia do
+  chat, em paralelo, com latência e erro por modelo.
+- `tests/test_comparador_modelos.py` — 19 casos (módulo, rotas e render node).
+
+### Modificados
+
+- `integrations/api/server.py` — rotas `GET /admin/comparador/modelos` e
+  `POST /admin/comparador/comparar` + seção "Comparador de modelos" no
+  `/admin` (`cmpCartoesHtml`, `cmpLoad`, `cmpComparar`).
+- `tests/test_api.py` — espelho de rotas 146 → 148.
+- `docs/CHANGELOG.md`, `docs/ANALISE_SISTEMA_TODO.md` (fila item 5 ✅),
+  `iniciar/2026-11-26_conversa_omegadrakon.md` (§15), `iniciar/session.json`.
+
+### Intenção e estado
+
+Fechar a comparação ao vivo que o dono pedia ("usar a melhor IA" decidido por
+observação, não por log de 05/11). Provado ao vivo com 3 modelos (groq
+564,5 ms / gemini 2.625,4 ms / local 18.584,5 ms; parede 18,6 s = o mais
+lento). `1.47.0+2085`. Limite: o visual não foi visto em navegador.
+
+---
+
 ## 26/11/2026 — `/health` marca container subindo como `starting`
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Faça o /health marcar os checks

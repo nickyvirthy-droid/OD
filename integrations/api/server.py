@@ -599,6 +599,9 @@ _ROUTE_SPECS: list[tuple[str, str, str, bool]] = [
     ("GET", "/admin/os-updater/status", "admin_os_updater_status", True),
     ("POST", "/admin/os-updater/executar", "admin_os_updater_executar", True),
     ("POST", "/admin/os-updater/reboot", "admin_os_updater_reboot", True),
+    # Comparador de modelos (fila item 5, 26/11) — o mesmo prompt em 2+ IAs
+    ("GET", "/admin/comparador/modelos", "admin_comparador_modelos", True),
+    ("POST", "/admin/comparador/comparar", "admin_comparador_comparar", True),
     # Dados protegidos
     ("GET", "/dashboard/stats", "dashboard_stats", True),
     ("GET", "/llms", "llms", True),
@@ -1987,6 +1990,24 @@ _ADMIN_PAGE_HTML = """<!doctype html>
     </div>
     <div id="so-secoes"></div>
   </section>
+  <section>
+    <h2>Comparador de modelos</h2>
+    <p class="muted" style="font-size:0.8rem;margin-bottom:8px">
+      O mesmo prompt vai para <b>2 a 4 IAs da cadeia do chat ao mesmo tempo</b>,
+      com a resposta e a latência lado a lado. É a comparação ao vivo — a
+      resposta de cada modelo é um retrato do agora, nada fica em cache.
+      Um modelo que falha não derruba os outros: o erro aparece no cartão dele.
+    </p>
+    <div class="row" style="margin-bottom:8px">
+      <span class="muted" id="cmp-modelos" style="font-size:0.8rem">carregando modelos…</span>
+      <span style="flex:1"></span>
+      <button id="cmp-comparar">⚖ Comparar</button>
+      <span class="muted msg" id="cmp-msg"></span>
+    </div>
+    <textarea id="cmp-prompt" rows="3" placeholder="Prompt que vai igual para todos os modelos selecionados…"
+      style="width:100%;box-sizing:border-box"></textarea>
+    <div id="cmp-resultado" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:12px;margin-top:10px"></div>
+  </section>
 </main>
 <script>
 let token = localStorage.getItem("od_session_token") || "";
@@ -2701,6 +2722,117 @@ async function soAplicar() {
 }
 
 document.getElementById("so-aplicar").onclick = soAplicar;
+
+// --- Comparador de modelos (fila item 5, 26/11) --------------------------
+// O mesmo prompt em 2+ modelos da cadeia, em paralelo no servidor. O render
+// é uma função PURA (cmpCartoesHtml) para o teste node provar ordem,
+// escape e o vazio honesto sem navegador.
+let cmpModelos = [];
+
+function cmpMs(ms) {
+  if (ms == null) return "—";
+  return ms >= 1000 ? (ms / 1000).toFixed(2) + " s" : ms + " ms";
+}
+
+function cmpCartoesHtml(resultados) {
+  const lista = Array.isArray(resultados) ? resultados : [];
+  if (!lista.length) {
+    return '<p class="muted" style="font-size:0.8rem">nenhuma comparação ainda — ' +
+      "escolha 2 modelos, escreva o prompt e clique em Comparar.</p>";
+  }
+  return lista.map(function (r) {
+    const nome = esc(r.nome || "?");
+    const modelo = r.modelo ? ' <span class="muted" style="font-size:0.72rem">' + esc(r.modelo) + "</span>" : "";
+    const selo = r.ok
+      ? '<span class="pill ok">ok</span>'
+      : '<span class="pill err">falhou</span>';
+    const corpo = r.ok
+      ? '<div style="white-space:pre-wrap;font-size:0.85rem;margin-top:6px">' + esc(r.resposta || "") + "</div>"
+      : '<div class="muted" style="font-size:0.8rem;margin-top:6px">' + esc(r.erro || "sem resposta") + "</div>";
+    return '<div class="card" style="padding:10px"><div class="row">' +
+      "<b>" + nome + "</b>" + modelo + '<span style="flex:1"></span>' +
+      selo + " · <b>" + cmpMs(r.latencia_ms) + "</b></div>" + corpo + "</div>";
+  }).join("");
+}
+
+function cmpSelecionados() {
+  const marcados = document.querySelectorAll("input[data-cmp-modelo]:checked");
+  const nomes = [];
+  for (let i = 0; i < marcados.length; i++) nomes.push(marcados[i].value);
+  return nomes;
+}
+
+async function cmpLoad() {
+  const alvo = document.getElementById("cmp-modelos");
+  try {
+    const resp = await fetch("/admin/comparador/modelos", { headers: authHeaders() });
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      alvo.textContent = "modelos indisponíveis (HTTP " + resp.status + ")";
+      return;
+    }
+    cmpModelos = d.modelos || [];
+    if (cmpModelos.length < 2) {
+      alvo.textContent = "menos de 2 modelos configurados — a comparação precisa de dois";
+      document.getElementById("cmp-comparar").disabled = true;
+      return;
+    }
+    alvo.innerHTML = cmpModelos.map(function (m) {
+      return '<label style="margin-right:12px;font-size:0.8rem">' +
+        '<input type="checkbox" data-cmp-modelo value="' + esc(m.nome) + '" checked> ' +
+        esc(m.nome) + (m.modelo ? ' <span class="muted">(' + esc(m.modelo) + ")</span>" : "") +
+        "</label>";
+    }).join("");
+  } catch (e) {
+    alvo.textContent = "falha ao listar modelos: " + e.message;
+  }
+}
+
+async function cmpComparar() {
+  const btn = document.getElementById("cmp-comparar");
+  const msg = document.getElementById("cmp-msg");
+  const prompt = document.getElementById("cmp-prompt").value.trim();
+  const nomes = cmpSelecionados();
+  if (!prompt) {
+    msg.textContent = "escreva o prompt primeiro";
+    msg.className = "msg err";
+    return;
+  }
+  if (nomes.length < 2) {
+    msg.textContent = "marque pelo menos 2 modelos";
+    msg.className = "msg err";
+    return;
+  }
+  btn.disabled = true;
+  msg.textContent = "consultando " + nomes.length + " modelos em paralelo…";
+  msg.className = "muted msg";
+  document.getElementById("cmp-resultado").innerHTML =
+    '<p class="muted" style="font-size:0.8rem">aguardando as respostas…</p>';
+  try {
+    const resp = await fetch("/admin/comparador/comparar", {
+      method: "POST",
+      headers: authHeaders({"Content-Type": "application/json"}),
+      body: JSON.stringify({ prompt: prompt, modelos: nomes })
+    });
+    const d = await resp.json().catch(() => ({}));
+    if (!resp.ok) {
+      msg.textContent = "não comparou: " + (d.detalhe || d.erro || ("HTTP " + resp.status));
+      msg.className = "msg err";
+      document.getElementById("cmp-resultado").innerHTML = "";
+      return;
+    }
+    document.getElementById("cmp-resultado").innerHTML = cmpCartoesHtml(d.modelos);
+    msg.textContent = d.ok ? "comparação concluída" : "nenhum modelo respondeu — veja o erro de cada um";
+    msg.className = "msg " + (d.ok ? "ok" : "err");
+  } catch (e) {
+    msg.textContent = "falha ao comparar: " + e.message;
+    msg.className = "msg err";
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("cmp-comparar").onclick = cmpComparar;
 document.getElementById("vigia-lista").addEventListener("click", e => {
   const b = e.target.closest ? e.target.closest("button[data-acao]") : null;
   if (!b) return;
@@ -4215,7 +4347,7 @@ async function iaLoad() {
   } catch (e) { resumo.textContent = "falha: " + e.message; }
 }
 
-const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); vigiaLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); soLoad(); };
+const carregarTudo = () => { loadSystem(); loadUsers(); sessaoStatus(); caixaLoad(); ideiasLoad(); limLoad(); vigiaLoad(); cantoresLoad(); musCarregar(""); regLoad(); colLoad(); dlLoad(); tqLoad(); auLoad(); frLoad(); linkGoogle(); iaLoad(); soLoad(); cmpLoad(); };
 document.getElementById("btn-refresh").onclick = carregarTudo;
 document.getElementById("reg-add").onclick = regAdd;
 document.getElementById("reg-refresh").onclick = regLoad;
@@ -9661,6 +9793,60 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json(200, {"ok": True, "reboot": "agendado"})
         else:
             self._json(500, {"ok": False, "erro": msg})
+
+    # --- Comparador de modelos (2026-11-26) --------------------------------
+    def admin_comparador_modelos(self) -> None:
+        """GET /admin/comparador/modelos — quais IAs respondem AGORA.
+
+        A lista vem da cadeia real do chat (`OD_CHAT_PROVIDERS`): provider
+        sem chave já sai fora, então o painel nunca oferece um modelo que
+        só produziria erro.
+        """
+        self._require_admin()
+        from core.comparador_modelos import modelos_disponiveis
+
+        self._json(200, {"ok": True, "modelos": modelos_disponiveis()})
+
+    def admin_comparador_comparar(self) -> None:
+        """POST /admin/comparador/comparar — mesmo prompt em 2+ modelos.
+
+        Roda em paralelo (asyncio) e responde só quando todos terminarem ou
+        estourarem o teto por modelo: o painel mostra resposta E latência
+        lado a lado, inclusive a falha de cada um.
+        """
+        self._require_admin()
+        data = self._read_json() if self._has_body() else {}
+        if not isinstance(data, dict):
+            self._json(400, {"ok": False, "erro": "corpo_invalido"})
+            return
+        from core.comparador_modelos import (
+            ComparadorError,
+            TIMEOUT_PADRAO_S,
+            comparar,
+        )
+
+        nomes = data.get("modelos")
+        if isinstance(nomes, str):
+            nomes = [parte.strip() for parte in nomes.split(",") if parte.strip()]
+        if not isinstance(nomes, list):
+            nomes = None
+        try:
+            teto = float(data.get("timeout_s") or TIMEOUT_PADRAO_S)
+        except (TypeError, ValueError):
+            teto = TIMEOUT_PADRAO_S
+        try:
+            resultado = comparar(
+                str(data.get("prompt") or ""),
+                nomes=nomes,
+                timeout_s=max(1.0, min(teto, 300.0)),
+            )
+        except ComparadorError as exc:
+            self._json(400, {"ok": False, "erro": "pedido_invalido", "detalhe": str(exc)})
+            return
+        except Exception as exc:  # montagem da cadeia quebrada, nunca 500 cru
+            self._json(500, {"ok": False, "erro": "comparador_indisponivel", "detalhe": f"{type(exc).__name__}: {exc}"})
+            return
+        self._json(200, resultado)
 
     def admin_cache_prune(self) -> None:
         """POST /admin/cache/prune — saneia o cache LLM (admin/dono).

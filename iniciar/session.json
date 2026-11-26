@@ -1,4 +1,15 @@
 {
+  "comparador_modelos_2026_11_26": {
+    "pedido": "Dono (26/11 ~08:4x): 'continue' — retomada da fila; proximo item combinado era o 5 (comparador de modelos lado a lado, P1 no 8).",
+    "codigo": "core/comparador_modelos.py (novo): modelos_disponiveis() = cadeia real do chat via runtime.launcher.build_llm_providers(); comparar(prompt, nomes, timeout_s=90) roda os modelos em PARALELO (asyncio.gather) e devolve por modelo nome/modelo/ok/resposta/latencia_ms (perf_counter)/erro. Menos de 2 modelos, prompt vazio ou >4000 chars, nome desconhecido e mais de 4 modelos = ComparadorError (400). Falha/timeout de um nao derruba os outros; timeout e teto POR modelo (asyncio.wait_for). Nada persistido. integrations/api/server.py: rotas GET /admin/comparador/modelos e POST /admin/comparador/comparar (admin, modelos aceita lista ou string por virgula, timeout_s grampeado 1-300) + secao 'Comparador de modelos' no /admin com cmpCartoesHtml (render puro, escapado), cmpLoad e cmpComparar; cmpLoad no carregarTudo.",
+    "testes": "tests/test_comparador_modelos.py 19 casos (mesmo prompt nos 3, latencia por modelo, prova de paralelo: maior < soma, falha isolada, timeout por modelo, selecao por nome, pedidos invalidos, rotas 400 e limites, render node com escape/vazio). test_api atualizado: rotas 146 -> 148 (espelho e flags). Bateria test_api+painel_os_updater+comparador+health: 273 passed.",
+    "prova_viva": "restart 26/11 ~08:54 — MainPID 386250, NRestarts=0, active; GET /admin/comparador/modelos -> groq (openai/gpt-oss-120b), gemini (gemini-3-flash-preview), gemma-local; POST comparar no mesmo prompt -> groq 564,5 ms, gemini 2.625,4 ms, gemma-local 18.584,5 ms; parede 18,6 s = o mais lento (nao a soma ~21,8 s) provando o paralelo; /health ok=true; journal -p err 0.",
+    "limite": "Visual dos cartoes nao visto em navegador (maquina sem browser); provado o JS puro no node e as rotas ao vivo. Uma falha real de provider abre o disjuntor daquele modelo (mesmo efeito de uma mensagem do chat).",
+    "sem_bump": "1.47.0+2085 (servidor/painel; contrato do app intacto).",
+    "arquivos": "core/comparador_modelos.py (novo), tests/test_comparador_modelos.py (novo), integrations/api/server.py, tests/test_api.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (SS15), txt.txt.",
+    "proximo": "Item 6 da fila: NV (referencia de DAG/scheduler + SECURITY_LAYER_ARCHITECTURE.md).",
+    "updated_at": "2026-11-26T08:55:00-03:00"
+  },
   "health_transitorios_no_boot_2026_11_26": {
     "pedido": "Dono (26/11 ~03:25): 'Faca o /health marcar os checks de container como transitorios nos primeiros minutos apos o boot'.",
     "codigo": "observability/health.py: STATUS_STARTING, CHECKS_TRANSITORIOS={mqtt}, PREFIXO_TRANSITORIO='tool_', eh_check_transitorio(), segundos_desde_boot() (/proc/uptime, nunca levanta), HealthMonitor(boot_window_s, boot_age) + na_janela_de_boot()/em_transitorio()/boot_window_s; no health() o check transitorio falhando sai status='starting', ok=false (verdade), transitorio=true, detail 'transitorio: container/broker subindo apos o boot', NAO derruba o agregado e entra em aggregate['transitorios']; metrics.failed_checks continua contando. runtime/launcher.py build_health(): janela padrao 300 s, OD_HEALTH_JANELA_BOOT_S sobrepoe, 0 desliga, valor invalido volta ao padrao. integrations/notifier.py _check_health ignora item transitorio. tests/conftest.py fixa OD_HEALTH_JANELA_BOOT_S=0 na suite (nada depende do uptime da maquina).",
@@ -7,7 +18,7 @@
     "prova_viva": "restart 26/11 ~03:4x — MainPID 61637, NRestarts=0, active; /health ok=true 34 checks, status up, transitorios=[] (janela fechada: uptime > 5 min); journal -p err 0 entradas.",
     "limite": "A prova do estado 'starting' ao vivo exige o proximo reboot; agora a janela esta fechada. Coberto por teste com boot_age injetado.",
     "sem_bump": "1.47.0+2085 (servidor; contrato do app aceita campos novos de check).",
-    "arquivos": "observability/health.py, runtime/launcher.py, integrations/notifier.py, tests/conftest.py, tests/test_health.py, tests/test_launcher_health_external.py, tests/test_notifier.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (\u00a714), txt.txt.",
+    "arquivos": "observability/health.py, runtime/launcher.py, integrations/notifier.py, tests/conftest.py, tests/test_health.py, tests/test_launcher_health_external.py, tests/test_notifier.py, docs/CHANGELOG.md, docs/ANALISE_SISTEMA_TODO.md, iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (§14), txt.txt.",
     "proximo": "Item 5 da fila: comparador de modelos lado a lado (P1 no 8).",
     "updated_at": "2026-11-26T03:50:00-03:00"
   },
@@ -6926,6 +6937,15 @@
       "commit": "0522f85",
       "branch": "master",
       "iniciado_em": "2026-11-26T03:21:47-03:00",
+      "host": "nicky-server",
+      "modo": "all",
+      "usuario": "alex"
+    },
+    {
+      "pid": 386250,
+      "commit": "1752faa",
+      "branch": "master",
+      "iniciado_em": "2026-11-26T08:53:31-03:00",
       "host": "nicky-server",
       "modo": "all",
       "usuario": "alex"

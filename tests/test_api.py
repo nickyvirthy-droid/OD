@@ -160,8 +160,9 @@ class TestAPIRoutes:
         paralela da letra, 17/11) + Vigia da Rede no painel
         (GET/POST /admin/vigia*, 19/11) + /webhook/meta (WhatsApp
         Cloud API, 21/11) + /api/ping e /api/public/inventario (sondas
-        públicas, 21/11)."""
-        assert len(ROUTES) == 146
+        públicas, 21/11) + comparador de modelos lado a lado
+        (/admin/comparador/*, fila item 5, 26/11)."""
+        assert len(ROUTES) == 148
         by = {(r.method, r.path): r for r in ROUTES}
         expected = {
             ("GET", "/"), ("GET", "/health"), ("GET", "/profiles"),
@@ -269,6 +270,9 @@ class TestAPIRoutes:
             ("GET", "/admin/os-updater/status"),
             ("POST", "/admin/os-updater/executar"),
             ("POST", "/admin/os-updater/reboot"),
+            # Comparador de modelos (fila item 5, 26/11)
+            ("GET", "/admin/comparador/modelos"),
+            ("POST", "/admin/comparador/comparar"),
             ("POST", "/auth/register"), ("POST", "/auth/login"),
             ("POST", "/auth/logout"), ("GET", "/auth/me"),
             # Portário de ferramentas (fase 1 — 21/10): sem header de
@@ -386,6 +390,9 @@ class TestAPIRoutes:
             ("GET", "/admin/os-updater/status"),
             ("POST", "/admin/os-updater/executar"),
             ("POST", "/admin/os-updater/reboot"),
+            # Comparador de modelos (fila item 5, 26/11)
+            ("GET", "/admin/comparador/modelos"),
+            ("POST", "/admin/comparador/comparar"),
             ("POST", "/admin/users/{username}/password"),
             ("PUT", "/admin/users/{username}/role"),
             ("DELETE", "/admin/users/{username}"),

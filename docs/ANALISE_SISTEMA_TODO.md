@@ -593,7 +593,7 @@ do dono. Marcar aqui a medida que cada item fecha.
 | 2 | Verificador de units repo × systemd no `/health` | ✅ 26/11 02:3x |
 | 3 | Relatório de simulação completa do ciclo (`--relatorio`) | ✅ 26/11 02:4x |
 | 4 | Guarda de offsite junto do verificador semanal | ✅ 26/11 03:3x |
-| 5 | Comparador de modelos lado a lado (P1 nº 8) | pendente |
+| 5 | Comparador de modelos lado a lado (P1 nº 8) | ✅ 26/11 08:5x — `/admin/comparador/*` + seção no painel; provado ao vivo em 3 modelos (0,56 s / 2,63 s / 18,6 s, parede = o mais lento) |
 | 6 | NV: referência de DAG/scheduler + `SECURITY_LAYER_ARCHITECTURE.md` | pendente |
 | 7 | Projeti: `google-services.json`, APK de 51 MB × backups, leitura do Orion | pendente |
 | 8 | Mapas offline (próximo do inventário) | pendente |
@@ -776,10 +776,16 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       do próprio checador (sem JSON, timeout) também é divergência. Prova
       viva: dump `od-2026-11-25_0250.sql.gz` com sha256 idêntico no canal e
       nas 2 HDs (`offsite_ok: true`, sem mensagem). 7 casos novos no arquivo.
-- [ ] **Comparador de modelos lado a lado (P1 nº 8)** (sugestão de 25/11) — hoje
-      "usar a melhor IA" é decidido por log/benchmark antigo (05/11); falta a
-      comparação ao vivo, mesmo prompt em dois modelos, com a resposta e a
-      latência lado a lado no painel.
+- [x] **Comparador de modelos lado a lado (P1 nº 8)** — **FEITO 26/11:**
+      `core/comparador_modelos.py` manda o MESMO prompt em 2–4 modelos da
+      cadeia do chat em paralelo (`asyncio.gather`) e devolve resposta +
+      latência medida por modelo; falha/timeout de um vira campo `erro` sem
+      derrubar os outros (teto por modelo, 90 s padrão). Rotas
+      `GET /admin/comparador/modelos` e `POST /admin/comparador/comparar`
+      (admin), seção "Comparador de modelos" no painel com cartões lado a
+      lado e render puro testado no node. 19 casos novos; prova viva com
+      groq 564 ms / gemini 2.625 ms / gemma-local 18.585 ms e parede de
+      18,6 s (= o mais lento, não a soma) — o paralelo é medido, não suposto.
 - [x] **Fechar o offsite físico do backup** (sugestão de 25/11) — **FEITO 25/11:**
       o dump `od-2026-11-25_0250.sql.gz` está com sha256 idêntico (`3bfaff1c…`) no
       snapshot das **duas** HDs (`snapshot_od-2026-11-25_0346/0347`) e dentro do

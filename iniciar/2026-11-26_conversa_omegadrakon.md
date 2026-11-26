@@ -678,3 +678,55 @@ a janela está fechada. Hoje está coberto por teste com uptime injetado.
 ### Bump
 
 Nenhum (`1.47.0+2085`; servidor, campos novos no check).
+
+---
+
+## §15 — Fila item 5: comparador de modelos lado a lado (26/11 ~08:50)
+
+**Dono:** *"continue"* (retomada da fila; próximo item combinado era o 5 —
+comparador de modelos lado a lado, P1 nº 8).
+
+### Desenho
+
+- `core/comparador_modelos.py`: `modelos_disponiveis()` lista a cadeia real do
+  chat (`build_llm_providers()` — provider sem chave já sai fora) e
+  `comparar(prompt, nomes, timeout_s=90)` manda o MESMO prompt em paralelo
+  (`asyncio.gather`), devolvendo por modelo `nome`, `modelo`, `ok`, `resposta`,
+  `latencia_ms` (`perf_counter`) e `erro`.
+- Menos de 2 modelos é `ComparadorError` (o painel devolve 400): um só não é
+  comparação. Falha/timeout de um não derruba os outros; o timeout é teto POR
+  modelo (o local tem 240 s próprios e travaria tudo sozinho).
+- Nada é persistido — a comparação é um retrato do agora.
+- Rotas: `GET /admin/comparador/modelos` e `POST /admin/comparador/comparar`
+  (admin + API key), com `modelos` aceitando lista ou texto por vírgula e
+  `timeout_s` grampeado em 1–300 s.
+- Painel `/admin`: seção "Comparador de modelos" com prompt, caixas dos
+  modelos disponíveis e cartões lado a lado (badge ok/falhou, latência,
+  resposta escapada). O render é a função pura `cmpCartoesHtml`, testada no
+  node; menos de 2 modelos desliga o botão e o texto diz o motivo.
+
+### Verificação
+
+- `tests/test_comparador_modelos.py` 19 casos: mesmo prompt nos três, latência
+  por modelo, prova de paralelo (maior < soma), falha isolada, timeout por
+  modelo, seleção por nome, pedidos inválidos, rotas (400/limites) e o render
+  node (ordem, escape, vazio honesto).
+- Bateria `test_api + test_painel_os_updater + test_comparador_modelos +
+  test_health`: **273 passed** (`test_api` atualizado: 146 → 148 rotas).
+- **Prova viva:** restart ~08:54 — MainPID **386250**, `NRestarts=0`, active.
+  `GET /admin/comparador/modelos` devolveu groq / gemini / gemma-local;
+  `POST /admin/comparador/comparar` no mesmo prompt: **groq 564,5 ms**,
+  **gemini 2.625,4 ms**, **gemma-local 18.584,5 ms**, parede **18,6 s** — igual
+  ao mais lento, não à soma (~21,8 s): o paralelo está medido. `/health`
+  ok=true; journal `-p err` 0.
+
+### Limite declarado
+
+O visual dos cartões não foi visto em navegador (a máquina não tem browser):
+o que está provado é o HTML/JS puro no node e as rotas ao vivo. A comparação
+usa os mesmos providers do chat — uma falha real (ex.: 429) abre o disjuntor
+daquele provider, igual aconteceria numa mensagem.
+
+### Bump
+
+Nenhum (`1.47.0+2085`; servidor/painel, contrato do app intacto).

@@ -12,6 +12,52 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Comparador de modelos lado a lado no painel (2026-11-26, sem bump)
+
+**Contexto:** a escolha de "qual IA responde melhor" vinha de log e de um
+benchmark de 05/11 — não havia como ver o mesmo pedido em duas IAs ao vivo.
+
+**Novo `core/comparador_modelos.py`:**
+
+- `modelos_disponiveis()` lista a **cadeia real do chat**
+  (`runtime.launcher.build_llm_providers()`): provider sem chave já sai fora,
+  então o painel nunca oferece modelo que só produziria erro.
+- `comparar(prompt, nomes=[...], timeout_s=90)` manda o **mesmo prompt em
+  paralelo** (asyncio + `asyncio.gather`) e devolve, por modelo: `nome`,
+  `modelo`, `ok`, `resposta`, `latencia_ms` medida com `perf_counter` e `erro`.
+- **Menos de 2 modelos é erro** (`ComparadorError` → HTTP 400): um modelo só
+  não é comparação.
+- **Falha ou timeout de um não derruba os outros** — viram campo `erro` e
+  `latencia_ms` mede até a falha; o timeout é teto **por modelo** (o local
+  tem 240 s próprios e travaria a comparação sozinho).
+- Nada é persistido: cada comparação é um retrato do agora.
+
+**Rotas (`integrations/api/server.py`):** `GET /admin/comparador/modelos` e
+`POST /admin/comparador/comparar` (admin + API key), com `modelos` aceitando
+lista ou texto separado por vírgula e `timeout_s` grampeado em 1–300 s.
+
+**Painel `/admin`:** seção "Comparador de modelos" com prompt, caixas de
+seleção dos modelos disponíveis e os cartões lado a lado
+(`repeat(auto-fit,minmax(280px,1fr))`) mostrando badge ok/falhou, latência
+formatada e a resposta **escapada** (`cmpCartoesHtml`, função pura testada no
+node). Vazio honesto quando ainda não comparou; com menos de 2 modelos o
+botão desliga e o texto diz por quê.
+
+**Prova viva (restart 26/11 ~08:54, MainPID 386250, `NRestarts=0`):**
+`GET /admin/comparador/modelos` devolveu groq / gemini / gemma-local;
+`POST /admin/comparador/comparar` com o mesmo prompt nos três voltou
+**groq 564,5 ms**, **gemini 2.625,4 ms** e **gemma-local 18.584,5 ms** — parede de
+**18,6 s**, igual ao modelo mais lento (não à soma de ~21,8 s), provando o
+paralelo; `/health` ok=true; journal `-p err` 0.
+
+**Testes:** `tests/test_comparador_modelos.py` 19 casos (paralelo medido,
+mesmo prompt em todos, falha isolada, timeout por modelo, seleção por nome,
+pedidos inválidos, rotas e render node). Bateria
+`test_api + test_painel_os_updater + test_comparador_modelos + test_health`:
+**273 passed** (`test_api` atualizado: 146 → 148 rotas).
+
+---
+
 ## `/health`: container subindo é `starting`, não falha (2026-11-26, sem bump)
 
 **Contexto:** no boot de 26/11 o `/health` saiu `degraded` com 6 checks
