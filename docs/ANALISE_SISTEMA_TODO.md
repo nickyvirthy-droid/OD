@@ -721,6 +721,13 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       mesmo par falha no HEAD sem o lote de 26/11 (reproduzido com `git stash`:
       5768 passed + as 2). Resolve: isolar o estado global que vaza (limiter/
       cache de LLM compartilhado entre arquivos) — hoje o gate não fecha 0.
+- [ ] **`xdg-desktop-portal[-gtk]` falhando na sessão do usuário** — achado na
+      retomada de 26/11 11:0x: `journalctl --user -p err` mostra os dois units
+      `Failed to start` a cada poucos minutos desde 10:32 (portal de desktop
+      da sessão gráfica). **Fora do alcance do `od-core`** (unit dele com 0
+      entradas de err e `/health` ok=true), mas é erro recorrente do sistema:
+      investigar dependência do portal (flatpak/snap/portal sem desktop
+      completo) e decidir se desabilita os units ou arruma a sessão.
 - [x] **Pós-reboot: não soar alarme com container ainda subindo** — **FEITO
       26/11:** `tools/validar_pos_reboot.py` ganhou carência própria para os
       checks de container/broker (`tool_*`, `mqtt`): depois de o `od-core`

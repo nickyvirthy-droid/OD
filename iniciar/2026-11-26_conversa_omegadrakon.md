@@ -1047,3 +1047,69 @@ no painel"* (era o `[ ]` que sobrou do checkbox de 17/11).
 ### Bump
 
 Nenhum (`1.47.0+2085`): `OD_VERSION` fica para entrega com APK/cliente.
+
+## §23 — Retomada "leia iniciar": fila 1–11 fechada e estado medido (26/11 ~11:0x)
+
+**Dono:** *"leia iniciar"*.
+
+### O que foi lido
+
+Brief de entrada (`python3 tools/brief_multi_ia.py`), `iniciar/README.md`, as
+24 regras de `iniciar/RULES.md`, `iniciar/session.json` (topo: monitor de
+hardware do comparador), `iniciar/ATRIBUICOES.md`, a transcrição de 26/11
+inteira (§1–§22), `txt.txt`, a fila e a revisão de 17/11 do
+`docs/ANALISE_SISTEMA_TODO.md`, git, serviço, `/health` e timers.
+
+### Estado medido (relógio: `date -Is` = **2026-11-26T11:01:09-03:00**)
+
+- `HEAD == origin/master == b5d418a` ("Mede CPU e RAM durante cada chamada do
+  comparador"), árvore **limpa**, sem resíduos.
+- Versão **1.47.0+2085** (`.env` e `app/pubspec.yaml` conferidos).
+- `od-core` **active**, MainPID **488071**, iniciado **10:29:20** (o restart
+  verde da entrega do monitor de CPU/RAM), `NRestarts=0`;
+  `journalctl --user -u od-core -p err` desde o boot: **0 entradas**.
+- `/health` **200 · ok=true**, **34 checks**, nenhum fora de `up`,
+  `transitorios: []`.
+- Máquina ligada desde **02:36:27** (uptime 8 h 23 min), kernel
+  **6.8.0-151-generic**, **sem reboot pendente**.
+- Atualizador de SO: **0 pacotes / 0 firmwares**, `precisa_reboot=false`,
+  `sucessos_consecutivos=3`, `falhas_consecutivas=0`;
+  `od-os-updater.timer` **enabled + active** (próxima execução **dom 29/11
+  03:17**); `od-pos-reboot.service` **enabled** (`inactive` fora do boot, é
+  oneshot); `od-io-probe.timer` active.
+
+### Fila de prioridades — **11 de 11 fechados**
+
+Tabela do §4 do TODO: itens 1–11 todos ✅ (o 11 fechou no reboot de 02:36; 5–10
+hoje de manhã; o monitor de CPU/RAM fechou a segunda metade do item 8). Na
+revisão de 17/11: P0 1–4 ✅, P1 5–8 ✅; **P2 (9–13) depende de decisão ou
+compra do dono**; P3 restam itens "quando houver demanda" (OTel Collector +
+Grafana, R5 Eval no CI, cache de embedding de documento, reteste da IA local) —
+17 e 19 já fechados.
+
+### Achados do turno
+
+1. **Horários dos checkpoints anteriores não batem com o relógio**: os
+   registros de hoje dizem ~12:4x e o relógio da máquina mede **11:01**
+   (o uptime de 8 h 23 desde o boot das 02:36 confirma). Causa não determinada
+   (estimativa do turno anterior ou passo de relógio) — **não inventado**;
+   a partir de agora o registro usa hora medida (`date -Is`).
+2. **Falha real de desktop, fora do od-core**: `xdg-desktop-portal.service` e
+   `xdg-desktop-portal-gtk.service` falhando de 10:32 em diante na sessão do
+   usuário. O `od-core` não depende disso (0 entradas de err no unit dele),
+   mas é erro recorrente do sistema — checkbox novo no §4 do TODO.
+
+### Decisão do turno
+
+Leitura + registro (regras 3 e 4): **nenhum `.py` alterado**, sem restart e sem
+bump (`1.47.0+2085`). Escritos: este §23, `session.json`, entrada em
+`iniciar/ATRIBUICOES.md`, checkbox do portal no `docs/ANALISE_SISTEMA_TODO.md`,
+aviso no `txt.txt` e resumo no Telegram (regra 15).
+
+### Próximo passo (a fila acabou — não existe item 12)
+
+O que resta já está no TODO como checkbox: **(a)** fechar o gate em **0** (as 2
+falhas de `test_websocket` por ordem — isolar o estado global que vaza);
+**(b)** P3 de ganho local — cache de embedding de documento no RAG; **(c)**
+decisões do **P2** do dono (quarentena do acervo, app por papel, nobreak com
+USB, OpenAI com crédito, `Projeti`).

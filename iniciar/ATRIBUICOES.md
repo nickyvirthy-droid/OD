@@ -9,6 +9,50 @@
 
 ---
 
+## 26/11/2026 — Retomada "leia iniciar": fila 1–11 fechada e estado medido
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).
+
+### Criados
+
+- `iniciar/2026-11-26_conversa_omegadrakon.md` §23 — transcrição do turno.
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `retomada_leitura_iniciar_2026_11_26_11h`
+  (topo) com o estado medido.
+- `docs/ANALISE_SISTEMA_TODO.md` — checkbox novo no §4: falha recorrente de
+  `xdg-desktop-portal[-gtk]` na sessão do usuário (fora do `od-core`).
+- `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** cumprir as regras 3 e 4 (ler antes de assumir contexto e
+  registrar a troca) e dizer onde a sessão está depois de o dono fechar a
+  manhã com o monitor de CPU/RAM.
+- **Medido (`date -Is` = 2026-11-26T11:01:09-03:00):** `HEAD == origin/master
+  == b5d418a`, árvore limpa; `1.47.0+2085`; `od-core` active MainPID **488071**
+  desde **10:29:20** (restart verde do monitor de CPU/RAM), `NRestarts=0`,
+  journal `-p err` **0**; `/health` **ok=true · 34 checks**, nenhum fora de
+  `up`; boot **02:36:27**, kernel **6.8.0-151**, **sem reboot pendente**;
+  `os_updater` **0 pacotes / 0 firmwares / 0 falhas** e `od-os-updater.timer`
+  enabled+active (próxima execução **dom 29/11 03:17**).
+- **Fila:** **11 de 11** itens fechados (tabela do §4). P0 1–4 e P1 5–8 ✅;
+  P2 (9–13) aguarda **decisão/compra** do dono; P3 restam itens "quando houver
+  demanda".
+- **Achados:** (1) os horários dos checkpoints anteriores de hoje (~12:4x) não
+  batem com o relógio da máquina (11:01, confirmado pelo uptime) — causa não
+  determinada, registrada sem inventar, e o registro passa a usar hora medida;
+  (2) `xdg-desktop-portal[-gtk]` falhando desde 10:32 na sessão do usuário —
+  fora do alcance do `od-core`, virou checkbox.
+- **Estado:** nada alterado em código; sem restart e sem bump (`1.47.0+2085`).
+  Resumo enviado ao Telegram (regra 15).
+- **Pela metade / próximo passo:** não há item 12 na fila. Próximos candidatos
+  já anotados no TODO: gate em 0 (`test_websocket` por ordem), cache de
+  embedding de documento no RAG, ou decisões do P2.
+
+---
+
 ## 26/11/2026 — Comparador: custo de máquina medido nas chamadas
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Implemente o monitor de CPU/RAM
