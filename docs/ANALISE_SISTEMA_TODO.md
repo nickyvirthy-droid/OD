@@ -663,13 +663,16 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
 > As 3 sugestões mostradas ao fim de cada turno são efêmeras: só a clicada vira
 > pedido, as outras desaparecem do cliente. A partir de 10/11/2026, toda
 > sugestão não escolhida é anotada aqui para não perder a melhoria.
-- [ ] **`versionCode` divergente no APK arm64 da 1.45.1** (achado 28/11, na
-      deduplicação dos APKs) — `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`
-      reporta `versionCode=4082` com `aapt`, enquanto o APK completo reporta
-      2082 (o par 1.47.0 reporta 2085 nos dois). Se o app compara `versionCode`
-      para se atualizar, um arm64 instalado como 4082 pode nunca aceitar builds
-      2xxx. Investigar a origem do offset no build e garantir o mesmo código
-      nos dois APKs antes do próximo release.
+- [x] **`versionCode` divergente no APK arm64 da 1.45.1** (achado 28/11, na
+      deduplicação dos APKs) — **RESOLVIDO 28/11.** Causa medida: 4082 = 2082 +
+      1000×ABI (arm64 = 2); o arm64 foi gerado 05:18:39 e o completo 05:20:18,
+      ordem inversa do `app/build_apk.sh`, ou seja o par saiu de um
+      `flutter build apk --split-per-abi` **manual sem**
+      `-Pforce-version-code-ignoring-abi=true`. Correção: `tools/verificar_apk_versao.py`
+      (novo, 9 testes) lê o `pubspec`, roda `aapt dump badging` e falha com a
+      dica do offset; o `app/build_apk.sh` chama o verificador **antes** de
+      publicar em `site/`. Prova viva: site 1.47.0+2085 passa (exit 0); arm64
+      da 1.45.1 contra pubspec 1.45.1+2082 sai `exit 1` com `diferença +2000`.
 - [x] **Aviso de ciclo que morre antes do fim** — **FEITO 26/11 02:2x:**
       `OnFailure=od-os-updater-falha.service` nas duas units do ciclo;
       `core.os_updater.avisar_falha()` (`--avisar-falha`) manda no Telegram o

@@ -1,4 +1,16 @@
 {
+  "guarda_versao_apk_2026_11_28": {
+    "pedido": "Dono (28/11 ~17:00): 'Investigar por que o APK arm64 da 1.45.1 saiu com versionCode 4082 e corrigir no build'.",
+    "causa_medida": "4082 = 2082 + 1000*ABI (arm64 = 2). O arm64 foi gerado as 05:18:39 e o APK completo as 05:20:18 em 17/11 — ordem INVERSA do app/build_apk.sh (que faz o completo primeiro e o split depois). Logo aquele par nao saiu do script: foi um 'flutter build apk --split-per-abi' manual, sem -Pforce-version-code-ignoring-abi=true, e o Flutter somou o offset de split. A flag existe no script desde c2b4508 (v1.7.0); o build paralelo e que a ignorou. O par 1.47.0 (que saiu do script) tem 2085 nos dois APKs.",
+    "correcao": "Novo tools/verificar_apk_versao.py: le app/pubspec.yaml, roda 'aapt dump badging' em cada APK e falha quando versionName/versionCode divergem, com dica do offset quando a diferenca e 1000/2000/3000/4000; descobrir aapt por --aapt, OD_AAPT, PATH ou build-tools do ANDROID_HOME; sem aapt = exit 2 (nao deu para medir). app/build_apk.sh chama o verificador ANTES do cp para site/ (com set -e, build torto nao publica).",
+    "prova_viva": "python3 tools/verificar_apk_versao.py -> 'OK: 2 APK(s) com 1.47.0+2085' exit 0. Arm64 da 1.45.1 contra pubspec 1.45.1+2082 -> exit 1 com 'diferenca +2000' e a dica; o completo do mesmo par (2082) -> exit 0. tests/test_verificar_apk_versao.py: 9 passed; inventario: 11 passed (20 no total). bash -n app/build_apk.sh OK.",
+    "docs": "docs/CHANGELOG.md (secao 'Guarda de versao dos APKs'), docs/VERSIONAMENTO.md (passo 9 com a conferencia automatica), docs/ANALISE_SISTEMA_TODO.md (checkbox do 4082 fechado com causa + correcao).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido. Nao houve rebuild de APK nem bump: nenhuma mudanca no app, so no pipeline de build e nos testes. Sem restart (1.47.0+2085).",
+    "proximo": "O APK arm64 da 1.45.1 em backups/ continua com 4082 (artefato morto) — decisao do dono se remove ou mantem como evidencia; qualquer build futuro ja passa pela guarda.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S8)",
+    "updated_at": "2026-11-28T17:05:00-03:00"
+  },
   "limpeza_raiz_2026_11_28": {
     "pedido": "Dono (28/11 ~16:45): 'Limpar arquivos vazios e os .txt soltos da raiz do projeto'.",
     "medido_antes": "6 .txt na raiz: instrucoes_projeto.txt (2833 B, untracked), limitacoes.txt (0 B, RASTREADO e usado por core/limitacoes.py), pedido.txt (0 B, fila removida em 08/10, sem referencia de codigo), requirements.txt, requirements-dev.txt e txt.txt (canal do dono).",

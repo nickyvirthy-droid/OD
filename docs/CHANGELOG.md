@@ -12,6 +12,31 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Guarda de versão dos APKs: o build não publica mais `versionCode` errado (2026-11-28, sem bump)
+
+**Causa medida do `4082`:** o `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`
+saiu com `versionCode=4082` (2082 + **1000×ABI**, arm64 = 2). A ordem dos
+arquivos fecha o caso: o arm64 foi gerado **05:18:39** e o APK completo
+**05:20:18** — o inverso do `app/build_apk.sh` (que faz o completo primeiro).
+Aquele par não saiu do script: foi um `flutter build apk --split-per-abi`
+manual, sem `-Pforce-version-code-ignoring-abi=true`, então o Flutter somou o
+offset de split. O script sempre teve a flag; o build paralelo é que a ignorou.
+
+**Correção (`tools/verificar_apk_versao.py`, novo):** lê a versão do
+`app/pubspec.yaml`, roda `aapt dump badging` em cada APK e falha quando
+`versionName`/`versionCode` divergem — com a dica do offset de ABI quando a
+diferença é 1000/2000/3000/4000. O `app/build_apk.sh` passou a chamá-lo
+**antes** de copiar para `site/`, então build torto não é publicado (o `set -e`
+interrompe). `--aapt`/`OD_AAPT` ou build-tools do `ANDROID_HOME` resolvem o
+binário; sem `aapt` o código de saída é 2 (não deu para medir), não 0.
+
+**Prova viva:** `.venv/bin/python tools/verificar_apk_versao.py` → `OK: 2
+APK(s) com 1.47.0+2085` (site, exit 0); o arm64 da 1.45.1 contra um pubspec
+1.45.1+2082 → `exit 1` com `diferença +2000` e a dica; o completo do mesmo par
+passa. `tests/test_verificar_apk_versao.py`: 9 casos.
+
+---
+
 ## Trilha de APKs deduplicada: uma cópia por versão (2026-11-28, sem bump)
 
 **Contexto:** o inventário de arquivos (Fase 1, `docs/INVENTARIO_ARQUIVOS.md`)
@@ -26,11 +51,8 @@ Fica **uma cópia por versão**: 1.45.0 e 1.45.1 em `backups/`, 1.47.0 em
 `site/` (é a que o app baixa). ~190 MB liberados. Nada rastreado no git foi
 tocado (`site/*.apk` e `backups/` já eram ignorados).
 
-**Achado registrado:** `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`
-reporta `versionCode=4082` (o completo reporta 2082; o par 1.47.0 reporta 2085
-nos dois). Virou checkbox no §4 do `docs/ANALISE_SISTEMA_TODO.md` — se o app
-compara `versionCode` para atualizar, um 4082 no braço arm64 pode nunca ser
-substituído por builds 2xxx.
+**Achado registrado e resolvido no mesmo dia:** `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`
+reporta `versionCode=4082` (veja a entrada acima, "Guarda de versão dos APKs").
 
 ---
 

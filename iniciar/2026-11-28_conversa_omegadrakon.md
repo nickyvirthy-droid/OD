@@ -305,3 +305,51 @@ Raiz agora tem 4 `.txt`: `limitacoes.txt`, `requirements.txt`,
 Inventário: **3.744 arquivos · 5,8 GB · 34 grupos duplicados (54,6 KB)**;
 **14 arquivos soltos na raiz** (antes 16). Testes do inventário: 11 passed.
 Nenhum arquivo rastreado foi removido. Sem restart e sem bump.
+
+## §8 — versionCode 4082: causa medida e guarda no build (28/11 ~17:05)
+
+**Dono:** *"Investigar por que o APK arm64 da 1.45.1 saiu com versionCode 4082 e
+corrigir no build"*.
+
+**Autor:** Freebuff (Buffy).
+
+### Causa (medida, não suposta)
+
+- 4082 = 2082 + **1000 × ABI** (arm64 = 2): é o offset que o Flutter soma em
+  `--split-per-abi` quando **não** recebe
+  `-Pforce-version-code-ignoring-abi=true`.
+- A **ordem dos arquivos** fecha o caso: em 17/11 o `OmegaDrakon-arm64.apk` foi
+  gerado às **05:18:39** e o completo às **05:20:18** — o inverso do
+  `app/build_apk.sh` (que faz o completo e depois o split). Aquele par **não
+  saiu do script**: foi um `flutter build apk --split-per-abi` manual. O script
+  tem a flag desde `c2b4508` (v1.7.0); o build paralelo é que a ignorou.
+- Confirmação: o par 1.47.0, que saiu do script, tem 2085 nos dois APKs.
+
+### Correção
+
+- **`tools/verificar_apk_versao.py` (novo)** — lê `app/pubspec.yaml`, roda
+  `aapt dump badging` em cada APK e falha se `versionName`/`versionCode`
+  divergirem, mostrando a dica do offset quando a diferença é
+  1000/2000/3000/4000. Descobre o `aapt` por `--aapt`, `OD_AAPT`, `PATH` ou
+  `build-tools` do `ANDROID_HOME`; sem `aapt` responde **exit 2** (não deu para
+  medir), nunca 0.
+- **`app/build_apk.sh`** passou a chamar o verificador **antes** do `cp` para
+  `site/` — com `set -e`, build torto não é publicado.
+- **`tests/test_verificar_apk_versao.py`** — 9 casos (aapt falso).
+
+### Prova viva
+
+- `python3 tools/verificar_apk_versao.py` → `OK: 2 APK(s) com 1.47.0+2085`
+  (`exit 0`).
+- arm64 da 1.45.1 contra um pubspec `1.45.1+2082` → **`exit 1`** com
+  `versionCode 4082 (esperado 2082, diferença +2000)` e a dica da flag; o
+  completo do mesmo par passa.
+- `bash -n app/build_apk.sh` OK; 20 testes (verificador + inventário) passed.
+
+### Docs
+
+`docs/CHANGELOG.md` (seção da guarda), `docs/VERSIONAMENTO.md` (passo 9 com a
+conferência automática) e `docs/ANALISE_SISTEMA_TODO.md` (checkbox do 4082
+fechado com causa e correção).
+
+Sem rebuild de APK e sem bump: nenhuma mudança no app, só no pipeline.

@@ -9,6 +9,39 @@
 
 ---
 
+## 28/11/2026 — versionCode 4082: causa medida e guarda no build
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"investigar por que o APK arm64 da
+1.45.1 saiu com versionCode 4082 e corrigir no build"*).
+
+### Criados
+
+- `tools/verificar_apk_versao.py` — confere `versionName`/`versionCode` de cada
+  APK com `aapt` contra o `app/pubspec.yaml`; dica do offset 1000×ABI; exit 2
+  quando não dá para medir.
+- `tests/test_verificar_apk_versao.py` — 9 casos com `aapt` de mentira.
+
+### Modificados
+
+- `app/build_apk.sh` — verifica os APKs **antes** de publicar em `site/`.
+- `docs/CHANGELOG.md`, `docs/VERSIONAMENTO.md` (passo 9),
+  `docs/ANALISE_SISTEMA_TODO.md` (checkbox fechado), `iniciar/session.json`,
+  `iniciar/2026-11-28_conversa_omegadrakon.md` (§8), `iniciar/ATRIBUICOES.md`
+  (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Causa medida:** 4082 = 2082 + 1000×ABI (arm64); o arm64 foi gerado 05:18:39
+  e o completo 05:20:18 — ordem inversa do script, logo foi build manual sem a
+  flag. O par 1.47.0 feito pelo script tem 2085 nos dois.
+- **Pronto/validado:** site passa (`exit 0`); o APK ruim falha com `+2000`;
+  `bash -n` OK; 20 testes passed.
+- **Estado:** concluído; sem rebuild, sem bump e sem restart (`1.47.0+2085`).
+- **Pela metade / próximo passo:** o artefato 4082 continua em `backups/` até o
+  dono decidir removê-lo.
+
+---
+
 ## 28/11/2026 — Raiz limpa: pedido.txt removido e instruções arquivadas
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"limpar arquivos vazios e os .txt

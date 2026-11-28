@@ -87,6 +87,11 @@ versão congelada recebendo features por baixo do pano.
    **Uma cópia por versão (28/11):** a versão **vigente** publicada em `site/`
    não é duplicada em `backups/` — `site/` é a cópia canônica (é a que o app
    baixa); `backups/apk-vX-<code>/` serve às versões **antigas**, para rollback.
+   **A conferência é automática:** `app/build_apk.sh` chama
+   `tools/verificar_apk_versao.py` **antes** de publicar e aborta se o
+   `versionCode` de qualquer APK não for o do `pubspec` (um arm64 da 1.45.1
+   saiu 4082 por build manual sem `-Pforce-version-code-ignoring-abi=true`).
+   Para conferir a mão: `python3 tools/verificar_apk_versao.py`.
 
 ## 6. Guardas de coerência (2026-09-26)
 
