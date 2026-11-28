@@ -40,3 +40,48 @@ reteste da IA local) e o achado `xdg-desktop-portal[-gtk]` na sessão do usuári
 
 Leitura + registro apenas: nenhum `.py` alterado, sem teste de código, sem
 restart e sem bump (1.47.0+2085).
+
+## §2 — Confirmação do dono: Nicky Locutor arquivada e updates do SO aplicados (28/11 15:45)
+
+**Dono:** *"pasta Nicky Locutor decidimos arquivar, me disse que já havia
+concluído a análise dela. Os updates acho que também já foram."*
+
+**Autor da verificação/registro:** Freebuff (Buffy).
+
+### Nicky Locutor — análise concluída e pasta arquivada (confirmado)
+
+- **Análise concluída em 27/10.** Prova no próprio registro: entrada de 27/10 do
+  `session.json` (*"Dono (27/10 ~16:55): '1' -> analise/Nicky Locutor/"*) e as
+  etapas publicadas no `docs/CHANGELOG.md`: **B** — frases da rádio no banco do
+  OD (~l. 4999); **D** — webhook do locutor no `od-core` (~l. 4972); **E** —
+  rádio Nicky no ar com prova viva (~l. 4908). Commits `3ea0790`, `1b4dd88` e
+  `7ccf955` ("estado final ENTREGUE da integração Nicky Locutor").
+- **Pasta fora da caixa de entrada.** O dono renomeou `Nicky Locutor/` em
+  28/10 08:16 (`Nicky Musicas/`) e 28/10 10:16 (`Nicky Radio/`); desde então
+  nenhuma das duas está em `analise/`. Hoje `analise/` só tem `No Break/`.
+  `find` no projeto não acha nenhuma pasta `*nicky*`/`*locutor*` (só
+  `agents/nicky_virthy`, sem relação).
+- **Correção de registro:** a frase "pauta do dono: `analise/Nicky Locutor/`"
+  repetida em 26/11 (ATRIBUICOES e §27 da transcrição de 26/11) estava
+  desatualizada desde 28/10. Fica corrigida aqui; o registro antigo não foi
+  apagado.
+
+### Updates do SO — aplicados em 26/11 (confirmado)
+
+- `data/os_updater_estado.json`: ciclo **real** em 26/11 — `apt update` 02:10:37,
+  `apt upgrade` **67 pacotes** 02:13:31, `autoremove` removendo o kernel
+  `6.8.0-149`, `fwupdmgr update` com **"Successfully installed firmware"** (2
+  firmwares) 02:13:47 e reboot agendado +5 min; a máquina reiniciou às
+  **02:36:27** (`uptime -s`).
+- **Agora:** `/health` ok=true (34 checks) com `os_updater`: `upgradable: 0`,
+  `precisa_reboot: false`, `falhas_consecutivas: 0`, `sucessos_consecutivos: 3`,
+  kernel `6.8.0-151-generic`. `apt list --upgradable` = **0**;
+  `fwupdmgr get-updates` = **0 devices**; `/var/run/reboot-required` ausente.
+- A única seção não-`ok` do ciclo foi o `fwupdmgr refresh` ("Idle… Metadata is
+  up to date"), comportamento do fwupd, não falha de aplicação.
+- Próxima execução automática do timer: **dom 29/11 03:17**.
+
+### Estado
+
+Verificação + registro apenas: nenhum `.py` alterado, sem teste, sem restart e
+sem bump (`1.47.0+2085`).

@@ -1,4 +1,25 @@
 {
+  "confirmacao_dono_2026_11_28": {
+    "pedido": "Dono (28/11 15:4x): 'pasta Nicky Locutor decidimos arquivar, me disse que ja havia concluido a analise dela. Os updates acho que tambem ja foram.' — confirmar os dois pontos com medicao.",
+    "autor": "Freebuff (Buffy)",
+    "nicky_locutor": {
+      "analise_concluida": true,
+      "prova": "Entrada de 27/10 em session.json ('pedido': Dono 27/10 ~16:55 '1' -> analise/Nicky Locutor/) com as etapas publicadas no docs/CHANGELOG.md: etapa B (frases da radio no banco, ~l.4999), etapa D (webhook do locutor no od-core, ~l.4972), etapa E (radio Nicky no ar, ~l.4908); commits 3ea0790, 1b4dd88 e 7ccf955 ('estado final ENTREGUE da integracao Nicky Locutor').",
+      "pasta": "A pasta saiu da caixa de entrada: o dono renomeou 'Nicky Locutor/' em 28/10 08:16 para 'Nicky Musicas/' e 28/10 10:16 para 'Nicky Radio/' (registro em session.json) e, desde entao, nenhuma das duas esta em analise/ (find no projeto so acha agents/nicky_virthy, sem relacao com a pasta). Arquivada fora da caixa de entrada por decisao do dono — conforme ele confirmou agora.",
+      "correcao_de_registro": "A frase 'pauta do dono: analise/Nicky Locutor/' repetida em 26/11 (ATRIBUICOES.md e transcricao S27 do dia 26) estava DESATUALIZADA — a pasta ja nao existia desde 28/10. Corrigido nesta entrada; nada foi apagado do registro anterior."
+    },
+    "updates_do_so": {
+      "aplicados": true,
+      "prova": "data/os_updater_estado.json: ciclo real em 26/11 — apt_update as 02:10:37, apt_upgrade '67 pacotes' as 02:13:31, autoremove removendo kernel 6.8.0-149, 'Successfully installed firmware' as 02:13:47 e reboot agendado +5min; a maquina reiniciou as 02:36:27 (uptime -s).",
+      "estado_agora": "GET /health ok=true (34 checks) com os_updater: upgradable=0, precisa_reboot=false, falhas_consecutivas=0, sucessos_consecutivos=3, kernel 6.8.0-151-generic. 'apt list --upgradable' = 0 linhas; 'fwupdmgr get-updates' = 0 devices; /var/run/reboot-required ausente. Timer od-os-updater.timer enabled, proxima execucao dom 29/11 03:17.",
+      "observacao": "A unica secao nao-ok do ciclo de 26/11 e o 'fwupdmgr refresh' ('Idle…Metadata is up to date'), que e comportamento do fwupd, nao falha de aplicacao; o update de firmware seguinte deu ok com 2 firmwares instalados."
+    },
+    "arquivos": "iniciar/session.json, iniciar/2026-11-28_conversa_omegadrakon.md (S2), iniciar/ATRIBUICOES.md, txt.txt.",
+    "estado": "Somente verificacao e registro: nenhum .py alterado, sem teste, sem restart e sem bump (1.47.0+2085).",
+    "proximo": "Nenhuma dessas duas frentes tem pendencia. Fila do dono: analise/No Break/ (analise completa pela regra 22), decisoes P2 (nobreak USB, 2o no/LoRa, app por papel, OpenAI/I1, Projeti) e P3 sob demanda.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S2)",
+    "updated_at": "2026-11-28T15:45:00-03:00"
+  },
   "retomada_leitura_iniciar_2026_11_28": {
     "pedido": "Dono (28/11 15:29): 'leia iniciar' — retomada pelo checkpoint, sem mudanca de codigo.",
     "lido": "iniciar/README.md, iniciar/RULES.md (24 regras), iniciar/session.json (streaming_grafo_unificado_2026_11_26, retomada_leitura_iniciar_2026_11_26_14h42, gate_zero_2026_11_26), iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (S23-S27), txt.txt (vazio), analise/, tools/brief_multi_ia.py.",

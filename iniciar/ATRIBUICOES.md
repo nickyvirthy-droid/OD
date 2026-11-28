@@ -9,6 +9,33 @@
 
 ---
 
+## 28/11/2026 — Confirmação: Nicky Locutor arquivada e updates do SO aplicados
+
+**Autor:** Freebuff (Buffy) — confirmação pedida pelo dono (*"decidimos
+arquivar... me disse que já havia concluído a análise dela. Os updates acho que
+também já foram"*).
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `confirmacao_dono_2026_11_28`.
+- `iniciar/2026-11-28_conversa_omegadrakon.md` (§2).
+- `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Nicky Locutor:** análise **concluída em 27/10** (etapas B/D/E no
+  `docs/CHANGELOG.md`, commits `3ea0790`/`1b4dd88`/`7ccf955`); pasta renomeada
+  pelo dono em 28/10 e hoje ausente de `analise/` — arquivada, como ele decidiu.
+  A nota de 26/11 que a listava como pauta estava desatualizada e fica corrigida.
+- **Updates do SO:** aplicados em **26/11** (67 pacotes, remoção do kernel
+  6.8.0-149, 2 firmwares, reboot às 02:36:27). Hoje: `upgradable=0`,
+  `precisa_reboot=false`, `apt list --upgradable`=0, `fwupdmgr`=0 devices,
+  sem `/var/run/reboot-required`, 3 sucessos consecutivos.
+- **Estado:** verificação + registro; nenhum `.py` alterado, sem teste, sem
+  restart e sem bump (`1.47.0+2085`).
+
+---
+
 ## 28/11/2026 — Retomada "leia iniciar": estado medido
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).
