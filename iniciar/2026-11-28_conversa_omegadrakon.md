@@ -484,3 +484,28 @@ Fechados com evidência conferida no código:
 Os dois ficaram **visíveis** no exame (marcados como falha na baseline), não
 mascarados — são trabalho de memória, com a regressão já protegida pelo gate.
 Sem bump, sem restart.
+
+## §13 — Auditoria de uso: o que roda sem ninguém do outro lado (28/11 ~18:55)
+
+**Dono:** *"se uma coisa não está sendo usada ela precisa estar funcionando? a
+primeira ideia é a rádio tocando sem ouvintes, deve ter mais coisas verifique"*.
+**Autor:** Freebuff (Buffy).
+
+Auditoria só-leitura (`systemctl`, `docker ps/stats/logs --since 48h`, `ss`,
+`ps`, `journalctl`, API do Azuracast). Relatório em
+**`docs/AUDITORIA_USO_STACK.md`**.
+
+- **Rádio:** `listeners.current = 0` com **8,7 % de CPU** contínuo há 2 dias
+  (liquidsoap, 192 kbps). É literalmente "tocando sem ouvintes".
+- **od-core:** 2 mensagens em 48 h (26/11 17:20 e 17:24).
+- **llama-server:** 0 chamadas — é suplente, precisa funcionar, mas com prova
+  periódica.
+- **Homebox:** só healthcheck no log; banco sem escrita desde 26/11 05:35.
+- **flatnotes/it-tools/cyberchef:** as 2.877 linhas são **1 healthcheck/min**.
+- **kiwix/vaultwarden/calibre/filebrowser:** sem log de acesso por padrão —
+  "0 linhas" **não prova** desuso; não mexer sem confirmar com o dono.
+- `io-probe` e `os-updater` têm consumidor real.
+
+Nada foi parado ou removido. O lote de implementação do TODO ficou pausado
+porque a pergunta muda a prioridade: não se implementa robustez para
+subsistema sem consumidor.

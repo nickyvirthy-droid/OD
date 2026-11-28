@@ -9,6 +9,30 @@
 
 ---
 
+## 28/11/2026 — Auditoria de uso da stack (rádio sem ouvintes)
+
+**Autor:** Freebuff (Buffy) — pergunta do dono sobre coisas funcionando sem uso.
+
+### Criados
+
+- `docs/AUDITORIA_USO_STACK.md` — tabela medida (48 h), limites da medição e as
+  4 decisões abertas (rádio, ferramentas ociosas, suplentes, cofres).
+
+### Lido (somente leitura, no servidor)
+
+- `docker ps/stats/logs --since 48h`, `systemctl list-units/timers`, `ss`,
+  `ps`, `journalctl`, API `nowplaying` do Azuracast.
+
+### Intenção e estado
+
+- **Intenção:** responder com medição se algo roda sem consumidor.
+- **Resultado:** rádio com 0 ouvintes e 8,7 % de CPU; assistente com 2
+  mensagens em 48 h; containers ociosos com healthcheck disfarçado de uso.
+- **Estado:** concluído; **nenhum serviço parado ou removido** — decisões
+  listadas para o dono.
+
+---
+
 ## 28/11/2026 — R5: memória de longa duração medida no CI
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"implementar o R5: eval framework

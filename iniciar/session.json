@@ -1,4 +1,15 @@
 {
+  "auditoria_uso_stack_2026_11_28": {
+    "pedido": "Dono (28/11 ~18:45): 'se uma coisa nao esta sendo usada ela precisa estar funcionando? a radio tocando sem ouvintes, deve ter mais coisas verifique'.",
+    "metodo": "Somente leitura: systemctl list-units/timers, docker ps/stats/logs --since 48h, ss -ltnp, ps, journalctl, API nowplaying do Azuracast. Nada foi parado ou removido.",
+    "medido": "Azuracast/Nicky (liquidsoap) tocando com listeners.current=0 e 8,7% de CPU continuo ha 2 dias; od-core com 2 mensagens em 48h (ambas action_intent em 26/11 17:20-17:24); llama-server com 0 chamadas; homebox com 11.492 healthchecks vs 5.754 linhas e banco sem escrita desde 26/11 05:35; flatnotes/it-tools/cyberchef com 2.877 linhas = 1 healthcheck/min; kiwix responde 200 sem log de acesso; vaultwarden/calibre/filebrowser com 0 linhas em 48h (sem log de acesso por padrao — nao prova desuso); stirling com 391 MB para uso esporadico; io-probe e os-updater tem consumidor real.",
+    "conclusao": "Nao, nao precisa: 'estar funcionando' e custo, nao objetivo. Tres destinos: usar, estacionar (parar + comando de subir documentado) ou remover. Suplentes (llama local, kiwix) precisam funcionar mas com prova periodica, nao com 'Up 2 days'.",
+    "entregue": "docs/AUDITORIA_USO_STACK.md com a tabela medida, os limites da medicao (log ausente != uso zero) e 4 decisoes abertas do dono.",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Auditoria concluida; nenhuma mudanca de servico. Lote de implementacao do TODO pausado: a pergunta muda a prioridade (nao implementar robustez para subsistema sem consumidor).",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S13)",
+    "updated_at": "2026-11-28T18:55:00-03:00"
+  },
   "r5_eval_locomo_2026_11_28": {
     "pedido": "Dono (28/11 ~18:20): 'Implementar o R5: eval framework com subset LOCOMO rodando no CI'.",
     "entregue": "evals/locomo.py (motor deterministico sobre o MemoryGraph real, SQLite temporario, modos producao e turnos, recall@1/@5/MRR/FP por tipo), evals/locomo_subset.jsonl (3 conversas, 69 turnos, 27 perguntas: single_hop, multi_hop, temporal, adversarial), evals/benchmarks.py (placar respostas + memoria com --json/--sem-gate/--atualizar-baseline), evals/baseline-locomo.json, tests/test_eval_locomo.py (27 testes) e passo 'Benchmarks R5' no .github/workflows/ci.yml.",
