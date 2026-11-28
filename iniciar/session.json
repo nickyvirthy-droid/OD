@@ -1,4 +1,15 @@
 {
+  "fase2a_apk_extraido_2026_11_28": {
+    "pedido": "Dono (28/11 ~16:15): 'Executar a Fase 2a: remover as cinco pastas de APK extraido depois de confirmar que nao sao fonte'.",
+    "confirmacao_antes_de_apagar": "(1) Conteudo 100% de APK extraido (AndroidManifest.xml, classes.dex, resources.arsc, lib/arm64-v8a, assets/flutter_assets, .properties, .tflite); nenhum .py/.dart/.js/.html/.md de fonte (so META-INF/NOTICE.md do proprio APK). (2) git ls-files nos caminhos = VAZIO (nada rastreado). (3) .gitignore ja tinha /AndroidManifest.xml/ e /assets/ ('Build artifacts from APK extraction'). (4) Nenhuma referencia no codigo: app usa Image.asset('assets/logo.png') que resolve para app/assets/logo.png (declarado em app/pubspec.yaml e presente, 377KB); server.py so comenta um caso de proxy de ferramentas, sem servir assets/ da raiz.",
+    "removido": "AndroidManifest.xml/ (29M, 338 arquivos), assets/ (103M, 808 arquivos — AssetManifest.json/, flutter_assets/version.json/ e version.json/ eram extracoes) e lib/ (29M, 338 arquivos, so arm64-v8a/libapp.so/). 161 MB em du.",
+    "efeito_medido": "Inventario depois: 3749 arquivos (antes 5233), 6,0 GB (antes 6,1), 38 grupos duplicados / 189,4 MB (antes 472 / 278,7 MB). app/assets/logo.png intacto. tests/test_inventario_arquivos.py 11 passed. git status limpo (nada era rastreado).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido. Restam como duplicatas conhecidas: site/OmegaDrakon*.apk x backups/apk-v1.47.0-2085 (~95 MB) e apk-v1.44.0-2080 x apk-v1.45.0-2081 (~95 MB) — itens (b) da Fase 2, aguardando decisao.",
+    "proximo": "Dono decidir a duplicata site/ x backups/apk e a limpeza de vazios/.txt da raiz; autorizar varredura externa para a Nicky Locutor.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S5)",
+    "updated_at": "2026-11-28T16:20:00-03:00"
+  },
   "inventario_fase1_2026_11_28": {
     "pedido": "Dono (28/11 ~16:00): 'Rodar a Fase 1 de organizacao: inventario por pasta com duplicatas por hash e catalogo de compactados'.",
     "criados": "tools/inventario_arquivos.py (inventario somente-leitura: resumo por pasta 1o/2o nivel, soltos na raiz, vazios, nomes com espaco, duplicatas por SHA-256 previa por tamanho, catalogo de compactados zip/tar/gz/7z/rar com busca interna sem extrair; saida Markdown/JSON/--buscar); tests/test_inventario_arquivos.py (11 casos); docs/INVENTARIO_ARQUIVOS.md (relatorio real gerado).",

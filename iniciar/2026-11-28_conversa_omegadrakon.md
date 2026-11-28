@@ -180,3 +180,49 @@ por hash e catálogo de compactados"*.
 do projeto (home/HDs) para localizar o arquivo da Nicky Locutor.
 
 Sem restart e sem bump (`1.47.0+2085`).
+
+## §5 — Fase 2a executada: pastas de APK extraído removidas (28/11 ~16:20)
+
+**Dono:** *"Executar a Fase 2a: remover as cinco pastas de APK extraído depois
+de confirmar que não são fonte"*.
+
+**Autor:** Freebuff (Buffy).
+
+### Confirmação feita ANTES de apagar
+
+1. Conteúdo é 100% de APK extraído (`AndroidManifest.xml`, `classes.dex`,
+   `resources.arsc`, `lib/arm64-v8a`, `assets/flutter_assets`, `.properties`,
+   `.tflite`); nenhum `.py`/`.dart`/`.js`/`.html`/`.md` de fonte — só o
+   `META-INF/NOTICE.md` do próprio APK.
+2. `git ls-files` nesses caminhos: **vazio** (nada era rastreado).
+3. `.gitignore` já ignorava `/AndroidManifest.xml/` e `/assets/` com o
+   comentário "Build artifacts from APK extraction".
+4. Nenhuma referência no código: o app usa `Image.asset('assets/logo.png')`,
+   que resolve para **`app/assets/logo.png`** (presente, 377 KB, declarado no
+   `app/pubspec.yaml`); a menção em `server.py` é só um comentário de proxy de
+   ferramentas.
+
+### Removido
+
+- `AndroidManifest.xml/` — 29 MB, 338 arquivos.
+- `assets/` — 103 MB, 808 arquivos (`AssetManifest.json/`,
+  `flutter_assets/version.json/` e `version.json/` eram todos extrações).
+- `lib/` — 29 MB, 338 arquivos (só `arm64-v8a/libapp.so/`).
+
+### Efeito medido
+
+| Depois | Antes |
+|---|---|
+| 3.749 arquivos | 5.233 |
+| 6,0 GB | 6,1 GB |
+| 38 grupos duplicados / 189,4 MB | 472 grupos / 278,7 MB |
+
+`app/assets/logo.png` intacto; `tests/test_inventario_arquivos.py` 11 passed;
+`git status` limpo (nada era rastreado). `docs/INVENTARIO_ARQUIVOS.md`
+regenerado.
+
+### Próximo
+
+Duplicatas restantes conhecidas: `site/OmegaDrakon*.apk` ×
+`backups/apk-v1.47.0-2085` (~95 MB) e `apk-v1.44.0-2080` × `apk-v1.45.0-2081`
+(~95 MB) — item (b) da Fase 2, aguardando decisão do dono.

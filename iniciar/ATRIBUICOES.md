@@ -9,6 +9,39 @@
 
 ---
 
+## 28/11/2026 — Fase 2a: pastas de APK extraído removidas (-161 MB)
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"remover as cinco pastas de APK
+extraído depois de confirmar que não são fonte"*).
+
+### Removidos (não rastreados no git)
+
+- `AndroidManifest.xml/` (29 MB/338), `assets/` (103 MB/808) e `lib/` (29 MB/338)
+  — cobrem as cinco pastas do inventário (as duas restantes eram subpastas de
+  `assets/` e de `lib/`).
+
+### Modificados
+
+- `docs/INVENTARIO_ARQUIVOS.md` — regenerado com o estado novo.
+- `iniciar/session.json` (checkpoint `fase2a_apk_extraido_2026_11_28`),
+  `iniciar/2026-11-28_conversa_omegadrakon.md` (§5), `iniciar/ATRIBUICOES.md`
+  (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** eliminar binários de APK extraídos que ninguém usa, sem tocar em
+  fonte nem em arquivo rastreado.
+- **Confirmado antes:** só conteúdo de APK, `git ls-files` vazio, `.gitignore`
+  já marcava "Build artifacts from APK extraction", `app/assets/logo.png`
+  intacto (o app não lê a raiz).
+- **Resultado medido:** 5.233 → **3.749 arquivos**; 6,1 → **6,0 GB**; grupos
+  duplicados 472 → **38** (278,7 → **189,4 MB**); 161 MB liberados em `du`.
+  Testes 11 passed; árvore limpa.
+- **Pela metade / próximo passo:** duplicatas de APK entre `site/` e
+  `backups/apk-*` (~190 MB somadas) continuam abertas para decisão do dono.
+
+---
+
 ## 28/11/2026 — Fase 1 do inventário de arquivos (ferramenta + relatório)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"Rodar a Fase 1 de organização"*).
