@@ -1,4 +1,16 @@
 {
+  "retomada_leitura_iniciar_2026_11_28": {
+    "pedido": "Dono (28/11 15:29): 'leia iniciar' — retomada pelo checkpoint, sem mudanca de codigo.",
+    "lido": "iniciar/README.md, iniciar/RULES.md (24 regras), iniciar/session.json (streaming_grafo_unificado_2026_11_26, retomada_leitura_iniciar_2026_11_26_14h42, gate_zero_2026_11_26), iniciar/ATRIBUICOES.md, iniciar/2026-11-26_conversa_omegadrakon.md (S23-S27), txt.txt (vazio), analise/, tools/brief_multi_ia.py.",
+    "estado_encontrado": "date -Is = 2026-11-28T15:29:15-03:00. HEAD == origin/master == 54c99ab, arvore limpa. Versao 1.47.0+2085. od-core active (running) MainPID 932556, NRestarts=0 (sem restart desde a prova viva de 26/11 17:25). GET /health com X-API-Key: ok=true, status up, 34 checks, transitorios=[]. txt.txt vazio.",
+    "achado": "analise/ agora contem apenas 'No Break/' (9 imagens). A pasta 'analise/Nicky Locutor/' citada como pauta em 26/11 nao esta mais em analise/ — nao foi movida nem apagada por esta sessao; registrado sem adivinhar destino.",
+    "autor": "Freebuff (Buffy)",
+    "arquivos": "iniciar/2026-11-28_conversa_omegadrakon.md (criado, S1), iniciar/session.json, iniciar/ATRIBUICOES.md, txt.txt.",
+    "estado": "Somente leitura e registro: nenhum .py alterado, sem teste de codigo, sem restart e sem bump (1.47.0+2085).",
+    "proximo": "Nenhum item em andamento. Aguardando ordem do dono: pauta de analise/, decisoes P2 (atualizacoes de SO, nobreak USB, 2o no/LoRa, app por papel, OpenAI/I1, Projeti) ou P3 sob demanda (cache de embedding no RAG, OTel/Grafana, eval no CI, reteste IA local); segue aberto o achado xdg-desktop-portal[-gtk] na sessao de usuario.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S1)",
+    "updated_at": "2026-11-28T15:29:15-03:00"
+  },
   "streaming_grafo_unificado_2026_11_26": {
     "pedido": "Dono (26/11 14:55): '1' — resolver a divergencia de streaming entre o caminho do grafo (OD_ORCHESTRATOR_GRAPH=1 em producao) e o caminho direto.",
     "causa": "Em core/orchestrator.py, _process_stream_grafo() chamava _gerar_com_contexto() (nao-streaming, emitia um unico token inteiro), tratava caminhos terminais no bloco else emitindo type 'done' para rate_limited (o app em od_ws.dart so traduz rate_limited no case 'error'), deixava llm_unavailable cair em token/done + _post_process, somava _metrics.llm/_metrics.fallback duas vezes, chamava _post_process duas vezes (no no post_process e ao final), nao chamava _record_terminal/_finish nos terminais (datetime/quick/cache) e ignorava tool_results no no gerar.",

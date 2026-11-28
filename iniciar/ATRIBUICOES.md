@@ -9,6 +9,39 @@
 
 ---
 
+## 28/11/2026 — Retomada "leia iniciar": estado medido
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"leia iniciar"*).
+
+### Criados
+
+- `iniciar/2026-11-28_conversa_omegadrakon.md` (§1) — transcrição do dia.
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `retomada_leitura_iniciar_2026_11_28`
+  (topo) com o estado medido.
+- `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** cumprir as regras 3 e 4 (ler antes de assumir contexto e
+  registrar a troca) e dizer onde a sessão está depois de 26/11.
+- **Medido (`date -Is` = 2026-11-28T15:29:15-03:00):** `HEAD == origin/master
+  == 54c99ab`, árvore limpa; `1.47.0+2085`; `od-core` **active** `MainPID
+  932556`, `NRestarts=0` (sem restart desde a prova viva de 26/11 17:25);
+  `GET /health` com `X-API-Key` → **ok=true · up · 34 checks**,
+  `transitorios: []`; `txt.txt` **vazio**.
+- **Achado:** `analise/` agora contém só `No Break/` (9 imagens) — a pasta
+  `analise/Nicky Locutor/` citada como pauta em 26/11 não está mais lá; não foi
+  movida nem apagada por esta sessão, registrado sem adivinhar destino.
+- **Estado:** nada alterado em código; sem teste, sem restart e sem bump
+  (`1.47.0+2085`).
+- **Pela metade / próximo passo:** nenhum item em andamento. Aguardando ordem
+  do dono (pauta `analise/`, decisões P2 ou P3 sob demanda).
+
+---
+
 ## 26/11/2026 — Restart verde do od-core e prova viva (streaming grafo)
 
 **Autor:** Antigravity (Gemini 4 Hydrogen) — continuação da entrega de streaming (regra 7.3, restart autorizado por padrão com validação verde).
