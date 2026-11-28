@@ -12,6 +12,35 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Fechamento de pendências de código: RAG, crédito do OpenAI e UPS (2026-11-28, sem bump)
+
+Três itens do TODO que estavam abertos por falta de código (ou de prova) foram
+fechados, com teste em cada um:
+
+- **RAG sem reembeddar no restart** — o comportamento já existia (o store
+  persiste `vector_json`, o `sync()` compara o sha do conteúdo), mas nunca
+  tinha sido provado e escondia dois desperdícios: o bloco de `add_many` do
+  `sync()` estava **duplicado** (duas gravações por sync) e
+  `_listar_namespace()` listava órfãos com `search(ns, "")`, pagando um
+  **embedding por sync** (requisição paga no provider remoto). Agora usa
+  `VectorStore.list_docs()` — leitura pura, sem provider.
+  `tests/test_rag.py::TestCacheDeEmbedding` (3 casos contando chamadas,
+  inclusive com store novo no mesmo diretório = restart) e
+  `tests/test_vector.py::TestListDocs` (2 casos).
+- **OpenAI por crédito real** — `runtime.launcher.openai_com_credito()` sonda
+  com 1 token e só inclui o provider se houver resposta; 429/`no credits`,
+  rede fora, timeout ou vazio mantêm o provider fora da cadeia, com warn.
+  Não derruba o boot. `tests/test_launcher_openai_credito.py` (8 testes).
+- **Monitor de UPS** — `_upsc_status()` lê `upsc -l` + `upsc <nome>` e o
+  `readiness_report` passa a mostrar `status`, `carga` e autonomia em minutos
+  quando existir no-break no NUT; sem binário/NUT devolve `None` e o
+  relatório segue como hoje (8/9). `tests/test_readiness.py` (5 testes).
+
+Nenhum bump, nenhum restart: o binário em execução não foi trocado (as
+mudanças entram no próximo restart autorizado).
+
+---
+
 ## R5 entregue: memória de longa duração medida no CI (2026-11-28, sem bump)
 
 **O que faltava:** o eval de respostas (`evals/goldens.jsonl`, modo oracle) já

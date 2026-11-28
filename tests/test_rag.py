@@ -1137,3 +1137,79 @@ class TestHibrido:
         r = rag.consult("orçamento de contexto descartado métrica", papel="admin")
         assert r.candidatos == 0
         assert rag.metricas()["lexicais"] == 0
+
+
+class TestCacheDeEmbedding:
+    """Pendência do TODO: "evitar reembeddar o mesmo texto após restart".
+
+    O store já persiste o vetor (`vector_json`) e o `sync()` compara o sha do
+    conteúdo antes de decidir; logo arquivo igual não chama o provider. Estes
+    testes contam chamadas para provar isso — e para gritar se alguém mexer
+    no sync e passar a reembedar o corpus inteiro a cada boot.
+    """
+
+    class _Contador:
+        dimension = 8
+
+        def __init__(self) -> None:
+            self.chamadas: list[list[str]] = []
+
+        def embed(self, texts: list[str]) -> list[list[float]]:
+            self.chamadas.append(list(texts))
+            return [[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0] for _ in texts]
+
+    def _rag(self, tmp_path: Path, provider) -> RAGPipeline:
+        fonte = tmp_path / "doc.md"
+        fonte.write_text(
+            "# Titulo\n\nconteudo de exemplo com varias palavras uteis o "
+            "bastante para passar do minimo de 60 caracteres do chunk\n",
+            encoding="utf-8",
+        )
+        store = VectorStore(store_dir=tmp_path / "store", provider=provider, top_k=3)
+        return RAGPipeline(store, fontes=[Fonte(caminho=fonte)], hibrido=False)
+
+    def test_sync_sem_mudanca_nao_chama_o_provider(self, tmp_path):
+        provider = self._Contador()
+        rag = self._rag(tmp_path, provider)
+        primeiro = rag.sync()
+        assert primeiro["novos"] >= 1
+        assert provider.chamadas, "a primeira ingestão precisa embedar"
+
+        chamadas = len(provider.chamadas)
+        segundo = rag.sync()
+        assert segundo["iguais"] == segundo["chunks"]
+        assert segundo["novos"] == 0
+        assert segundo["atualizados"] == 0
+        assert len(provider.chamadas) == chamadas, "sync igual reembedou o corpus"
+
+    def test_restart_reaproveita_os_vetores_do_disco(self, tmp_path):
+        provider = self._Contador()
+        rag = self._rag(tmp_path, provider)
+        rag.sync()
+        chamadas = len(provider.chamadas)
+
+        # "Restart": store novo no MESMO diretório, carregado do disco.
+        store2 = VectorStore(
+            store_dir=tmp_path / "store", provider=provider, top_k=3
+        )
+        assert store2.load() >= 1
+        fonte = tmp_path / "doc.md"
+        rag2 = RAGPipeline(store2, fontes=[Fonte(caminho=fonte)], hibrido=False)
+        relatorio = rag2.sync()
+        assert relatorio["iguais"] == relatorio["chunks"]
+        assert len(provider.chamadas) == chamadas, "restart reembedou o corpus"
+
+    def test_conteudo_alterado_reembeda_so_ele(self, tmp_path):
+        provider = self._Contador()
+        rag = self._rag(tmp_path, provider)
+        rag.sync()
+        chamadas = len(provider.chamadas)
+
+        (tmp_path / "doc.md").write_text(
+            "# Titulo\n\nconteudo NOVO com outras palavras diferentes o "
+            "bastante para virar um chunk de tamanho valido\n",
+            encoding="utf-8",
+        )
+        relatorio = rag.sync()
+        assert relatorio["atualizados"] >= 1
+        assert len(provider.chamadas) > chamadas

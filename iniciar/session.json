@@ -1,4 +1,14 @@
 {
+  "pendencias_codigo_2026_11_28": {
+    "pedido": "Dono (28/11 ~19:05): 'realise o maximo de implementacoes que puder. quero concluir todas as pendencias do TODO' (seguido da pergunta sobre coisas sem uso).",
+    "entregue": "1) RAG sem reembeddar no restart: tests/test_rag.py::TestCacheDeEmbedding (3 casos, restart incluso) provando que o store persistido + sha evitam reembed; no caminho foram corrigidos dois desperdicios reais — bloco add_many duplicado no sync() e _listar_namespace() que pagava um embedding por sync (agora VectorStore.list_docs(), 2 testes em test_vector.py). 2) OpenAI por credito real: runtime.launcher.openai_com_credito() sonda 1 token; 429/rede/timeout/vazio = fora da cadeia com warn; tests/test_launcher_openai_credito.py (8 testes). 3) Monitor de UPS: _upsc_status() le upsc -l + upsc <nome> e o readiness mostra status/carga/autonomia; sem NUT devolve None; tests/test_readiness.py::TestUpscDoNoBreak (5 testes).",
+    "medido": "274 passed (test_launcher_openai_credito + test_readiness + test_vector + test_rag + test_eval_locomo + test_eval + test_eval_oracle). readiness real segue 8/9 com 'sem UPS no SO'. TODO: 24 abertos/135 fechados -> 20 abertos/139 fechados.",
+    "nao_feito_e_porque": "Ficam abertos 20 itens: 6 bloqueados por compra/fisico (nobreak USB, segundo no, midia off-site, reteste 7B, PIN do Bluetooth, foto no Homebox), 5 por decisao do dono (I1 semantic cache, quarentena de revisar/, app por papel, connection pools, VRAM no comparador), 2 por infra externa (OTel/Grafana/alertas, xdg-desktop-portal), 2 de codigo ainda nao feitos (enxugar prompt do chat, ligar o CrossEncoderReranker neural), 3 fisicos/uso (abrir Homebox pelo site, ouvir a musica, religar apos queda) e WhatsApp Cloud API (exige conta/credenciais).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido e testado; sem bump, sem restart (binario em execucao nao foi trocado — as mudancas valem no proximo restart autorizado).",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S14)",
+    "updated_at": "2026-11-28T19:20:00-03:00"
+  },
   "auditoria_uso_stack_2026_11_28": {
     "pedido": "Dono (28/11 ~18:45): 'se uma coisa nao esta sendo usada ela precisa estar funcionando? a radio tocando sem ouvintes, deve ter mais coisas verifique'.",
     "metodo": "Somente leitura: systemctl list-units/timers, docker ps/stats/logs --since 48h, ss -ltnp, ps, journalctl, API nowplaying do Azuracast. Nada foi parado ou removido.",

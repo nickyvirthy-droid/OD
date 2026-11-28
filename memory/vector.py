@@ -461,6 +461,49 @@ class VectorStore:
                 return len(self._docs)
             return sum(1 for doc in self._docs.values() if doc["namespace"] == namespace)
 
+    def list_docs(self, namespace: str = "") -> list[dict[str, Any]]:
+        """Documentos do namespace (ou de todos) SEM embedding.
+
+        Existe porque listar por `search(ns, "")` pagava um embedding a cada
+        chamada — no provider remoto, uma requisição paga por sync só para
+        descobrir quais docs são órfãos. Aqui é leitura pura.
+
+        Returns:
+            Lista de `{"doc_id", "namespace", "text", "metadata"}`.
+        """
+        if self._database is not None:
+            if namespace:
+                rows = self._database.query(
+                    "SELECT doc_id, namespace, text, metadata_json "
+                    "FROM vector_documents WHERE namespace = ?",
+                    (namespace,),
+                )
+            else:
+                rows = self._database.query(
+                    "SELECT doc_id, namespace, text, metadata_json "
+                    "FROM vector_documents"
+                )
+            return [
+                {
+                    "doc_id": str(r["doc_id"]),
+                    "namespace": str(r["namespace"]),
+                    "text": str(r["text"]),
+                    "metadata": json.loads(r["metadata_json"]),
+                }
+                for r in rows
+            ]
+        with self._lock:
+            return [
+                {
+                    "doc_id": str(doc["doc_id"]),
+                    "namespace": str(doc["namespace"]),
+                    "text": str(doc["text"]),
+                    "metadata": dict(doc.get("metadata") or {}),
+                }
+                for doc in self._docs.values()
+                if not namespace or doc["namespace"] == namespace
+            ]
+
     def list_namespaces(self) -> list[str]:
         if self._database is not None:
             rows = self._database.query(

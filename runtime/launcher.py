@@ -243,6 +243,46 @@ def build_enciclopedia() -> Optional[Any]:
         return None
 
 
+def openai_com_credito(provider: Any, *, timeout: float | None = None) -> bool:
+    """Testa se a chave OpenAI tem CRÉDITO de verdade (1 request mínimo).
+
+    Existir chave não é ter saldo: as duas chaves do dono já responderam
+    `429 no credits remaining` (medido 11/11/2026), e o provider entrava na
+    cadeia assim mesmo — cada mensagem pagava uma tentativa perdida antes de
+    cair para o próximo provider.
+
+    A sonda é um turno de 1 token. Qualquer falha (429, rede fora, timeout,
+    chave inválida) devolve `False`: em boot, provider que não prova crédito
+    fica FORA da cadeia — o custo é logado, nunca um boot quebrado.
+
+    Args:
+        provider: instância de `OpenAIProvider` já configurada.
+        timeout: segundos da sonda (`OD_OPENAI_CREDITO_TIMEOUT_S`, padrão 8).
+    """
+    import asyncio
+
+    from core.llm import IM_END, IM_START
+
+    limite = float(
+        timeout if timeout is not None
+        else env("OD_OPENAI_CREDITO_TIMEOUT_S", "8")
+    )
+    prompt = f"{IM_START}user\nping{IM_END}\n{IM_START}assistant\n"
+    try:
+        resposta = asyncio.run(provider.generate(prompt, timeout=limite))
+    except Exception as exc:  # noqa: BLE001 — sonda nunca derruba o boot
+        log.warn(
+            "OpenAI sem credito comprovado — fora da cadeia",
+            error=f"{type(exc).__name__}: {exc}"[:200],
+        )
+        return False
+    if resposta is None:
+        log.warn("OpenAI sem credito comprovado — resposta vazia")
+        return False
+    log.info("OpenAI com credito comprovado", amostra=str(resposta)[:40])
+    return True
+
+
 def build_llm_providers() -> list[Any]:
     """Cadeia de LLM do chat, na ordem de tentativa (regra 19).
 
@@ -315,9 +355,11 @@ def build_llm_providers() -> list[Any]:
         else:
             log.warn("Provider de chat desconhecido ignorado", provider=nome)
 
-    # OpenAI automático no boot (OD_OPENAI_AUTO=1): testa crédito e inclui se houver
+    # OpenAI automático no boot (OD_OPENAI_AUTO=1): testa CRÉDITO de verdade,
+    # não só a existência da chave — as duas chaves do dono já devolveram
+    # `429 no credits remaining` (medido 11/11) e mesmo assim o provider
+    # entrava na cadeia, gastando uma tentativa por mensagem.
     if env("OD_OPENAI_AUTO", "0") != "0" and "openai" not in ordem:
-        # Só testa se a chave existe
         if env("OPENAI_API_KEY", "").strip():
             openai = OpenAIProvider(
                 model=env("OD_OPENAI_MODEL", "gpt-4o-mini"),
@@ -326,9 +368,11 @@ def build_llm_providers() -> list[Any]:
                 timeout=float(env("OD_OPENAI_TIMEOUT_S", "60")),
                 max_tokens=max_tokens,
             )
-            if openai.configurado:
+            if openai.configurado and openai_com_credito(openai):
                 providers.append(openai)
                 log.info("OpenAI incluído automaticamente (OD_OPENAI_AUTO=1)")
+            elif openai.configurado:
+                log.warn("OpenAI fora da cadeia: teste de credito reprovou (ver .env/anterior no log)")
 
     if not providers:
         log.warn("Nenhum provider válido em OD_CHAT_PROVIDERS — usando o local")

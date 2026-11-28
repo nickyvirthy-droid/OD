@@ -217,6 +217,45 @@ def disk_usage(path: str = "/") -> dict[str, Any]:
     }
 
 
+def _upsc_status(timeout: float = 3.0) -> Optional[dict[str, Any]]:
+    """Lê o no-break por NUT (`upsc`), quando ele existir.
+
+    O Attiv do dono não tem USB, então hoje isto devolve `None` quase sempre —
+    mas no dia em que entrar um no-break com USB (P2 nº 9), o `readiness_report`
+    passa a medir carga e autonomia de verdade, sem mudança de código.
+
+    Falha de qualquer tipo (binário ausente, NUT fora do ar, timeout) vira
+    `None`: prontidão nunca derruba por causa do nobreak.
+    """
+    exe = shutil.which("upsc")
+    if not exe:
+        return None
+
+    def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
+        return subprocess.run(
+            [exe, *args], capture_output=True, text=True, timeout=timeout,
+            check=False,
+        )
+
+    try:
+        listagem = _run(["-l"])
+        nomes = [linha.strip() for linha in listagem.stdout.splitlines() if linha.strip()]
+        if not nomes:
+            return None
+        nome = nomes[0]
+        saida = _run([nome])
+        campos: dict[str, str] = {}
+        for linha in saida.stdout.splitlines():
+            if ":" in linha:
+                chave, valor = linha.split(":", 1)
+                campos[chave.strip()] = valor.strip()
+        if not campos:
+            return None
+        return {"nome": nome, "campos": campos}
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+
 def readiness_report(
     zim_dir: str = "",
     zim_dir_frio: str = "",
@@ -249,7 +288,21 @@ def readiness_report(
         pass
     ups = [n for n in nomes_energia if n.lower().startswith(("ups", "hid"))]
     bateria = [n for n in nomes_energia if n.upper().startswith("BAT")]
-    if ups:
+    nut = _upsc_status()
+    if nut:
+        campos = nut["campos"]
+        carga = campos.get("battery.charge", "?")
+        autonomia = campos.get("battery.runtime", "?")
+        try:
+            minutos = f"{float(autonomia) / 60:.0f} min"
+        except (TypeError, ValueError):
+            minutos = str(autonomia)
+        item(
+            "energia", True,
+            f"UPS via upsc ({nut['nome']}): status={campos.get('ups.status', '?')}, "
+            f"carga={carga}%, autonomia={minutos}",
+        )
+    elif ups:
         item("energia", True, f"UPS visível: {', '.join(ups)}")
     elif bateria:
         item("energia", True, f"bateria visível: {', '.join(bateria)}")

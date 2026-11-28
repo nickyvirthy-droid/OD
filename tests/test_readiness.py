@@ -119,3 +119,82 @@ class TestReadinessNoChat:
 
     def test_formatador_sem_itens_devolve_none(self) -> None:
         assert format_intent_result("readiness_report", {"ok": True}) is None
+
+
+class TestUpscDoNoBreak:
+    """Pendência do TODO: ler `upsc` no readiness quando houver no-break USB.
+
+    Hoje o Attiv do dono não aparece no SO; o código precisa estar pronto (e
+    testado) para o dia em que entrar um que apareça.
+    """
+
+    def test_upsc_com_dados_conta_como_energia_ok(self, tmp_path, monkeypatch) -> None:
+        from tools.actions import actions as mod
+
+        monkeypatch.setattr(
+            mod, "_upsc_status",
+            lambda: {
+                "nome": "ups",
+                "campos": {
+                    "ups.status": "OL",
+                    "battery.charge": "100",
+                    "battery.runtime": "3600",
+                },
+            },
+        )
+        r = readiness_report(
+            zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path)
+        )
+        energia = next(i for i in r["itens"] if i["nome"] == "energia")
+        assert energia["ok"] is True
+        assert "upsc" in energia["detalhe"]
+        assert "100%" in energia["detalhe"]
+        assert "60 min" in energia["detalhe"]
+
+    def test_sem_upsc_o_relatorio_nao_quebra(self, tmp_path, monkeypatch) -> None:
+        from tools.actions import actions as mod
+
+        monkeypatch.setattr(mod, "_upsc_status", lambda: None)
+        r = readiness_report(
+            zim_dir=str(tmp_path), zim_dir_frio=str(tmp_path), backup_dir=str(tmp_path)
+        )
+        assert [i["nome"] for i in r["itens"]][0] == "energia"
+
+    def test_binario_ausente_devolve_none(self, monkeypatch) -> None:
+        from tools.actions import actions as mod
+
+        monkeypatch.setattr(mod.shutil, "which", lambda _nome: None)
+        assert mod._upsc_status() is None
+
+    def test_parsing_do_upsc(self, monkeypatch) -> None:
+        from tools.actions import actions as mod
+
+        class _Proc:
+            def __init__(self, stdout: str) -> None:
+                self.stdout = stdout
+                self.returncode = 0
+
+        def _run(args, **_kwargs):
+            if args[1] == "-l":
+                return _Proc("ups\n")
+            return _Proc(
+                "ups.status: OB\nbattery.charge: 87\n"
+                "battery.runtime: 900\ndevice.mfr: APC\n"
+            )
+
+        monkeypatch.setattr(mod.shutil, "which", lambda _nome: "/usr/bin/upsc")
+        monkeypatch.setattr(mod.subprocess, "run", _run)
+        dados = mod._upsc_status()
+        assert dados["nome"] == "ups"
+        assert dados["campos"]["ups.status"] == "OB"
+        assert dados["campos"]["battery.charge"] == "87"
+
+    def test_nut_fora_do_ar_nao_derruba(self, monkeypatch) -> None:
+        from tools.actions import actions as mod
+
+        def _explode(*_a, **_k):
+            raise OSError("connection refused")
+
+        monkeypatch.setattr(mod.shutil, "which", lambda _nome: "/usr/bin/upsc")
+        monkeypatch.setattr(mod.subprocess, "run", _explode)
+        assert mod._upsc_status() is None

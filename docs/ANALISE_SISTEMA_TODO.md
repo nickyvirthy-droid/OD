@@ -101,12 +101,12 @@ contradizendo o próprio texto do documento e foram fechados:
   cobre o caso.
 - **`llm_cache` de modelo local** — testado e descartado em 17/11.
 
-Continuam abertos 24 itens: código (R5 eval no CI, crédito real do OpenAI,
-cache de embedding de documento, enxugar prompt, reranker neural, `upsc` do
-nobreak), decisão do dono (I1, quarentena de `revisar/`, app por papel,
-connection pools, VRAM no comparador) e compra/físico (nobreak, segundo nó,
-mídia off-site, reteste 7B, PIN do Bluetooth, Homebox, WhatsApp Cloud API) e
-infra externa (OTel/Grafana/alertas, `xdg-desktop-portal`).
+Continuam abertos 20 itens (R5, crédito real do OpenAI, cache de embedding e
+`upsc` foram fechados no mesmo dia): código (enxugar prompt, reranker neural),
+decisão do dono (I1, quarentena de `revisar/`, app por papel, connection
+pools, VRAM no comparador), compra/físico (nobreak, segundo nó, mídia
+off-site, reteste 7B, PIN do Bluetooth, Homebox, WhatsApp Cloud API) e infra
+externa (OTel/Grafana/alertas, `xdg-desktop-portal`).
 
 #### P0 — esta semana (barato, risco real, evidência na mão)
 
@@ -1138,8 +1138,17 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       reexecutar o pipeline inteiro — **ENTREGUE 10/11: políticas padrão + `OD_RETRY_<NÓ>` no motor do grafo; ver §21 da transcrição**
 - [x] F1: consumir `pending_human_input` de verdade no chat (pausa + aprovação
       do dono) usando `retomar()`, hoje só testado no motor — **ENTREGUE 10/11: `retomar_turno_humano` no orchestrator + `_pending_human_loop` + `_handle_human_loop_decision` no Telegram bot; 11/11: duplicata que sombreava o método foi removida, a retomada roda `human_loop` + `post_process` e a **origem foi ligada** — `select_tools` pausa ações sensíveis (`OD_HUMAN_APPROVAL_ACTIONS`, padrão: escritas no Google) com `pending_human_input`, e o `sim` executa a action no resume; 4 testes em `test_orchestrator_graph_integration.py`. 11/11: `ha_device_control` e `google_calendar_create` foram unificados no mesmo human_loop (com alvo/`quando`), pulando a confirmação de 2 passos interna via contextvar — +3 testes**
-- [ ] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
-      texto após restart)
+- [x] RAG: avaliar cache de embedding de documento (evitar reembeddar o mesmo
+      texto após restart) — **FEITO 28/11:** já existia (o store persiste
+      `vector_json` e o `sync()` compara o sha do conteúdo), faltava PROVA e
+      sobrava desperdício. Provado em `tests/test_rag.py::TestCacheDeEmbedding`
+      (3 casos, contando chamadas do provider): sync sem mudança e **restart**
+      com store novo no mesmo diretório não embedam nada; só o chunk alterado
+      reembeda. Corrigidos no caminho dois desperdícios reais: **(a)** o bloco
+      de `add_many` do `sync()` estava **duplicado** (gravava duas vezes por
+      sync); **(b)** `_listar_namespace()` listava órfãos com
+      `search(ns, "")`, pagando **um embedding por sync** — agora usa
+      `VectorStore.list_docs()` (leitura pura, 2 testes em `test_vector.py`)
 - [x] Rádio: testar de verdade pelo chat (entregue em 10/11, nunca exercitada
       no chat real) — **FEITO 11/11 14:20: "ligar a radio" → `route=action_intent`,
       `fastpath:radio_play`, 1,49 s, stream no ar (`status=tocando`)**
@@ -1159,11 +1168,13 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       chat já é `groq,gemini,local` desde 14/11 e o `/health` alerta em 80% da
       cota. O ganho real deste item virou **menos latência e mais contexto útil**
       (o prompt medido é ~3,3 mil caracteres por mensagem no log).
-- [ ] Chat: incluir OpenAI na cadeia automaticamente quando as chaves tiverem
+- [x] Chat: incluir OpenAI na cadeia automaticamente quando as chaves tiverem
       saldo (hoje as duas dão `429 no credits remaining`; teste de crédito no boot)
-      — **13/11, não commitado: `OpenAIProvider` + `OD_OPENAI_AUTO`** (o auto
-      só checa se a chave existe, não se há crédito — o teste de crédito real
-      continua faltando)
+      — **FEITO 28/11:** `runtime.launcher.openai_com_credito()` faz uma sonda
+      de 1 token (`OD_OPENAI_CREDITO_TIMEOUT_S`, padrão 8 s) e só inclui o
+      provider se a chamada voltar; 429, rede fora, timeout ou resposta vazia
+      = fora da cadeia, com warn (nunca derruba o boot).
+      `tests/test_launcher_openai_credito.py`: **8 testes** (sonda + cadeia)
 - [x] Chat: cota do Groq visível/alertada no `/health` — **ENTREGUE 14/11:
       check não-crítico `llm_quota` no `/health` (30º check) lista TODOS os
       providers com `pct_used` e degrada quando algum passa de
@@ -1520,10 +1531,14 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       `pkcheck org.freedesktop.login1.power-off` → **rc=0**. Depois do restart
       o `energia_status` mostra `autorizado: true` e o desligamento gracioso
       passa a valer de verdade.
-- [ ] **Energia:** monitor de UPS no `readiness_report` — ler `upsc`/`/sys`
+- [x] **Energia:** monitor de UPS no `readiness_report` — ler `upsc`/`/sys`
       quando um no-break com USB entrar (o Attiv atual nunca vai aparecer);
       a telemetria real da Fase Nicky é o **BMS RS485/CAN da Felicity**
-      (precisa de adaptador USB-RS485).
+      (precisa de adaptador USB-RS485). — **CÓDIGO PRONTO 28/11:**
+      `_upsc_status()` lê `upsc -l` + `upsc <nome>` e o readiness mostra
+      `status`, `carga` e `autonomia` em minutos; sem binário/NUT/energia ele
+      devolve `None` e o relatório segue igual (8/9 hoje). Falta **só o
+      hardware**: `tests/test_readiness.py::TestUpscDoNoBreak` (5 testes)
 - [x] **Acervo:** teste que compara os ZIMs listados em
       `docker/tools-compose.yaml` com os arquivos presentes nos dois diretórios
       — hoje um ZIM novo só entra na busca se alguém lembrar do `command`.

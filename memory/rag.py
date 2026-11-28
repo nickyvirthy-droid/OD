@@ -659,16 +659,6 @@ class RAGPipeline:
             # dos custou ~179s de boot. Uma escrita só, como o add_many.
             if para_apagar:
                 self._store.delete_many(para_apagar)
-            # Persistência em LOTE por namespace: uma escrita só no fim.
-            # (add() unitário persistiria o JSON inteiro a cada chunk —
-            # O(n²) de I/O: 842 chunks custavam ~86s na ingestão inicial.)
-            for ns, itens in pendentes.items():
-                self._store.add_many(
-                    ns,
-                    [texto for _, texto, _ in itens],
-                    metadata_list=[meta for _, _, meta in itens],
-                    doc_ids=[doc_id for doc_id, _, _ in itens],
-                )
             # I2: índice lexical sobre os MESMOS chunks (sem reembeddar nada
             # e sem persistência própria — o BM25 é derivado do corpus, não
             # uma segunda fonte de verdade).
@@ -742,7 +732,22 @@ class RAGPipeline:
             }
 
     def _listar_namespace(self) -> list[dict[str, Any]]:
-        """Docs do namespace RAG (busca com consulta vazia devolve todos)."""
+        """Docs do namespace RAG — listagem PURA, sem embedding.
+
+        Antes isto usava `search(ns, "")`, e cada sync pagava um embedding da
+        consulta vazia (com provider remoto, uma requisição paga) só para
+        descobrir os órfãos. `list_docs` lê o store já carregado.
+        """
+        listar = getattr(self._store, "list_docs", None)
+        if callable(listar):
+            try:
+                return [
+                    {"doc_id": d["doc_id"], "metadata": dict(d.get("metadata") or {})}
+                    for d in listar(self._namespace)
+                ]
+            except Exception:
+                return []
+        # Store sem list_docs (fakes de teste/legado): cai na busca vazia.
         try:
             brutos = self._store.search(
                 self._namespace, "", top_k=100000, min_score=0.0

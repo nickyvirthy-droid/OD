@@ -509,3 +509,24 @@ Auditoria só-leitura (`systemctl`, `docker ps/stats/logs --since 48h`, `ss`,
 Nada foi parado ou removido. O lote de implementação do TODO ficou pausado
 porque a pergunta muda a prioridade: não se implementa robustez para
 subsistema sem consumidor.
+
+## §14 — Pendências de código fechadas: RAG, OpenAI e UPS (28/11 ~19:20)
+
+**Dono:** *"realise o máximo de implementações que puder. quero concluir todas
+as pendências do TODO"* (depois da pergunta sobre coisas sem uso).
+**Autor:** Freebuff (Buffy).
+
+| Pendência | O que foi feito | Prova |
+|---|---|---|
+| **RAG: reembeddar após restart** | Já não reembedava, mas faltava prova e havia **dois desperdícios**: bloco `add_many` **duplicado** no `sync()` e `_listar_namespace()` pagando **um embedding por sync** (`search(ns, "")`) — agora `VectorStore.list_docs()` | `TestCacheDeEmbedding` (3) + `TestListDocs` (2) |
+| **OpenAI por crédito real** | `openai_com_credito()` sonda 1 token; 429/rede/timeout/vazio = provider fora da cadeia, com warn; boot nunca cai | `test_launcher_openai_credito.py` (8) |
+| **Monitor de UPS** | `_upsc_status()` lê `upsc -l` + campos; readiness mostra status, carga e autonomia em minutos; sem NUT devolve `None` | `TestUpscDoNoBreak` (5) |
+
+- Suíte focada: **274 passed**.
+- `readiness_report` real segue **8/9** ("sem UPS no SO") — nada mudou na
+  máquina, como esperado sem hardware novo.
+- TODO: **24 abertos / 135 fechados → 20 / 139**.
+- Sem bump e **sem restart**: as mudanças entram quando o od-core reiniciar
+  (não reiniciei nada).
+- Não fiz o que depende de **compra, decisão ou credencial** — lista no
+  `session.json` e no relatório de uso (`docs/AUDITORIA_USO_STACK.md`).

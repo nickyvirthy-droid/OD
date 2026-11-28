@@ -312,3 +312,38 @@ class TestVectorStoreManage:
         assert d["documents"] == 1
         assert d["top_k"] == 5
         assert d["provider"] == "HashEmbeddingProvider"
+
+class TestListDocs:
+    """`list_docs` existe para listar SEM embedding (o sync do RAG pagava
+    uma consulta vazia a cada chamada)."""
+
+    class _Contador:
+        dimension = 4
+
+        def __init__(self) -> None:
+            self.chamadas = 0
+
+        def embed(self, texts):
+            self.chamadas += 1
+            return [[1.0, 0.0, 0.0, 0.0] for _ in texts]
+
+    def test_lista_sem_embedar(self, tmp_path: Path) -> None:
+        provider = self._Contador()
+        store = VectorStore(store_dir=tmp_path / "s", provider=provider)
+        store.add("conhecimento", "um texto qualquer de exemplo", doc_id="a")
+        store.add("conhecimento", "outro texto de exemplo", doc_id="b")
+        store.add("outro", "fora do namespace", doc_id="c")
+        chamadas = provider.chamadas
+
+        docs = store.list_docs("conhecimento")
+
+        assert {d["doc_id"] for d in docs} == {"a", "b"}
+        assert all(d["namespace"] == "conhecimento" for d in docs)
+        assert all("metadata" in d and "text" in d for d in docs)
+        assert provider.chamadas == chamadas, "list_docs não pode embedar"
+
+    def test_sem_namespace_lista_tudo(self, tmp_path: Path) -> None:
+        store = VectorStore(store_dir=tmp_path / "s", provider=HashEmbeddingProvider())
+        store.add("conhecimento", "texto de exemplo com palavras", doc_id="a")
+        store.add("outro", "texto de exemplo com palavras", doc_id="b")
+        assert {d["doc_id"] for d in store.list_docs()} == {"a", "b"}

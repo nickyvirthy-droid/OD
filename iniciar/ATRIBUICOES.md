@@ -9,6 +9,35 @@
 
 ---
 
+## 28/11/2026 — Pendências de código: RAG, crédito do OpenAI e UPS
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"realize o máximo de
+implementações que puder"*).
+
+### Modificados
+
+- `memory/rag.py` — removido o bloco `add_many` duplicado do `sync()`;
+  `_listar_namespace()` lista por `list_docs` (sem embedding).
+- `memory/vector.py` — novo `VectorStore.list_docs()` (listagem pura).
+- `runtime/launcher.py` — `openai_com_credito()` (sonda de 1 token) e o boot só
+  inclui a OpenAI com crédito comprovado.
+- `tools/actions/actions.py` — `_upsc_status()` e o item "energia" do
+  `readiness_report` lê `upsc` quando existir.
+- `tests/test_rag.py`, `tests/test_vector.py`, `tests/test_readiness.py`,
+  `tests/test_launcher_openai_credito.py` (novo).
+- `docs/ANALISE_SISTEMA_TODO.md` (3 itens fechados; contagem 20/139),
+  `docs/CHANGELOG.md`, `iniciar/session.json`, transcrição §14,
+  `iniciar/ATRIBUICOES.md` e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** fechar o que era código de verdade, não o que depende de
+  compra/decisão.
+- **Resultado:** 274 passed; readiness real 8/9; nenhuma mudança na máquina.
+- **Estado:** concluído; sem bump e sem restart.
+
+---
+
 ## 28/11/2026 — Auditoria de uso da stack (rádio sem ouvintes)
 
 **Autor:** Freebuff (Buffy) — pergunta do dono sobre coisas funcionando sem uso.
