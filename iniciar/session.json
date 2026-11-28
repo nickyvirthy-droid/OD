@@ -1,4 +1,25 @@
 {
+  "apk_4082_removido_2026_11_28": {
+    "pedido": "Dono (28/11 ~17:15): 'Remover o APK arm64 defeituoso (versionCode 4082) de backups/apk-v1.45.1-2082'.",
+    "removido": "backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk — 26.906.673 bytes, sha256 f323e4308286c83b07c132b60578894104e8ccf7971f9b7f309287ab5379778f, aapt confirmou 1.45.1 versionCode 4082 (offset 1000xABI).",
+    "resultado": "A pasta ficou so com OmegaDrakon.apk (1.45.1+2082, conferido com aapt). Inventario: 3747 arquivos, 5,7 GB, 34 grupos / 54,6 KB. Nada rastreado no git (backups/ e ignorado).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido. A guarda tools/verificar_apk_versao.py impede que um APK assim seja publicado de novo.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S9)",
+    "updated_at": "2026-11-28T17:20:00-03:00"
+  },
+  "varredura_externa_nicky_2026_11_28": {
+    "pedido": "Dono (28/11 ~17:15): 'Varrer os caminhos externos autorizados em busca da pasta Nicky Locutor arquivada'.",
+    "escopo_varrido": "/home/alex, /mnt/Arquivos (sdb1 931GB em /home/alex/dados, sdc1 931GB em /mnt/Arquivos), /srv/omegadrakon, /media, /run/media. Somente leitura; pruned .venv/.git/node_modules/.gradle/android-sdk.",
+    "encontrado": "A pasta esta ARQUIVADA DENTRO DOS SNAPSHOTS do OD: /home/alex/dados/od_snapshots/snapshot_od-2026-10-25_0350/home/alex/OmegaDrakon/analise/Nicky Locutor e a copia identica em /mnt/Arquivos/od_snapshots/snapshot_od-2026-10-25_0350/... — 870 MB, 5684 arquivos, 668 diretorios, com 'nicky-locutor' e 'nicky-locutor v0.0.0' (edge-tts). Os dois HDs sao BIT A BIT IGUAIS (diff de sha256 exit 0).",
+    "outras_ocorrencias": "Nicky Radio aparece no snapshot 2026-11-01_0344 (nos dois HDs). O resto dos achados sao pastas de codigo do proprio OD (agents/nicky_virthy, package kotlin com.omegadrakon.nicky), fotos 'Nicky NNN.jpg' em /home/alex/Alex/legado e o Legado (/home/alex/Legado/Nicky, 'Nicky Virthy').",
+    "conclusao": "A analise estava concluida (etapas B/D/E em 27/10) e a pasta sobrevive intacta nos snapshots de 25/10, que sao a copia de arquivo. Nada foi restaurado para analise/ (decisao do dono foi arquivar).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Busca concluida; nenhum arquivo movido, copiado ou apagado.",
+    "proximo": "Se o dono quiser consultar o conteudo, o caminho acima e de leitura direta; se quiser uma copia 'avulsa' (fora do snapshot), e so pedir o destino.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S9)",
+    "updated_at": "2026-11-28T17:20:00-03:00"
+  },
   "guarda_versao_apk_2026_11_28": {
     "pedido": "Dono (28/11 ~17:00): 'Investigar por que o APK arm64 da 1.45.1 saiu com versionCode 4082 e corrigir no build'.",
     "causa_medida": "4082 = 2082 + 1000*ABI (arm64 = 2). O arm64 foi gerado as 05:18:39 e o APK completo as 05:20:18 em 17/11 — ordem INVERSA do app/build_apk.sh (que faz o completo primeiro e o split depois). Logo aquele par nao saiu do script: foi um 'flutter build apk --split-per-abi' manual, sem -Pforce-version-code-ignoring-abi=true, e o Flutter somou o offset de split. A flag existe no script desde c2b4508 (v1.7.0); o build paralelo e que a ignorou. O par 1.47.0 (que saiu do script) tem 2085 nos dois APKs.",

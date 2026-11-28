@@ -1,6 +1,6 @@
 # Inventário de arquivos do OmegaDrakon (Fase 1)
 
-Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
+Gerado em **2026-11-28T16:18:16-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
 
 - Raiz: `/home/alex/OmegaDrakon`
 - Artefatos de build (excluídos): `app/build`, `app/.dart_tool`, `.dart_tool`, `build`
@@ -10,29 +10,29 @@ Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somen
 
 | Arquivos | Tamanho | Compactados |
 |---:|---:|---:|
-| 3.744 | 5.8 GB | 23 |
+| 3.747 | 5.7 GB | 23 |
 
 ## Por pasta (1º nível)
 
 | Pasta | Tamanho | Arquivos | Mais novo |
 |---|---:|---:|---|
 | `site` | 3,0 GB | 57 | 26/11/2026 |
-| `backups` | 1,4 GB | 11 | 28/11/2026 |
+| `backups` | 1,3 GB | 10 | 28/11/2026 |
 | `voice` | 693,0 MB | 23 | 27/10/2026 |
 | `data` | 668,9 MB | 2404 | 28/11/2026 |
 | `logs` | 46,6 MB | 21 | 28/11/2026 |
-| `tests` | 29,9 MB | 525 | 28/11/2026 |
+| `tests` | 29,9 MB | 527 | 28/11/2026 |
 | `analise` | 13,8 MB | 9 | 24/06/2026 |
 | `iniciar` | 2,8 MB | 67 | 28/11/2026 |
 | `core` | 2,7 MB | 106 | 26/11/2026 |
 | `integrations` | 2,4 MB | 88 | 26/11/2026 |
 | `docs` | 1,5 MB | 36 | 28/11/2026 |
-| `tools` | 1,4 MB | 78 | 28/11/2026 |
-| `app` | 1,2 MB | 87 | 26/11/2026 |
+| `tools` | 1,4 MB | 80 | 28/11/2026 |
+| `app` | 1,2 MB | 87 | 28/11/2026 |
 | `runtime` | 502,0 KB | 46 | 26/11/2026 |
 | `.od_repair_backups` | 492,9 KB | 10 | 18/11/2026 |
 | `memory` | 414,1 KB | 20 | 25/11/2026 |
-| `(raiz)` | 341,4 KB | 14 | 28/11/2026 |
+| `(raiz)` | 341,5 KB | 14 | 28/11/2026 |
 | `.od_sandbox` | 314,6 KB | 6 | 04/11/2026 |
 | `.od_backups` | 217,0 KB | 2 | 24/10/2026 |
 | `.crush` | 183,8 KB | 4 | 26/11/2026 |
@@ -62,16 +62,16 @@ Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somen
 | `voice/tts` | 548,0 MB | 20 | 27/10/2026 | 14/11/2023 |
 | `voice/stt` | 145,0 MB | 3 | 01/10/2026 | 04/07/2026 |
 | `site` | 95,7 MB | 31 | 26/11/2026 | 09/10/2026 |
-| `backups/apk-v1.45.1-2082` | 94,5 MB | 2 | 17/11/2026 | 17/11/2026 |
 | `backups/apk-v1.45.0-2081` | 94,5 MB | 2 | 14/11/2026 | 14/11/2026 |
+| `backups/apk-v1.45.1-2082` | 68,8 MB | 1 | 17/11/2026 | 17/11/2026 |
 | `logs` | 46,6 MB | 21 | 28/11/2026 | 13/10/2026 |
 | `data/vector_memory` | 27,1 MB | 1 | 27/11/2026 | 27/11/2026 |
-| `tests/__pycache__` | 26,7 MB | 374 | 28/11/2026 | 30/09/2026 |
+| `tests/__pycache__` | 26,7 MB | 375 | 28/11/2026 | 30/09/2026 |
 | `site/avatares` | 16,4 MB | 9 | 12/10/2026 | 12/10/2026 |
 | `data` | 14,9 MB | 39 | 28/11/2026 | 03/09/2026 |
 | `analise/No Break` | 13,8 MB | 9 | 24/06/2026 | 28/04/2026 |
 | `backups/auto` | 7,9 MB | 5 | 28/11/2026 | 15/11/2026 |
-| `tests` | 3,3 MB | 151 | 28/11/2026 | 02/09/2026 |
+| `tests` | 3,3 MB | 152 | 28/11/2026 | 02/09/2026 |
 | `iniciar` | 2,8 MB | 67 | 28/11/2026 | 05/09/2026 |
 | `site/vendor` | 2,1 MB | 16 | 26/11/2026 | 12/11/2026 |
 | `docs` | 1,5 MB | 36 | 28/11/2026 | 02/09/2026 |
@@ -85,10 +85,10 @@ Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somen
 | `tools/actions` | 425,0 KB | 4 | 23/11/2026 | 02/11/2026 |
 | `integrations` | 383,3 KB | 16 | 26/11/2026 | 17/10/2026 |
 | `app/assets` | 368,8 KB | 1 | 09/10/2026 | 09/10/2026 |
+| `tools/__pycache__` | 351,9 KB | 19 | 28/11/2026 | 03/09/2026 |
 | `app/lib` | 345,7 KB | 21 | 26/11/2026 | 10/09/2026 |
-| `tools/__pycache__` | 342,4 KB | 18 | 28/11/2026 | 03/09/2026 |
-| `(raiz)` | 341,4 KB | 14 | 28/11/2026 | 07/09/2026 |
-| `tools` | 292,6 KB | 22 | 28/11/2026 | 03/09/2026 |
+| `(raiz)` | 341,5 KB | 14 | 28/11/2026 | 07/09/2026 |
+| `tools` | 298,9 KB | 23 | 28/11/2026 | 03/09/2026 |
 | `app/test` | 242,6 KB | 23 | 26/11/2026 | 10/09/2026 |
 | `runtime/__pycache__` | 237,3 KB | 10 | 26/11/2026 | 21/09/2026 |
 | `memory/__pycache__` | 219,7 KB | 10 | 25/11/2026 | 04/09/2026 |
@@ -99,7 +99,7 @@ Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somen
 
 ## Duplicatas por hash (SHA-256)
 
-- Arquivos hasheados: **568** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
+- Arquivos hasheados: **570** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
 - Grupos duplicados: **34**
 - Espaço recuperável: **54,6 KB**
 

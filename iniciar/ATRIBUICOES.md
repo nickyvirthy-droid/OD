@@ -9,6 +9,42 @@
 
 ---
 
+## 28/11/2026 — APK 4082 removido e Nicky Locutor localizada nos snapshots
+
+**Autor:** Freebuff (Buffy) — pedidos do dono (*"remover o APK arm64 defeituoso"*
+e *"varrer os caminhos externos autorizados"*).
+
+### Removido
+
+- `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk` (26.906.673 B, sha256
+  `f323e430…39778f`, `versionCode 4082`). A pasta manteve o completo
+  `1.45.1+2082` (conferido com `aapt`).
+
+### Lido (somente leitura, fora do repositório)
+
+- `/home/alex/dados/od_snapshots/snapshot_od-2026-10-25_0350/.../analise/Nicky Locutor`
+  e a cópia em `/mnt/Arquivos/od_snapshots/...` — **870 MB, 5.684 arquivos**,
+  idênticas bit a bit entre os dois HDs. `Nicky Radio` está no snapshot
+  `2026-11-01_0344`.
+
+### Modificados
+
+- `docs/INVENTARIO_ARQUIVOS.md` (regenerado após a remoção),
+  `iniciar/session.json` (checkpoints `apk_4082_removido_2026_11_28` e
+  `varredura_externa_nicky_2026_11_28`),
+  `iniciar/2026-11-28_conversa_omegadrakon.md` (§9),
+  `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** tirar do acervo o único APK com versão errada e dizer onde a
+  pasta arquivada realmente está.
+- **Resultado:** a pasta está preservada nos snapshots de 25/10 (duas cópias,
+  bit a bit iguais); nada foi restaurado nem apagado fora do repositório.
+- **Estado:** concluído; sem restart e sem bump (`1.47.0+2085`).
+
+---
+
 ## 28/11/2026 — versionCode 4082: causa medida e guarda no build
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"investigar por que o APK arm64 da

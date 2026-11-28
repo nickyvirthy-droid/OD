@@ -353,3 +353,48 @@ conferência automática) e `docs/ANALISE_SISTEMA_TODO.md` (checkbox do 4082
 fechado com causa e correção).
 
 Sem rebuild de APK e sem bump: nenhuma mudança no app, só no pipeline.
+
+## §9 — APK 4082 removido e pasta Nicky Locutor localizada nos snapshots (28/11 ~17:20)
+
+**Dono:** *"Remover o APK arm64 defeituoso (versionCode 4082) de
+backups/apk-v1.45.1-2082"* e, na sequência, *"varrer os caminhos externos
+autorizados em busca da pasta Nicky Locutor arquivada"*.
+
+**Autor:** Freebuff (Buffy).
+
+### APK removido
+
+- `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk` — 26.906.673 bytes,
+  **sha256 `f323e430…39778f`**, e o `aapt` confirmou `1.45.1`, `versionCode
+  **4082**` (offset 1000×ABI). Registrado o hash antes de apagar.
+- A pasta ficou só com `OmegaDrakon.apk` (**1.45.1+2082**, conferido).
+- Inventário: **3.747 arquivos · 5,7 GB · 34 grupos / 54,6 KB**.
+
+### Varredura externa (somente leitura)
+
+Escopo: `/home/alex`, `/mnt/Arquivos` (os dois HDs de 931 GB: `sdb1` montado em
+`/home/alex/dados` e `sdc1` em `/mnt/Arquivos`), `/srv/omegadrakon`, `/media`,
+`/run/media`.
+
+**Encontrada — arquivada dentro dos snapshots do OD:**
+
+```
+/home/alex/dados/od_snapshots/snapshot_od-2026-10-25_0350/home/alex/OmegaDrakon/analise/Nicky Locutor
+/mnt/Arquivos/od_snapshots/snapshot_od-2026-10-25_0350/home/alex/OmegaDrakon/analise/Nicky Locutor
+```
+
+- **870 MB · 5.684 arquivos · 668 diretórios**, com `nicky-locutor` e
+  `nicky-locutor v0.0.0` (a variante edge-tts).
+- Os dois HDs são **bit a bit iguais** (diff de sha256 entre as listagens:
+  exit 0) — há duas cópias independentes.
+- `Nicky Radio` sobrevive no snapshot **2026-11-01_0344** (também nos dois HDs).
+
+**Outras ocorrências** (nenhuma é a pasta procurada): `agents/nicky_virthy` e o
+pacote Kotlin `com.omegadrakon.nicky` (código do próprio OD, inclusive dentro dos
+snapshots), fotos `Nicky NNN.jpg` em `/home/alex/Alex/legado` e o Legado
+(`/home/alex/Legado/Nicky`, `Nicky Virthy`).
+
+**Conclusão:** a análise estava concluída (etapas B/D/E em 27/10) e o material
+arquivado está preservado nos snapshots de 25/10 — nada foi restaurado para
+`analise/`, conforme a decisão de arquivar. Nenhum arquivo foi movido, copiado ou
+apagado nesta varredura.
