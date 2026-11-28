@@ -128,3 +128,55 @@ ajudar nisso tudo."*
 
 Só medição inicial; nada do dono foi movido ou apagado; sem restart e sem bump
 (`1.47.0+2085`).
+
+## §4 — Fase 1 do inventário entregue (28/11 ~16:08)
+
+**Dono:** *"Rodar a Fase 1 de organização: inventário por pasta com duplicatas
+por hash e catálogo de compactados"*.
+
+**Autor:** Freebuff (Buffy).
+
+### Entregue
+
+- `tools/inventario_arquivos.py` — somente leitura: resumo por pasta (1º/2º
+  nível), soltos na raiz, vazios, nomes com espaço, **duplicatas por SHA-256**
+  (pré-agrupadas por tamanho; limites de 200 MB por arquivo) e **catálogo de
+  compactados** (zip/tar/gz/7z/rar) com **busca interna sem extrair**
+  (`--buscar`), saídas Markdown/JSON.
+- `tests/test_inventario_arquivos.py` — 11 casos (exclusões, duplicatas,
+  catálogo, gzip de arquivo único, nomes com espaço, relatório, CLI). **11
+  passed**.
+- `docs/INVENTARIO_ARQUIVOS.md` — relatório real do projeto.
+
+### Números medidos
+
+- **5.233 arquivos · 6,1 GB · 23 compactados · 472 grupos duplicados ·
+  278,7 MB recuperáveis.**
+- `site` 3,0 GB · `backups` 1,5 GB · `voice` 693 MB · `data` 669 MB · `assets`
+  100 MB · `logs` 46,6 MB · `analise` 13,8 MB.
+- Artefatos de build (`app/build`, `.dart_tool`, `app/android/.gradle`) ficam
+  fora por padrão (`--incluir-build` entra).
+- **Busca `nicky` na listagem interna dos 23 compactados: zero ocorrências** —
+  o material arquivado não está no projeto.
+
+### Achados
+
+1. **Cinco pastas são conteúdo de APK extraído com nome de arquivo**:
+   `AndroidManifest.xml` (29M/338), `assets/AssetManifest.json` (52M/404),
+   `assets/flutter_assets/version.json` (52M/404), `lib` (29M/338) e
+   `lib/arm64-v8a/libapp.so` (29M/338) — ~**191 MB** de binários, duplicados
+   entre si pelo hash.
+2. `site/OmegaDrakon*.apk` são **byte-idênticos** aos de
+   `backups/apk-v1.47.0-2085` (~95 MB duplicados).
+3. `backups/apk-v1.44.0-2080` e `apk-v1.45.0-2081` têm APKs idênticos entre si.
+4. **10 arquivos vazios**, incluindo `data/od.db` (0 byte) e
+   `limitacoes.txt`/`pedido.txt`.
+5. Raiz com **16 arquivos soltos**.
+
+### Fase 2 (proposta, nada executado)
+
+(a) remover as 5 pastas de APK extraído; (b) decidir a duplicata `site/` ×
+`backups/apk`; (c) limpar vazios e `.txt` soltos; (d) autorizar varredura fora
+do projeto (home/HDs) para localizar o arquivo da Nicky Locutor.
+
+Sem restart e sem bump (`1.47.0+2085`).

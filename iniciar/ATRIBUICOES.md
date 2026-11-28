@@ -9,6 +9,43 @@
 
 ---
 
+## 28/11/2026 — Fase 1 do inventário de arquivos (ferramenta + relatório)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"Rodar a Fase 1 de organização"*).
+
+### Criados
+
+- `tools/inventario_arquivos.py` — inventário somente leitura: pastas (1º/2º
+  nível), soltos na raiz, vazios, nomes com espaço, duplicatas por SHA-256 e
+  catálogo de compactados com busca interna sem extrair; Markdown/JSON.
+- `tests/test_inventario_arquivos.py` — 11 casos (11 passed).
+- `docs/INVENTARIO_ARQUIVOS.md` — relatório real do projeto.
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `inventario_fase1_2026_11_28`.
+- `iniciar/2026-11-28_conversa_omegadrakon.md` (§4), `iniciar/ATRIBUICOES.md`
+  (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** ter números medidos antes de decidir qualquer destino (regra 22),
+  e uma busca confiável dentro de compactados.
+- **Pronto/validado:** `5233 arquivos · 6,1 GB · 23 compactados · 472 grupos
+  duplicados (278,7 MB)`. Busca `nicky` nos compactados = **zero**. Testes 11
+  passed; roda em ~10 s.
+- **Achados:** 5 pastas com conteúdo de APK extraído e nome de arquivo
+  (`AndroidManifest.xml`, `assets/AssetManifest.json`,
+  `assets/flutter_assets/version.json`, `lib`, `lib/arm64-v8a/libapp.so`,
+  ~191 MB); APKs de `site/` idênticos aos de `backups/apk-v1.47.0-2085`
+  (~95 MB); `data/od.db` vazio.
+- **Estado:** Fase 1 concluída. Nada movido ou apagado (Fase 2 exige aprovação
+  por lote). Sem restart e sem bump (`1.47.0+2085`).
+- **Pela metade / próximo passo:** Fase 2 (limpeza dos achados) e varredura fora
+  do projeto dependem da ordem do dono.
+
+---
+
 ## 28/11/2026 — Abertura da frente "arquivos bagunçados" (medição inicial)
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"meus arquivos estão muito
