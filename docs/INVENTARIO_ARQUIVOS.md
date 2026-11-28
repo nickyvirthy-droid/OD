@@ -1,6 +1,6 @@
 # Inventário de arquivos do OmegaDrakon (Fase 1)
 
-Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
+Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
 
 - Raiz: `/home/alex/OmegaDrakon`
 - Artefatos de build (excluídos): `app/build`, `app/.dart_tool`, `.dart_tool`, `build`
@@ -10,14 +10,14 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 
 | Arquivos | Tamanho | Compactados |
 |---:|---:|---:|
-| 3.749 | 6.0 GB | 23 |
+| 3.745 | 5.8 GB | 23 |
 
 ## Por pasta (1º nível)
 
 | Pasta | Tamanho | Arquivos | Mais novo |
 |---|---:|---:|---|
 | `site` | 3,0 GB | 57 | 26/11/2026 |
-| `backups` | 1,5 GB | 15 | 28/11/2026 |
+| `backups` | 1,4 GB | 11 | 28/11/2026 |
 | `voice` | 693,0 MB | 23 | 27/10/2026 |
 | `data` | 668,9 MB | 2404 | 28/11/2026 |
 | `logs` | 46,6 MB | 21 | 28/11/2026 |
@@ -32,7 +32,7 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 | `runtime` | 502,0 KB | 46 | 26/11/2026 |
 | `.od_repair_backups` | 492,9 KB | 10 | 18/11/2026 |
 | `memory` | 414,1 KB | 20 | 25/11/2026 |
-| `(raiz)` | 344,4 KB | 16 | 28/11/2026 |
+| `(raiz)` | 344,1 KB | 16 | 28/11/2026 |
 | `.od_sandbox` | 314,6 KB | 6 | 04/11/2026 |
 | `.od_backups` | 217,0 KB | 2 | 24/10/2026 |
 | `.crush` | 183,8 KB | 4 | 26/11/2026 |
@@ -62,10 +62,8 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 | `voice/tts` | 548,0 MB | 20 | 27/10/2026 | 14/11/2023 |
 | `voice/stt` | 145,0 MB | 3 | 01/10/2026 | 04/07/2026 |
 | `site` | 95,7 MB | 31 | 26/11/2026 | 09/10/2026 |
-| `backups/apk-v1.47.0-2085` | 94,9 MB | 2 | 26/11/2026 | 26/11/2026 |
 | `backups/apk-v1.45.1-2082` | 94,5 MB | 2 | 17/11/2026 | 17/11/2026 |
 | `backups/apk-v1.45.0-2081` | 94,5 MB | 2 | 14/11/2026 | 14/11/2026 |
-| `backups/apk-v1.44.0-2080` | 94,5 MB | 2 | 14/11/2026 | 14/11/2026 |
 | `logs` | 46,6 MB | 21 | 28/11/2026 | 13/10/2026 |
 | `data/vector_memory` | 27,1 MB | 1 | 27/11/2026 | 27/11/2026 |
 | `tests/__pycache__` | 26,7 MB | 374 | 28/11/2026 | 30/09/2026 |
@@ -88,7 +86,7 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 | `integrations` | 383,3 KB | 16 | 26/11/2026 | 17/10/2026 |
 | `app/assets` | 368,8 KB | 1 | 09/10/2026 | 09/10/2026 |
 | `app/lib` | 345,7 KB | 21 | 26/11/2026 | 10/09/2026 |
-| `(raiz)` | 344,4 KB | 16 | 28/11/2026 | 07/09/2026 |
+| `(raiz)` | 344,1 KB | 16 | 28/11/2026 | 07/09/2026 |
 | `tools/__pycache__` | 342,4 KB | 18 | 28/11/2026 | 03/09/2026 |
 | `tools` | 292,6 KB | 22 | 28/11/2026 | 03/09/2026 |
 | `app/test` | 242,6 KB | 23 | 26/11/2026 | 10/09/2026 |
@@ -96,19 +94,17 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 | `memory/__pycache__` | 219,7 KB | 10 | 25/11/2026 | 04/09/2026 |
 | `.od_backups` | 217,0 KB | 2 | 24/10/2026 | 24/10/2026 |
 | `runtime` | 205,2 KB | 11 | 26/11/2026 | 11/09/2026 |
+| `.od_sandbox/limpeza-nomes` | 198,4 KB | 4 | 04/11/2026 | 04/11/2026 |
+| `memory` | 194,4 KB | 10 | 25/11/2026 | 03/09/2026 |
 
 ## Duplicatas por hash (SHA-256)
 
-- Arquivos hasheados: **576** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
-- Grupos duplicados: **38**
-- Espaço recuperável: **189,4 MB**
+- Arquivos hasheados: **566** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
+- Grupos duplicados: **34**
+- Espaço recuperável: **54,6 KB**
 
 | Tamanho cada | Cópias | Desperdício | Arquivos |
 |---:|---:|---:|---|
-| 69,1 MB | 2 | 69,1 MB | `backups/apk-v1.47.0-2085/OmegaDrakon.apk`<br>`site/OmegaDrakon.apk` |
-| 68,8 MB | 2 | 68,8 MB | `backups/apk-v1.44.0-2080/OmegaDrakon.apk`<br>`backups/apk-v1.45.0-2081/OmegaDrakon.apk` |
-| 25,8 MB | 2 | 25,8 MB | `backups/apk-v1.47.0-2085/OmegaDrakon-arm64.apk`<br>`site/OmegaDrakon-arm64.apk` |
-| 25,7 MB | 2 | 25,7 MB | `backups/apk-v1.44.0-2080/OmegaDrakon-arm64.apk`<br>`backups/apk-v1.45.0-2081/OmegaDrakon-arm64.apk` |
 | 7,0 KB | 3 | 14,0 KB | `voice/tts/miro_pt-BR.onnx.json`<br>`voice/tts/pt_BR-dii-high.onnx.json`<br>`voice/tts/pt_BR-miro-high.onnx.json` |
 | 7,0 KB | 2 | 7,0 KB | `workspace/od-builder/AGENTS.md`<br>`workspace/openclaw/AGENTS.md` |
 | 4,8 KB | 2 | 4,8 KB | `workspace/od-builder/.git/hooks/pre-rebase.sample`<br>`workspace/openclaw/.git/hooks/pre-rebase.sample` |
@@ -125,8 +121,12 @@ Gerado em **2026-11-28T15:50:03-0300** por `tools/inventario_arquivos.py` (somen
 | 896 B | 2 | 896 B | `workspace/od-builder/.git/hooks/commit-msg.sample`<br>`workspace/openclaw/.git/hooks/commit-msg.sample` |
 | 876 B | 2 | 876 B | `workspace/od-builder/TOOLS.md`<br>`workspace/openclaw/TOOLS.md` |
 | 780 B | 2 | 780 B | `data/refs_todo/NV/NV v1.9.X/NV-v1.9.2-nested-workflows-bootstrap/core/workflows/workflow_stack.py`<br>`data/refs_todo/NV/NV v1.9.X/workflows/workflow_stack.py` |
+| 544 B | 2 | 544 B | `workspace/od-builder/.git/hooks/pre-receive.sample`<br>`workspace/openclaw/.git/hooks/pre-receive.sample` |
+| 537 B | 2 | 537 B | `workspace/od-builder/USER.md`<br>`workspace/openclaw/USER.md` |
+| 478 B | 2 | 478 B | `workspace/od-builder/.git/hooks/applypatch-msg.sample`<br>`workspace/openclaw/.git/hooks/applypatch-msg.sample` |
+| 424 B | 2 | 424 B | `workspace/od-builder/.git/hooks/pre-applypatch.sample`<br>`workspace/openclaw/.git/hooks/pre-applypatch.sample` |
 
-_Mostrando 20 de 38 grupos._
+_Mostrando 20 de 34 grupos._
 
 ## Compactados (catálogo)
 
@@ -161,10 +161,6 @@ Para procurar um termo dentro dos compactados sem extrair:
 ```
 python3 tools/inventario_arquivos.py --buscar nicky
 ```
-
-## Busca por "nicky" nos compactados
-
-_Nenhuma ocorrência na listagem interna._
 
 ## Pontos de arrumação que já aparecem
 

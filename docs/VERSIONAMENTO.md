@@ -84,6 +84,9 @@ versão congelada recebendo features por baixo do pano.
    `backups/apk-v1.44.0-2080/` guardando 1.45.0/2081 (duplicado) e a trilha
    sem 1.46.0, 1.46.1 e 1.47.0; o 1.47.0/2085 foi arquivado e conferido
    nessa data. Sem este passo o rollback do app fica sem binário confiável.
+   **Uma cópia por versão (28/11):** a versão **vigente** publicada em `site/`
+   não é duplicada em `backups/` — `site/` é a cópia canônica (é a que o app
+   baixa); `backups/apk-vX-<code>/` serve às versões **antigas**, para rollback.
 
 ## 6. Guardas de coerência (2026-09-26)
 

@@ -12,6 +12,28 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## Trilha de APKs deduplicada: uma cópia por versão (2026-11-28, sem bump)
+
+**Contexto:** o inventário de arquivos (Fase 1, `docs/INVENTARIO_ARQUIVOS.md`)
+ahou 189,4 MB em APKs repetidos. Medição com `sha256sum` + `aapt dump badging`:
+`site/OmegaDrakon*.apk` era byte-idêntico a `backups/apk-v1.47.0-2085/` e
+`backups/apk-v1.44.0-2080/` guardava **1.45.0/2081**, idêntico a
+`backups/apk-v1.45.0-2081/` (não existe build 1.44.0 no acervo).
+
+**Feito:** removidos `backups/apk-v1.44.0-2080/` (rótulo errado, duplicata de
+1.45.0) e `backups/apk-v1.47.0-2085/` (cópia idêntica à publicada em `site/`).
+Fica **uma cópia por versão**: 1.45.0 e 1.45.1 em `backups/`, 1.47.0 em
+`site/` (é a que o app baixa). ~190 MB liberados. Nada rastreado no git foi
+tocado (`site/*.apk` e `backups/` já eram ignorados).
+
+**Achado registrado:** `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`
+reporta `versionCode=4082` (o completo reporta 2082; o par 1.47.0 reporta 2085
+nos dois). Virou checkbox no §4 do `docs/ANALISE_SISTEMA_TODO.md` — se o app
+compara `versionCode` para atualizar, um 4082 no braço arm64 pode nunca ser
+substituído por builds 2xxx.
+
+---
+
 ## Streaming no grafo: tokens reais e frames de erro alinhados ao caminho direto (2026-11-26, sem bump)
 
 **Contexto:** ao fechar o gate em zero (entrada abaixo), ficou exposto que em

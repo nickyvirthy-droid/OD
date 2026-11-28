@@ -9,6 +9,38 @@
 
 ---
 
+## 28/11/2026 — Duplicatas de APK limpas (uma cópia por versão, -190 MB)
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"limpar as duplicatas de APK entre
+site/ e backups, mantendo uma cópia por versão"*).
+
+### Removidos (não rastreados)
+
+- `backups/apk-v1.44.0-2080/` — continha **1.45.0/2081** (rótulo errado) e era
+  byte-idêntico a `backups/apk-v1.45.0-2081/`.
+- `backups/apk-v1.47.0-2085/` — byte-idêntico a `site/OmegaDrakon*.apk`.
+
+### Modificados
+
+- `docs/CHANGELOG.md`, `docs/VERSIONAMENTO.md` (passo 9), `docs/ANALISE_SISTEMA_TODO.md`
+  (checkbox do `versionCode=4082`), `docs/INVENTARIO_ARQUIVOS.md` (regenerado),
+  `iniciar/session.json`, `iniciar/2026-11-28_conversa_omegadrakon.md` (§6),
+  `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** uma cópia por versão, com a vigente em `site/` (a que o app
+  baixa) e as antigas em `backups/` para rollback.
+- **Validado:** sha256 + `aapt dump badging` em todos os APKs antes de apagar;
+  depois, 1.45.0 / 1.45.1 / 1.47.0 aparecem **uma vez** cada; inventário
+  3.745 arquivos, 5,8 GB, duplicatas 189,4 MB → **54,6 KB**.
+- **Achado:** `apk-v1.45.1-2082/OmegaDrakon-arm64.apk` tem
+  `versionCode=4082` (completo=2082) — virou checkbox, não foi "consertado" por
+  conta própria.
+- **Estado:** concluído; sem restart e sem bump (`1.47.0+2085`).
+
+---
+
 ## 28/11/2026 — Fase 2a: pastas de APK extraído removidas (-161 MB)
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"remover as cinco pastas de APK

@@ -1,4 +1,17 @@
 {
+  "dedupe_apks_2026_11_28": {
+    "pedido": "Dono (28/11 ~16:30): 'Limpar as duplicatas de APK entre site/ e backups, mantendo uma copia por versao'.",
+    "medido_antes": "sha256 + aapt dump badging: site/OmegaDrakon*.apk == backups/apk-v1.47.0-2085/ (mesmo sha256 4fa3bb88... e e096d1fd...); backups/apk-v1.44.0-2080/ continha 1.45.0/2081 (NAO existe build 1.44.0) e era byte-identico a backups/apk-v1.45.0-2081/.",
+    "removido": "backups/apk-v1.44.0-2080/ (95 MB, rotulo errado) e backups/apk-v1.47.0-2085/ (95 MB, copia identica da publicada). ~190 MB liberados.",
+    "resultado": "Uma copia por versao: 1.45.0 em backups/apk-v1.45.0-2081, 1.45.1 em backups/apk-v1.45.1-2082, 1.47.0 em site/ (canonica, e a que o app baixa). Nada rastreado no git tocado (site/*.apk e backups/ ja ignorados). Inventario depois: 3745 arquivos, 5,8 GB, 34 grupos duplicados / 54,6 KB (antes 38 / 189,4 MB).",
+    "achado": "backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk reporta versionCode=4082 (completo=2082; par 1.47.0=2085 nos dois). Virou checkbox no S4 do docs/ANALISE_SISTEMA_TODO.md: se o app compara versionCode, arm64 instalado como 4082 pode nunca aceitar builds 2xxx.",
+    "docs_atualizados": "docs/CHANGELOG.md (entrada 28/11 sem bump), docs/VERSIONAMENTO.md (passo 9: a versao vigente em site/ nao se duplica em backups/), docs/ANALISE_SISTEMA_TODO.md (checkbox do 4082), docs/INVENTARIO_ARQUIVOS.md (regenerado).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido. Sem restart e sem bump (1.47.0+2085).",
+    "proximo": "Itens (c) e (d) da Fase 2: vazios e .txt soltos da raiz; varredura fora do projeto (home/HDs) para a Nicky Locutor.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S6)",
+    "updated_at": "2026-11-28T16:35:00-03:00"
+  },
   "fase2a_apk_extraido_2026_11_28": {
     "pedido": "Dono (28/11 ~16:15): 'Executar a Fase 2a: remover as cinco pastas de APK extraido depois de confirmar que nao sao fonte'.",
     "confirmacao_antes_de_apagar": "(1) Conteudo 100% de APK extraido (AndroidManifest.xml, classes.dex, resources.arsc, lib/arm64-v8a, assets/flutter_assets, .properties, .tflite); nenhum .py/.dart/.js/.html/.md de fonte (so META-INF/NOTICE.md do proprio APK). (2) git ls-files nos caminhos = VAZIO (nada rastreado). (3) .gitignore ja tinha /AndroidManifest.xml/ e /assets/ ('Build artifacts from APK extraction'). (4) Nenhuma referencia no codigo: app usa Image.asset('assets/logo.png') que resolve para app/assets/logo.png (declarado em app/pubspec.yaml e presente, 377KB); server.py so comenta um caso de proxy de ferramentas, sem servir assets/ da raiz.",

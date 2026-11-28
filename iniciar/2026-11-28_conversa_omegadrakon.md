@@ -226,3 +226,45 @@ regenerado.
 Duplicatas restantes conhecidas: `site/OmegaDrakon*.apk` ×
 `backups/apk-v1.47.0-2085` (~95 MB) e `apk-v1.44.0-2080` × `apk-v1.45.0-2081`
 (~95 MB) — item (b) da Fase 2, aguardando decisão do dono.
+
+## §6 — Duplicatas de APK limpas: uma cópia por versão (28/11 ~16:35)
+
+**Dono:** *"Limpar as duplicatas de APK entre site/ e backups, mantendo uma
+cópia por versão"*.
+
+**Autor:** Freebuff (Buffy).
+
+### Medição antes (sha256 + `aapt dump badging`)
+
+- `site/OmegaDrakon.apk` (`4fa3bb88…`) e `site/OmegaDrakon-arm64.apk`
+  (`e096d1fd…`) **idênticos** aos de `backups/apk-v1.47.0-2085/`.
+- `backups/apk-v1.44.0-2080/` guardava **1.45.0 / versionCode 2081** — não
+  existe build 1.44.0 — e era byte-idêntico a `backups/apk-v1.45.0-2081/`.
+
+### Removido (~190 MB)
+
+- `backups/apk-v1.44.0-2080/` — rótulo errado, duplicata da 1.45.0.
+- `backups/apk-v1.47.0-2085/` — cópia idêntica da publicada em `site/`.
+
+### Resultado
+
+Uma cópia por versão: **1.45.0** e **1.45.1** em `backups/`; **1.47.0** em
+`site/` (canônica, é a que o app baixa). Nada rastreado no git foi tocado
+(`site/*.apk` e `backups/` já eram ignorados).
+
+Inventário regenerado: **3.745 arquivos · 5,8 GB · 34 grupos duplicados ·
+54,6 KB** (antes 38 grupos / 189,4 MB).
+
+### Achado novo (checkbox no §4 do TODO)
+
+`backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk` reporta **`versionCode=4082`**
+(o completo reporta 2082; o par 1.47.0 reporta 2085 nos dois). Se o app compara
+`versionCode` para atualizar, um arm64 instalado como 4082 pode nunca aceitar
+builds 2xxx — a origem do offset precisa ser investigada antes do próximo
+release.
+
+### Documentação
+
+`docs/CHANGELOG.md` (entrada de 28/11), `docs/VERSIONAMENTO.md` (passo 9: a
+versão vigente em `site/` não se duplica em `backups/`) e
+`docs/ANALISE_SISTEMA_TODO.md` (checkbox do 4082). Sem restart e sem bump.
