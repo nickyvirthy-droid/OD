@@ -9,6 +9,34 @@
 
 ---
 
+## 28/11/2026 — Abertura da frente "arquivos bagunçados" (medição inicial)
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"meus arquivos estão muito
+bagunçados... você vai me ajudar nisso tudo"*).
+
+### Modificados
+
+- `iniciar/session.json` — checkpoint `organizacao_arquivos_2026_11_28` (novo
+  tema no topo, regra 5).
+- `iniciar/2026-11-28_conversa_omegadrakon.md` (§3).
+- `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** abrir a frente de organização sem tocar em nada do dono, com
+  números medidos e uma proposta em duas fases.
+- **Medido:** `app` 4,2G, `site` 3,0G, `backups` 1,6G, `voice` 694M, `data`
+  675M; 7 tar.gz em `backups/`; raiz com 5 `.txt` soltos (2 vazios).
+- **Nicky Locutor:** nenhuma pasta/arquivo `*nicky*`/`*locutor*` no projeto e
+  **zero** ocorrências na listagem interna dos 7 tar.gz → não está nos backups
+  do repositório; provavelmente fora dele (home/HDs), o que exige caminho
+  autorizado.
+- **Pela metade / próximo passo:** Fase 1 (inventário + catálogo de
+  compactados) **não iniciada**; aguarda autorização dos caminhos externos e do
+  escopo. Nada movido/apagado, sem restart e sem bump (`1.47.0+2085`).
+
+---
+
 ## 28/11/2026 — Confirmação: Nicky Locutor arquivada e updates do SO aplicados
 
 **Autor:** Freebuff (Buffy) — confirmação pedida pelo dono (*"decidimos

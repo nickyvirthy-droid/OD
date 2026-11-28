@@ -85,3 +85,46 @@ concluído a análise dela. Os updates acho que também já foram."*
 
 Verificação + registro apenas: nenhum `.py` alterado, sem teste, sem restart e
 sem bump (`1.47.0+2085`).
+
+## §3 — Novo tema: arquivos bagunçados e busca da pasta arquivada (28/11 15:58)
+
+**Dono:** *"meus arquivos estão muito bagunçados, pode ser que ela apareça
+novamente dentro de alguma pasta perdida ou um arquivo compactado. você vai me
+ajudar nisso tudo."*
+
+**Autor:** Freebuff (Buffy).
+
+### Medido (dentro do projeto)
+
+- `HEAD == origin/master == 3c5cbe1`, árvore limpa.
+- Tamanhos: `app` 4,2G · `site` 3,0G · `backups` 1,6G · `voice` 694M · `data`
+  675M · `assets` 103M · `logs` 47M · `analise` 14M.
+- Compactados: `backups/auto-capturas/od-capturas-2026-11-20_0412.tar.gz`
+  (590 MB), `od-capturas-2026-11-27_0405.tar.gz` (657 MB) e 5 `backups/auto/*.tar.gz`
+  (1,3–1,9 MB).
+- Raiz ainda tem 5 `.txt` soltos, dois **vazios** (`limitacoes.txt`,
+  `pedido.txt`).
+
+### Busca da Nicky Locutor
+
+- `find` até 3 níveis por `*nicky*`/`*locutor*`: **nada** além de
+  `agents/nicky_virthy` (sem relação).
+- Listagem interna dos **7 tar.gz** de `backups/` filtrada por `nicky|locutor`:
+  **zero ocorrências** — o material arquivado não está nos backups do projeto.
+- Conclusão medida: ou está fora do repositório (home, HDs, `dados/`), ou num
+  compactado que não vive em `backups/`. Varrer fora do projeto precisa de
+  caminho autorizado pelo dono.
+
+### Proposta (Fase 1, só leitura)
+
+1. Inventário por pasta: tamanho, nº de itens, idade, **duplicatas por hash**.
+2. Catálogo de compactados com a listagem interna pesquisável (para achar
+   "nicky" dentro de zip/tar sem extrair).
+3. Saída em `docs/INVENTARIO_ARQUIVOS.md` + índice de compactados.
+4. Fase 2 (depois): destino por lote (manter/mover/arquivar/lixo) — só com
+   aprovação do dono, item por item.
+
+### Estado
+
+Só medição inicial; nada do dono foi movido ou apagado; sem restart e sem bump
+(`1.47.0+2085`).

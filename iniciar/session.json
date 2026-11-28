@@ -1,4 +1,17 @@
 {
+  "organizacao_arquivos_2026_11_28": {
+    "pedido": "Dono (28/11 15:5x): 'meus arquivos estao muito bagunçados, pode ser que ela [pasta Nicky Locutor] apareça novamente dentro de alguma pasta perdida ou um arquivo compactado. voce vai me ajudar nisso tudo.'",
+    "tema": "organizacao e catalogo de arquivos do dono (dentro e fora do projeto)",
+    "medido_no_projeto": "3c5cbe1 == origin/master, arvore limpa. Tamanhos: app 4,2G, site 3,0G, backups 1,6G, voice 694M, data 675M, assets 103M, logs 47M, analise 14M. backups/auto-capturas: od-capturas-2026-11-20_0412.tar.gz (590MB) e 2026-11-27_0405.tar.gz (657MB); backups/auto: 5 tar.gz de 1,3-1,9MB. Raiz com 5 txt soltos (alguns vazios: limitacoes.txt, pedido.txt).",
+    "busca_nicky": "Nenhuma pasta/arquivo com 'nicky' ou 'locutor' no projeto (find ate 3 niveis; so agents/nicky_virthy, sem relacao). Listagem dos 7 tar.gz de backups/auto(-capturas) filtrada por nicky|locutor: ZERO ocorrencias. Ou seja: o material arquivado nao esta nos backups do projeto.",
+    "hipotese": "A pasta arquivada esta fora do repositorio (home do dono, HDs externos, /home/alex/dados ou similar) ou em compactado que nao esta em backups/. Scan fora do projeto exige caminho autorizado pelo dono (regra de escopo).",
+    "proposta": "Fase 1 (somente leitura): inventario medido por pasta (tamanho, itens, idade, duplicatas por hash) + catalogo de compactados com listagem interna pesquisavel, gerando docs/INVENTARIO_ARQUIVOS.md e um indice de compactados. Fase 2: destino por pasta (manter/mover/arquivar/lixo) com aprovacao do dono por lote. Nada e movido nem apagado sem ordem (regras 7 e 22).",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Fase 1 ainda NAO iniciada: apenas a medicao inicial acima. Nenhum arquivo do dono tocado; sem restart/bump (1.47.0+2085).",
+    "proximo": "Dono autorizar os caminhos fora do projeto a varrer (ex.: /home/alex/dados, HDs montados) e confirmar se a Fase 1 pode comecar pelo catalogo de compactados + inventario por pasta.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S3)",
+    "updated_at": "2026-11-28T15:58:00-03:00"
+  },
   "confirmacao_dono_2026_11_28": {
     "pedido": "Dono (28/11 15:4x): 'pasta Nicky Locutor decidimos arquivar, me disse que ja havia concluido a analise dela. Os updates acho que tambem ja foram.' — confirmar os dois pontos com medicao.",
     "autor": "Freebuff (Buffy)",
