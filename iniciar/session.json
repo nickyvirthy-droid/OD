@@ -1,4 +1,16 @@
 {
+  "auditoria_todo_2026_11_28": {
+    "pedido": "Dono (28/11 ~17:40): 'o que falta implementar? todos os TODO foram feitos?'",
+    "medido": "docs/ANALISE_SISTEMA_TODO.md: 1762 linhas, 131 checkboxes fechados e 28 abertos. docs/ARCHITECTURE_v2.md: 10 abertos (6 sao duplicata dos do TODO: I1, I3, R1, R5, docs, nobreak).",
+    "achados_desatualizados": "1) O teste de ZIMs (L1506) JA EXISTE e passa: tests/test_zim_compose.py, 11 passed — checkbox aberto por engano. 2) I2 Hybrid Search esta LIGADO em producao desde 25/11 (OD_RAG_HIBRIDO padrao '1'; memory/rag.py:676 monta o BM25Index); falta so o CrossEncoderReranker neural (core/hybrid_search.py:296 tem a classe, a rag usa reranker proprio por overlap-IDF). Semantica: nada a fazer.",
+    "falta_de_verdade": "Codigo: R5 eval framework no CI, teste de credito real do OpenAI no boot (OD_OPENAI_AUTO so checa a chave), cache de embedding de documento, enxugar prompt do chat, ligar o CrossEncoderReranker, monitor upsc do UPS (bloqueado por hardware), xdg-desktop-portal (infra da sessao), OTel Collector/Grafana/alertas (infra externa).",
+    "decisao_do_dono": "I1 semantic cache (recomendacao: desligado), quarentena dos 38 arquivos de revisar/, app por papel, connection pools globais (sem demanda medida), fila distribuida R1 (reescopada como desnecessaria), llm_cache de modelo local (testado e descartado), VRAM no comparador (imensuravel hoje).",
+    "fisico_externo": "Nobreak com USB, segundo no de comunicacao, backup fora da maquina, reteste de IA local 7B, PIN do Bluetooth, foto/Homebox, abrir Homebox pelo site, ouvir a musica do acervo, religar apos queda, WhatsApp Cloud API.",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Auditoria concluida; nenhum codigo alterado neste turno. Checkboxes desatualizados (ZIM e I2) ainda NAO foram corrigidos — aguardando ordem.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S10)",
+    "updated_at": "2026-11-28T17:45:00-03:00"
+  },
   "apk_4082_removido_2026_11_28": {
     "pedido": "Dono (28/11 ~17:15): 'Remover o APK arm64 defeituoso (versionCode 4082) de backups/apk-v1.45.1-2082'.",
     "removido": "backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk — 26.906.673 bytes, sha256 f323e4308286c83b07c132b60578894104e8ccf7971f9b7f309287ab5379778f, aapt confirmou 1.45.1 versionCode 4082 (offset 1000xABI).",

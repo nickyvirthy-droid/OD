@@ -398,3 +398,31 @@ snapshots), fotos `Nicky NNN.jpg` em `/home/alex/Alex/legado` e o Legado
 arquivado está preservado nos snapshots de 25/10 — nada foi restaurado para
 `analise/`, conforme a decisão de arquivar. Nenhum arquivo foi movido, copiado ou
 apagado nesta varredura.
+
+## §10 — Auditoria do TODO (28/11 ~17:45)
+
+**Dono:** *"o que falta implementar? todos os TODO foram feitos?"*
+**Autor:** Freebuff (Buffy).
+
+Medição: `docs/ANALISE_SISTEMA_TODO.md` tem **131 fechados e 28 abertos**;
+`docs/ARCHITECTURE_v2.md` tem 10 abertos (6 são duplicatas do TODO).
+
+Conferido contra o código:
+
+- **Desatualizados:** o teste de ZIMs (L1506) já existe e passa
+  (`tests/test_zim_compose.py`, 11 passed); o **I2 Hybrid Search está ligado**
+  desde 25/11 (`OD_RAG_HIBRIDO` padrão `1`, `memory/rag.py:676`), faltando só o
+  `CrossEncoderReranker` neural (`core/hybrid_search.py:296`), que a RAG ainda
+  não usa (tem reranker próprio por overlap-IDF).
+- **Falta de verdade (código):** R5 eval no CI, teste de crédito real do OpenAI
+  (`OD_OPENAI_AUTO` só checa a chave), cache de embedding de documento, enxugar
+  o prompt do chat, ligar o CrossEncoderReranker, `upsc` no readiness (sem
+  hardware), `xdg-desktop-portal` (sessão) e OTel/Grafana/alertas (infra).
+- **Decisão do dono:** I1 semantic cache, quarentena de `revisar/`, app por
+  papel, connection pools, R1 fila distribuída (reescopada), `llm_cache` local
+  (descartado), VRAM no comparador.
+- **Físico/externo:** nobreak USB, segundo nó, backup off-site, reteste 7B, PIN
+  do Bluetooth, Homebox (foto/site), ouvir a música, religar após queda e
+  WhatsApp Cloud API.
+
+Nenhum código foi alterado neste turno.
