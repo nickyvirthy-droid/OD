@@ -1,0 +1,73 @@
+{
+  "subset": "locomo_subset.jsonl",
+  "data": "2026-11-28T16:59:03-03:00",
+  "modos": {
+    "producao": {
+      "recall@1": 0.8519,
+      "recall@5": 0.9259,
+      "mrr": 0.8889,
+      "ok": {
+        "marli/nome": true,
+        "marli/cidade_atual": true,
+        "marli/trabalho": true,
+        "marli/aniversario": true,
+        "marli/email": true,
+        "marli/projeto": true,
+        "marli/estudo": true,
+        "marli/gato": false,
+        "marli/bicicleta": true,
+        "marli/chave": true,
+        "marli/preferencia": false,
+        "marli/cidade_e_trabalho": true,
+        "marli/nome_e_aniversario": true,
+        "marli/cachorro": true,
+        "clara/nome": true,
+        "clara/cidade": true,
+        "clara/trabalho": true,
+        "clara/papagaio": true,
+        "clara/aniversario": true,
+        "clara/email": true,
+        "clara/gato": true,
+        "tiao/nome": true,
+        "tiao/cidade": true,
+        "tiao/trabalho": true,
+        "tiao/aniversario": true,
+        "tiao/fusca": true,
+        "tiao/barco": true
+      }
+    },
+    "turnos": {
+      "recall@1": 0.8077,
+      "recall@5": 1.0,
+      "mrr": 0.8923,
+      "ok": {
+        "marli/nome": true,
+        "marli/trabalho": true,
+        "marli/aniversario": true,
+        "marli/email": true,
+        "marli/projeto": true,
+        "marli/estudo": true,
+        "marli/gato": true,
+        "marli/bicicleta": true,
+        "marli/chave": true,
+        "marli/preferencia": true,
+        "marli/cidade_e_trabalho": true,
+        "marli/nome_e_aniversario": true,
+        "marli/cachorro": true,
+        "clara/nome": true,
+        "clara/cidade": true,
+        "clara/trabalho": true,
+        "clara/papagaio": true,
+        "clara/aniversario": true,
+        "clara/email": true,
+        "clara/gato": true,
+        "tiao/nome": true,
+        "tiao/cidade": true,
+        "tiao/trabalho": true,
+        "tiao/aniversario": true,
+        "tiao/fusca": true,
+        "tiao/barco": true
+      }
+    }
+  }
+}

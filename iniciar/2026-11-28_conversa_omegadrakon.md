@@ -448,3 +448,39 @@ Fechados com evidência conferida no código:
 - Registrado, no próprio item do I2, que o `CrossEncoderReranker` neural
   (`core/hybrid_search.py:296`) não está plugado — a RAG usa reranker próprio.
   Nenhum item novo foi criado e nenhum código foi alterado.
+
+## §12 — R5 entregue: memória de longa duração no CI (28/11 ~18:40)
+
+**Dono:** *"Implementar o R5: eval framework com subset LOCOMO rodando no CI"*.
+**Autor:** Freebuff (Buffy).
+
+### O que foi construído
+
+| Arquivo | Papel |
+|---|---|
+| `evals/locomo_subset.jsonl` | **3 conversas, 69 turnos, 27 perguntas** (single-hop, multi-hop, temporal, adversarial), autorais — nenhum download |
+| `evals/locomo.py` | motor determinístico sobre o `MemoryGraph` real em SQLite temporário; dois modos (`producao` pelo caminho do chat, `turnos` cru) para separar falha de extrator × de busca |
+| `evals/benchmarks.py` | placar único (`respostas` + `memoria`), CLI com `--json`, `--sem-gate`, `--atualizar-baseline`; exit 1 em falha |
+| `evals/baseline-locomo.json` | nota versionada — pergunta que já passava e cai derruba o CI |
+| `tests/test_eval_locomo.py` | **27 testes** |
+| `.github/workflows/ci.yml` | passo novo **“Benchmarks R5”** |
+
+### Medição de estreia
+
+- `producao`: recall@1 **85,2%** · recall@5 **92,6%** · MRR **0,889** · 0 FP
+- `turnos`: recall@1 **80,8%** · recall@5 **100%** · MRR 0,892 · 0 FP
+- Pisos: 85% (produção) e 90% (turnos), mais comparação com baseline.
+- Validação: `pytest tests/test_eval_locomo.py tests/test_eval.py
+  tests/test_eval_oracle.py` → **76 passed**; `python -m evals.benchmarks` → rc=0.
+
+### Dois furos reais encontrados na estreia
+
+1. **Posses se substituem entre si:** “tenho um gato chamado Bidu” some da
+   busca quando depois entra “tenho uma bicicleta vermelha” — mesma entidade
+   `possui`, e a substituição trata como contradição.
+2. **Radical `prefir-` × `prefer-`:** “o que eu prefiro?” devolve vazio contra
+   o fato “prefere café sem açúcar”.
+
+Os dois ficaram **visíveis** no exame (marcados como falha na baseline), não
+mascarados — são trabalho de memória, com a regressão já protegida pelo gate.
+Sem bump, sem restart.

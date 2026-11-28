@@ -66,6 +66,50 @@ A nota versionada no git. `--comparar` mostra quem **melhorou**, quem
 relacao_a_baseline`) barra regressão em relação ao que já foi provado.
 Baseline mudou? Commitar — a mudança é a prova de que alguém olhou.
 
+## Benchmarks (R5) — respostas + memória
+
+`python -m evals.benchmarks` é o placar único que roda no CI (passo
+**“Benchmarks R5”** em `.github/workflows/ci.yml`). Ele junta as duas
+suites:
+
+| Suite | O que mede | Fonte |
+|---|---|---|
+| **respostas** | rota/conteúdo/prompt esperados, sem LLM | `goldens.jsonl` (modo oracle) |
+| **memoria** | recall@1/@5 e MRR de memória de longa duração | `locomo_subset.jsonl` |
+
+```bash
+python -m evals.benchmarks               # mede e aplica o gate (CI)
+python -m evals.benchmarks --json        # placar completo
+python -m evals.benchmarks --suite memoria
+python -m evals.locomo                   # só a memória, detalhado
+python -m evals.locomo --atualizar-baseline
+```
+
+### Memória de longa duração (`evals/locomo.py`)
+
+O LOCOMO de verdade avalia a resposta de um LLM sobre ~50 sessões; no CI não
+há LLM nem rede, então medimos a fundação: **o fato certo volta na busca
+depois de 69 turnos?** Três conversas autorais (nada de download), quatro
+tipos de pergunta:
+
+- `single_hop` — um fato de uma sessão antiga;
+- `multi_hop` — duas evidências na mesma resposta;
+- `temporal` — o fato velho foi substituído e não pode voltar;
+- `adversarial` — pergunta sobre o que nunca foi dito não pode inventar
+  memória (qualquer resultado com a armadilha conta como falso positivo).
+
+Dois modos de ingestão: `producao` (caminho real do chat, extração por
+regex) e `turnos` (turno cru). **A diferença entre eles localiza o defeito**
+— se `turnos` está bom e `producao` não, o problema é do extrator, não do
+índice.
+
+O gate usa **piso publicado** (`PISO_RECALL5`) **e baseline versionada**
+(`baseline-locomo.json`): pergunta que já passava e deixa de passar derruba
+o CI. Medição de estreia (28/11/2026): produção recall@5 **92,6%**, turnos
+**100%**, 0 falsos positivos. O exame já achou dois furos reais (posses se
+substituindo entre si e radical `prefir-`×`prefer-`), registrados no
+`docs/CHANGELOG.md` e mantidos como falha visível até o conserto.
+
 ## Regras da casa aplicadas aqui
 
 - **Nunca escreve em produção**: toda rodada usa `persist=False` (sem

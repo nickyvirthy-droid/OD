@@ -232,7 +232,7 @@ dmesg -T | grep -i bluetooth
 
 ### Semana 11-12: Resiliência + Eval
 - [x] **R1**: Task Queue (Redis/RQ) + RetryPolicy declarativo por nó — **FECHADO 28/11**: a fila própria (`core/task_queue.py`, em produção desde 14/11, com `RetryPolicy` por nó) cobre o item; fila distribuída só se aparecer segundo nó
-- [ ] **R5**: Eval Framework (LOCOMO subset + custom) no CI
+- [x] **R5**: Eval Framework (LOCOMO subset + custom) no CI — **FEITO 28/11**: `evals/locomo.py` (3 conversas / 69 turnos / 27 perguntas; recall@5 93% produção, 100% turnos) + `evals/benchmarks.py` como passo do CI
 - [ ] **Docs**: `docs/ARCHITECTURE_v2.md` (este documento), `pyproject.toml`
 
 ### Continuidade (paralelo, depende de decisão/compra)

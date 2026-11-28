@@ -41,6 +41,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
 
+      # R5 do roadmap: benchmarks com gate próprio (respostas + memória de
+      # longa duração). Roda DEPOIS da suíte de propósito — a suíte já cobre
+      # o oracle; aqui o placar fica visível no log do job (recall@5 por
+      # modo) e derruba o CI se a memória regredir.
+      - name: Benchmarks R5 (respostas + memória LOCOMO)
+        run: python -m evals.benchmarks
+
       - name: compileall (erros de sintaxe/importer)
         run: |
           python -m compileall -q core agents integrations observability plugins storage tools runtime tests

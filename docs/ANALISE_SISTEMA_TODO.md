@@ -1692,7 +1692,19 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       fila própria em produção cobre o caso; nenhuma fila distribuída a fazer.
 - [x] R2: Circuit Breaker em chamadas externas — feito sem `pybreaker`, por
       provider de LLM (`core/resilience.py`); bulkhead dispensado (ver §3)
-- [ ] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI
+- [x] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI —
+      **ENTREGUE 28/11:** `evals/locomo.py` + `evals/locomo_subset.jsonl`
+      (3 conversas, **69 turnos**, **27 perguntas**: single-hop, multi-hop,
+      temporal e adversarial) e `evals/benchmarks.py`, que junta isso ao eval
+      de respostas já existente. Medido: **produção recall@5 93% / MRR 0,889 /
+      0 falsos positivos**; **turnos recall@5 100%**. Gate = piso publicado +
+      baseline (`evals/baseline-locomo.json`) e roda no CI (`python -m
+      evals.benchmarks`). Dois furos reais apareceram na primeira medição:
+      **(1)** posses se substituem entre si ("tenho um gato" some quando
+      depois entra "tenho uma bicicleta", mesma entidade `possui`); **(2)**
+      radical `prefir-` da pergunta não casa com `prefer-` do fato. Ambos
+      ficam no exame (falha visível) até consertar. `tests/test_eval_locomo.py`:
+      **27 testes**
 - [x] Documentação de arquitetura atualizada (`docs/ARCHITECTURE_v2.md`) —
       **FEITO 13/11:** arquivo com 300 linhas (grafo, memória, fila, segurança,
       observabilidade) publicado em `origin/master` no lote `93aadd7`.

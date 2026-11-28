@@ -9,6 +9,37 @@
 
 ---
 
+## 28/11/2026 — R5: memória de longa duração medida no CI
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"implementar o R5: eval framework
+com subset LOCOMO rodando no CI"*).
+
+### Criados
+
+- `evals/locomo_subset.jsonl` — 3 conversas / 69 turnos / 27 perguntas.
+- `evals/locomo.py` — motor LOCOMO (produção × turnos), recall@1/@5, MRR, FP.
+- `evals/benchmarks.py` — placar respostas + memória, gate por piso + baseline.
+- `evals/baseline-locomo.json` — nota versionada da estreia.
+- `tests/test_eval_locomo.py` — 27 testes.
+
+### Modificados
+
+- `.github/workflows/ci.yml` (passo “Benchmarks R5”), `docs/CHANGELOG.md`,
+  `docs/ANALISE_SISTEMA_TODO.md` (R5 fechado), `docs/ARCHITECTURE_v2.md`,
+  `evals/README.md`, `iniciar/session.json` (checkpoint
+  `r5_eval_locomo_2026_11_28`), transcrição §12, `iniciar/ATRIBUICOES.md`
+  (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** dar métrica à memória longa e impedir que ela piore sem
+  ninguém ver — o eval de respostas já existia, o de memória não.
+- **Resultado:** produção recall@5 92,6% (0 FP), turnos 100%; 2 furos reais
+  documentados (posses se substituindo; `prefir-`×`prefer-`).
+- **Estado:** concluído; sem bump, sem restart, sem deploy.
+
+---
+
 ## 28/11/2026 — Higiene dos checkboxes do TODO
 
 **Autor:** Freebuff (Buffy) — pedido do dono (*"marque como feitos os checkboxes

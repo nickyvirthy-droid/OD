@@ -12,6 +12,47 @@
 > `docs/README_VERSAO.md` (§0.1.0 → §0.28.4). A partir daqui, toda entrega
 > passa a registrar entrada neste CHANGELOG **além** do README de Versão.
 
+## R5 entregue: memória de longa duração medida no CI (2026-11-28, sem bump)
+
+**O que faltava:** o eval de respostas (`evals/goldens.jsonl`, modo oracle) já
+rodava no CI desde outubro, mas o roadmap pedia **LOCOMO subset + custom
+benchmarks** — ninguém media se a memória longa continua achando o fato certo
+depois de dezenas de turnos. Era nota de arquivo, não de exame.
+
+**Entregue:**
+
+- `evals/locomo_subset.jsonl` — **3 conversas, 69 turnos, 27 perguntas**
+  (single-hop, multi-hop, temporal e adversarial), PT-BR, autorais: nada
+de download de dataset externo, então roda hermético.
+- `evals/locomo.py` — motor determinístico sobre o `MemoryGraph` real, em
+  SQLite temporário (nunca toca `data/`), com **dois modos de ingestão**:
+  `producao` (caminho do chat, extração por regex) e `turnos` (turno cru).
+  Se `turnos` vai bem e `producao` não, o defeito é do extrator, não da busca.
+  Métricas: recall@1, recall@5, MRR, falsos positivos por tipo.
+- `evals/benchmarks.py` — placar único (`respostas` + `memoria`), CLI
+  `python -m evals.benchmarks` com `--json`, `--sem-gate` e
+  `--atualizar-baseline`; sai com código 1 quando algum benchmark falha.
+- `.github/workflows/ci.yml` — passo novo **“Benchmarks R5”** (roda depois da
+  suíte, sem rede e sem LLM).
+- `evals/baseline-locomo.json` — nota versionada; regressão de qualquer
+  pergunta que já passava derruba o CI.
+- `tests/test_eval_locomo.py` — **27 testes** (validação do subset, motor,
+  dois modos, adversarial, temporal, isolamento por usuário e o gate).
+
+**Medição de estreia (28/11):** `producao` recall@1 **85,2%** · recall@5
+**92,6%** · MRR **0,889**; `turnos` recall@1 **80,8%** · recall@5 **100%** ·
+MRR 0,892; **0 falsos positivos** nas 3 perguntas adversariais (nenhuma
+memória inventada). Pisos publicados: 85% (produção) e 90% (turnos).
+
+**Dois furos reais que o exame achou na estreia** (ficam visíveis, não
+mascarados): **(1)** posses se substituem entre si — “tenho um gato chamado
+Bidu” some quando depois entra “tenho uma bicicleta vermelha”, porque as duas
+caem na mesma entidade `possui`; **(2)** o radical `prefir-` da pergunta não
+casa com `prefer-` do fato (“o que eu prefiro?” devolve vazio). Os dois
+viram trabalho de memória, com a regressão já protegida por este gate.
+
+---
+
 ## Guarda de versão dos APKs: o build não publica mais `versionCode` errado (2026-11-28, sem bump)
 
 **Causa medida do `4082`:** o `backups/apk-v1.45.1-2082/OmegaDrakon-arm64.apk`

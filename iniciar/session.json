@@ -1,4 +1,14 @@
 {
+  "r5_eval_locomo_2026_11_28": {
+    "pedido": "Dono (28/11 ~18:20): 'Implementar o R5: eval framework com subset LOCOMO rodando no CI'.",
+    "entregue": "evals/locomo.py (motor deterministico sobre o MemoryGraph real, SQLite temporario, modos producao e turnos, recall@1/@5/MRR/FP por tipo), evals/locomo_subset.jsonl (3 conversas, 69 turnos, 27 perguntas: single_hop, multi_hop, temporal, adversarial), evals/benchmarks.py (placar respostas + memoria com --json/--sem-gate/--atualizar-baseline), evals/baseline-locomo.json, tests/test_eval_locomo.py (27 testes) e passo 'Benchmarks R5' no .github/workflows/ci.yml.",
+    "medido": "producao: recall@1 85,2%, recall@5 92,6%, MRR 0,889, 0 falsos positivos. turnos: recall@1 80,8%, recall@5 100%, MRR 0,892. Pisos 85% producao / 90% turnos + baseline. Suite: 76 passed (test_eval_locomo + test_eval + test_eval_oracle). CLI python -m evals.benchmarks rc=0.",
+    "achados": "O exame achou dois furos reais: (1) posses se substituem entre si (mesma entidade 'possui': 'tenho um gato' some quando depois entra 'tenho uma bicicleta'); (2) radical prefir- da pergunta nao casa com prefer- do fato ('o que eu prefiro?' devolve vazio). Ficaram visiveis no exame (baseline com false), nao mascarados.",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido; sem bump (1.47.0+2085), sem restart, sem deploy. Documentado em CHANGELOG, TODO (R5 fechado), ARCHITECTURE_v2 e evals/README.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S12)",
+    "updated_at": "2026-11-28T18:40:00-03:00"
+  },
   "higiene_todo_checkboxes_2026_11_28": {
     "pedido": "Dono (28/11 ~18:00): 'Marque como feitos os checkboxes desatualizados do TODO (guarda de ZIMs e hybrid search) e feche os itens já descartados'.",
     "feito": "docs/ANALISE_SISTEMA_TODO.md: 28 abertos / 131 fechados -> 24 abertos / 135 fechados. Fechados com evidencia: teste ZIM (tests/test_zim_compose.py, 11 passed), I2 Hybrid Search (OD_RAG_HIBRIDO=1 desde 25/11), R1 fila distribuida (reescopada; fila propria em producao cobre) e llm_cache de modelo local (descartado em 17/11). docs/ARCHITECTURE_v2.md: R1 sincronizado (9 abertos / 2 fechados).",
