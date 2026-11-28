@@ -231,7 +231,7 @@ dmesg -T | grep -i bluetooth
 - [ ] **I3**: KV-Cache optimization (prefix reuse) — opcional
 
 ### Semana 11-12: Resiliência + Eval
-- [ ] **R1**: Task Queue (Redis/RQ) + RetryPolicy declarativo por nó
+- [x] **R1**: Task Queue (Redis/RQ) + RetryPolicy declarativo por nó — **FECHADO 28/11**: a fila própria (`core/task_queue.py`, em produção desde 14/11, com `RetryPolicy` por nó) cobre o item; fila distribuída só se aparecer segundo nó
 - [ ] **R5**: Eval Framework (LOCOMO subset + custom) no CI
 - [ ] **Docs**: `docs/ARCHITECTURE_v2.md` (este documento), `pyproject.toml`
 

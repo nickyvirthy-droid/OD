@@ -9,6 +9,29 @@
 
 ---
 
+## 28/11/2026 — Higiene dos checkboxes do TODO
+
+**Autor:** Freebuff (Buffy) — pedido do dono (*"marque como feitos os checkboxes
+desatualizados e feche os itens já descartados"*).
+
+### Modificados
+
+- `docs/ANALISE_SISTEMA_TODO.md` — 4 checkboxes fechados com evidência (ZIMs,
+  I2, R1, `llm_cache` local): **28 abertos / 131 fechados → 24 / 135**, mais a
+  nota "Higiene de 28/11".
+- `docs/ARCHITECTURE_v2.md` — R1 sincronizado (9 abertos / 2 fechados).
+- `iniciar/session.json`, `iniciar/2026-11-28_conversa_omegadrakon.md` (§11),
+  `iniciar/ATRIBUICOES.md` (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** o TODO não podia continuar dizendo que falta algo que já está
+  entregue e ligado.
+- **Resultado:** 24 itens abertos, todos verificados como pendentes de verdade.
+- **Estado:** concluído; só documentação, sem código, sem restart e sem bump.
+
+---
+
 ## 28/11/2026 — APK 4082 removido e Nicky Locutor localizada nos snapshots
 
 **Autor:** Freebuff (Buffy) — pedidos do dono (*"remover o APK arm64 defeituoso"*

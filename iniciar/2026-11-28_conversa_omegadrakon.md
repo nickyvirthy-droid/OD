@@ -426,3 +426,25 @@ Conferido contra o código:
   WhatsApp Cloud API.
 
 Nenhum código foi alterado neste turno.
+
+## §11 — Higiene dos checkboxes do TODO (28/11 ~18:05)
+
+**Dono:** *"Marque como feitos os checkboxes desatualizados do TODO (guarda de
+ZIMs e hybrid search) e feche os itens já descartados"*.
+**Autor:** Freebuff (Buffy).
+
+Fechados com evidência conferida no código:
+
+| Item | Evidência |
+|---|---|
+| Guarda ZIM ↔ compose | `tests/test_zim_compose.py`, **11 passed** em 28/11 |
+| I2 Hybrid Search | ligado desde 25/11, `OD_RAG_HIBRIDO` padrão `1`, `memory/rag.py:676` |
+| R1 fila distribuída | reescopado em 17/11; fila própria em produção cobre |
+| `llm_cache` de modelo local | testado e descartado em 17/11 |
+
+- `docs/ANALISE_SISTEMA_TODO.md`: **28 abertos / 131 fechados → 24 / 135**,
+  com a nota "Higiene de 28/11" logo abaixo da revisão de 17/11.
+- `docs/ARCHITECTURE_v2.md`: **R1** sincronizado (**9 abertos / 2 fechados**).
+- Registrado, no próprio item do I2, que o `CrossEncoderReranker` neural
+  (`core/hybrid_search.py:296`) não está plugado — a RAG usa reranker próprio.
+  Nenhum item novo foi criado e nenhum código foi alterado.

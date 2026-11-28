@@ -88,6 +88,26 @@ registro):
    (20/dia), não por byte — o item agora fala do ganho real (latência e
    contexto útil).
 
+**Higiene de 28/11/2026** (auditoria pedida pelo dono, conferida no código):
+**28 abertas → 24 abertas / 135 fechadas**. Quatro checkboxes estavam
+contradizendo o próprio texto do documento e foram fechados:
+
+- **Teste ZIM ↔ compose** — entregue em 18/11 (`tests/test_zim_compose.py`,
+  **11 passed** em 28/11).
+- **I2 Hybrid Search** — ligado em produção desde 25/11 (`OD_RAG_HIBRIDO`
+  padrão `1`); fica fora só o reranker neural, por decisão (a RAG tem reranker
+  próprio).
+- **R1 fila distribuída** — reescopado em 17/11; a fila própria em produção
+  cobre o caso.
+- **`llm_cache` de modelo local** — testado e descartado em 17/11.
+
+Continuam abertos 24 itens: código (R5 eval no CI, crédito real do OpenAI,
+cache de embedding de documento, enxugar prompt, reranker neural, `upsc` do
+nobreak), decisão do dono (I1, quarentena de `revisar/`, app por papel,
+connection pools, VRAM no comparador) e compra/físico (nobreak, segundo nó,
+mídia off-site, reteste 7B, PIN do Bluetooth, Homebox, WhatsApp Cloud API) e
+infra externa (OTel/Grafana/alertas, `xdg-desktop-portal`).
+
 #### P0 — esta semana (barato, risco real, evidência na mão)
 
 | # | Entrega | Por que agora | Esforço |
@@ -1256,10 +1276,11 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       resposta legítima da rota foi recusada (teste cobre os formatos reais).
       Fica de fora, por falta de evidência: afirmação de estado sem "com
       sucesso" ("Radio ligada.") — pode ser leitura verdadeira.
-- [ ] Chat: `llm_cache` não guarda resposta de modelo local — **testado e
+- [x] Chat: `llm_cache` não guarda resposta de modelo local — **testado e
       descartado em 17/11:** sem evidência de erro (as invenções reais foram
       de nuvem) e derruba o cache normal (`test_second_identical_message_hits_cache`).
-      Fica aberto só se aparecer caso real de palpite do 3B cacheado.
+      **DESCARTADO 28/11:** paredes de cache para modelo local prejudicam mais
+      do que protegem; reabrir só com caso real de palpite do 3B cacheado.
 
 > Turno de 12/11 09:35 (higiene de 11/11 publicada): sugestões mostradas e não
 > escolhidas → "tapar os buracos de intenção" e "resolver o `Saída:
@@ -1503,9 +1524,12 @@ da Meta. **Infra externa:** OTel Collector/Grafana e alertas; connection pools
       quando um no-break com USB entrar (o Attiv atual nunca vai aparecer);
       a telemetria real da Fase Nicky é o **BMS RS485/CAN da Felicity**
       (precisa de adaptador USB-RS485).
-- [ ] **Acervo:** teste que compara os ZIMs listados em
+- [x] **Acervo:** teste que compara os ZIMs listados em
       `docker/tools-compose.yaml` com os arquivos presentes nos dois diretórios
-      — hoje um ZIM novo só entra na busca se alguém lembrar do `command`
+      — hoje um ZIM novo só entra na busca se alguém lembrar do `command`.
+      **FECHADO 28/11:** já entregue em 18/11 — `tests/test_zim_compose.py`
+      (**11 passed** em 28/11) + `tools/checar_zim_compose.py`, guarda nas duas
+      direções, 14 ZIMs alinhados; o checkbox tinha ficado aberto por engano.
 
 ### Análise de `analise/` — NV e Projeti (13/11, regra 22)
 
@@ -1638,11 +1662,16 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       embedding ~17 ms/mensagem. Fica desligado até decisão; para ganhar
       latência o `LLMCache` exato já resolve. **17/11: recomendação mantida —
       desligado (0 acerto adicional no tráfego real medido)**
-- [ ] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder
+- [x] I2: Hybrid Search (BM25 via `rank-bm25` + dense + cross-encoder
       reranker) — **módulo e testes PRONTOS (conferido 13/11):
       `core/hybrid_search.py` (BM25Index + `cross-encoder/ms-marco-MiniLM-L-6-v2`);
       `tests/test_hybrid_search.py`. FALTA LIGAR: a `memory/rag.py` de
-      produção não o usa**
+      produção não o usa** — **FECHADO 28/11:** está ligado em produção desde
+      25/11 (`OD_RAG_HIBRIDO` padrão `1`, `memory/rag.py:676` monta o
+      `BM25Index`; gate 8/8 · 0/8 · 6/6 · 2/2). Única parte que segue fora: o
+      `CrossEncoderReranker` neural (`core/hybrid_search.py:296`) não está
+      plugado — a RAG usa reranker próprio (cosseno + overlap IDF), decisão
+      registrada no §4
 - [x] I4: Query Router (classificador leve → estratégia: direct, rag, tool,
       hybrid) — **ENTREGUE (conferido 13/11): `core/query_router.py`,
       integrado na etapa de intenções e no grafo (CHANGELOG com prova
@@ -1652,14 +1681,15 @@ no `mapa.ipynb`. Dados de 2024 (turnos de julho/setembro).
       `process_stream_sse()`; `tests/test_sse.py`; prova viva no CHANGELOG**
 
 ### Semana 11-12: Resiliência + Eval
-- [ ] R1: Task Queue **durável em Redis/RQ (ou Celery)** — **reescopado 17/11:**
+- [x] R1: Task Queue **durável em Redis/RQ (ou Celery)** — **reescopado 17/11:**
       a fila própria já está **em produção desde 14/11** (`core/task_queue.py`
       com `RetryPolicy`, backoff, dead letter, persistência JSON, poda de
       concluídas, rotas `/admin/tasks*`, SSE e aba no app; 1 worker, custo
       medido de +5,1 MB e 0,23% de core por task de LLM). O que sobra do item
       original é só **fila distribuída/multi-processo** — desnecessária para
       este servidor enquanto houver um processo. Reabrir se aparecer segundo
-      nó ou volume que a fila de arquivo não dê conta.
+      nó ou volume que a fila de arquivo não dê conta. **FECHADO 28/11:**
+      fila própria em produção cobre o caso; nenhuma fila distribuída a fazer.
 - [x] R2: Circuit Breaker em chamadas externas — feito sem `pybreaker`, por
       provider de LLM (`core/resilience.py`); bulkhead dispensado (ver §3)
 - [ ] R5: Eval Framework (LOCOMO subset + custom benchmarks) rodando no CI

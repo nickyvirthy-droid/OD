@@ -1,4 +1,13 @@
 {
+  "higiene_todo_checkboxes_2026_11_28": {
+    "pedido": "Dono (28/11 ~18:00): 'Marque como feitos os checkboxes desatualizados do TODO (guarda de ZIMs e hybrid search) e feche os itens já descartados'.",
+    "feito": "docs/ANALISE_SISTEMA_TODO.md: 28 abertos / 131 fechados -> 24 abertos / 135 fechados. Fechados com evidencia: teste ZIM (tests/test_zim_compose.py, 11 passed), I2 Hybrid Search (OD_RAG_HIBRIDO=1 desde 25/11), R1 fila distribuida (reescopada; fila propria em producao cobre) e llm_cache de modelo local (descartado em 17/11). docs/ARCHITECTURE_v2.md: R1 sincronizado (9 abertos / 2 fechados).",
+    "observacao": "No I2 ficou registrado que o CrossEncoderReranker neural (core/hybrid_search.py:296) nao esta plugado — a RAG usa reranker proprio (cosseno + overlap IDF). Nenhum item novo foi inventado.",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido; so documentacao alterada, nenhum codigo tocado.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S11)",
+    "updated_at": "2026-11-28T18:05:00-03:00"
+  },
   "auditoria_todo_2026_11_28": {
     "pedido": "Dono (28/11 ~17:40): 'o que falta implementar? todos os TODO foram feitos?'",
     "medido": "docs/ANALISE_SISTEMA_TODO.md: 1762 linhas, 131 checkboxes fechados e 28 abertos. docs/ARCHITECTURE_v2.md: 10 abertos (6 sao duplicata dos do TODO: I1, I3, R1, R5, docs, nobreak).",
