@@ -9,6 +9,40 @@
 
 ---
 
+## 28/11/2026 — Raiz limpa: pedido.txt removido e instruções arquivadas
+
+**Autor:** Freebuff (Buffy) — ordem do dono (*"limpar arquivos vazios e os .txt
+soltos da raiz"*).
+
+### Removido
+
+- `pedido.txt` (0 byte) — fila de pedidos extinta em 08/10; só sobrevivia em
+  comentários.
+
+### Movido
+
+- `instrucoes_projeto.txt` → `docs/ORQUESTRADOR_INSTRUCOES_ORIGINAIS_2026-09-30.txt`
+  (prompt original do `orquestrador.py`, conteúdo intacto).
+
+### Modificados
+
+- `docs/INVENTARIO_ARQUIVOS.md` (regenerado), `iniciar/session.json`,
+  `iniciar/2026-11-28_conversa_omegadrakon.md` (§7), `iniciar/ATRIBUICOES.md`
+  (esta entrada) e `txt.txt`.
+
+### Intenção e estado
+
+- **Intenção:** tirar da raiz só o que não serve, sem tocar em arquivo rastreado
+  nem em banco.
+- **Preservados de propósito:** `limitacoes.txt` (rastreado e usado; vazio é o
+  normal), `data/od.db` e `data/memory.db-wal` (caminhos de banco), `__init__.py`
+  de `data/refs_todo/NV`, `.crush/init` e artefatos de build.
+- **Resultado:** 14 arquivos soltos na raiz (antes 16); inventário 3.744
+  arquivos, 5,8 GB, 34 grupos / 54,6 KB; testes do inventário 11 passed.
+- **Estado:** concluído; sem restart e sem bump (`1.47.0+2085`).
+
+---
+
 ## 28/11/2026 — Duplicatas de APK limpas (uma cópia por versão, -190 MB)
 
 **Autor:** Freebuff (Buffy) — ordem do dono (*"limpar as duplicatas de APK entre

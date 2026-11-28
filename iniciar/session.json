@@ -1,4 +1,16 @@
 {
+  "limpeza_raiz_2026_11_28": {
+    "pedido": "Dono (28/11 ~16:45): 'Limpar arquivos vazios e os .txt soltos da raiz do projeto'.",
+    "medido_antes": "6 .txt na raiz: instrucoes_projeto.txt (2833 B, untracked), limitacoes.txt (0 B, RASTREADO e usado por core/limitacoes.py), pedido.txt (0 B, fila removida em 08/10, sem referencia de codigo), requirements.txt, requirements-dev.txt e txt.txt (canal do dono).",
+    "feito": "pedido.txt removido (0 B, legado sem uso); instrucoes_projeto.txt MOVIDO para docs/ORQUESTRADOR_INSTRUCOES_ORIGINAIS_2026-09-30.txt (documento historico que gerou o orquestrador.py; conteudo preservado). Raiz agora com 4 .txt: limitacoes.txt, requirements.txt, requirements-dev.txt e txt.txt.",
+    "nao_removido_e_por_que": "limitacoes.txt e RASTREADO no git e e a 'Casa de Limitacoes' (core/limitacoes.py, tests/conftest.py) — vazio e o estado normal dele. data/od.db (0 B) e caminho do SQLite de fallback (core/chat_audit, runtime/launcher). data/memory.db-wal (0 B) e WAL de banco vivo: nunca apagar. __init__.py vazios em data/refs_todo/NV sao marcadores de pacote do projeto de referencia. .crush/init e marcador de ferramenta. Build (.dart_tool, app/build, .gradle) e regeneravel e fica fora do inventario.",
+    "resultado": "Inventario: 3744 arquivos (antes 3745), 5,8 GB, 34 grupos / 54,6 KB; 14 arquivos soltos na raiz (antes 16). tests/test_inventario_arquivos.py 11 passed.",
+    "autor": "Freebuff (Buffy)",
+    "estado": "Concluido. Nenhum arquivo rastreado removido; sem restart e sem bump (1.47.0+2085).",
+    "proximo": "Fase 2 (d): autorizar varredura fora do projeto (home/HDs) para a Nicky Locutor. Opcional: decidir destino dos 14 arquivos soltos restantes e do .coverage.",
+    "transcricao": "iniciar/2026-11-28_conversa_omegadrakon.md (S7)",
+    "updated_at": "2026-11-28T16:48:00-03:00"
+  },
   "dedupe_apks_2026_11_28": {
     "pedido": "Dono (28/11 ~16:30): 'Limpar as duplicatas de APK entre site/ e backups, mantendo uma copia por versao'.",
     "medido_antes": "sha256 + aapt dump badging: site/OmegaDrakon*.apk == backups/apk-v1.47.0-2085/ (mesmo sha256 4fa3bb88... e e096d1fd...); backups/apk-v1.44.0-2080/ continha 1.45.0/2081 (NAO existe build 1.44.0) e era byte-identico a backups/apk-v1.45.0-2081/.",

@@ -1,0 +1,33 @@
+CONTEXTO DO PROJETO:
+Estamos desenvolvendo um agente de IA local em Python integrado ao Home Assistant (via REST API) e banco de dados PostgreSQL. A máquina possui restrição de hardware (8GB de RAM, sem GPU, rodando via SSH). O Freebuff CLI já está instalado e funcionando nesta pasta.
+
+OBJETIVO DA TAREFA:
+Você deve estruturar um ecossistema de redundância (Fallback) automática para geração de código usando múltiplas CLIs (Freebuff, OpenCode e Kilo) controladas por um script orquestrador em Python.
+
+DIRETRIZES DE IMPLEMENTAÇÃO:
+
+1. GERENCIAMENTO DE DEPENDÊNCIAS DO SISTEMA:
+   - Verifique e garanta que o Node.js e NPM estejam instalados para gerenciar pacotes globais.
+   - Execute os comandos de terminal necessários para instalar as ferramentas de backup globalmente:
+     * npm install -g @opencode/cli
+     * npm install -g @kilocode/cli
+   - Atualize o arquivo 'requirements.txt' do projeto incluindo as bibliotecas Python: 'python-dotenv' e 'requests'. Instale-as no ambiente virtual do projeto.
+
+2. CRIAÇÃO DO SCRIPT ORQUESTRADOR ('orquestrador.py'):
+   - Crie um script Python chamado 'orquestrador.py' na raiz do projeto.
+   - O script deve ler o arquivo '.env' existente usando 'dotenv.load_dotenv()' para carregar chaves como GEMINI_API_KEY e GROQ_API_KEY.
+   - Implemente uma função que monitore continuamente um arquivo chamado 'pedido.txt' a cada 5 segundos.
+   - Quando houver conteúdo em 'pedido.txt':
+     * O script deve ler o conteúdo, limpar o arquivo 'pedido.txt' imediatamente (para evitar loops) e montar um prompt blindado.
+     * O prompt deve exigir que a IA crie o arquivo Python solicitado pelo usuário (ex: 'previsao_tempo.py') sem formatação markdown (sem aspas triplas ```python).
+     * O script deve tentar executar a tarefa usando o Freebuff via subprocesso: ['freebuff', 'ask', prompt].
+     * Se o Freebuff falhar (por falta de créditos), capture o erro e tente o OpenCode passando o ambiente modificado com as chaves lidas: ['opencode', 'run', prompt].
+     * Se o OpenCode falhar, o script deve tentar o Kilo: ['kilo', 'run', prompt, '--auto'].
+   - Adicione uma validação de sintaxe usando o módulo nativo 'ast.parse(novo_codigo)' no arquivo gerado antes de finalizar, garantindo que o código gerado é um Python válido. Se houver erro de sintaxe, mude para a próxima CLI de backup.
+
+3. ARQUIVOS DE SUPORTE:
+   - Crie o arquivo 'pedido.txt' em branco.
+   - Garanta que o seu arquivo '.gitignore' ignore 'pedido.txt', '.env', '__pycache__/', '.venv/' e qualquer log do Home Assistant.
+
+REQUISITO DE SAÍDA:
+Execute as instalações necessárias via terminal Bash e crie o código do 'orquestrador.py' limpo, documentado e tipado com Type Hints. Não apague nenhum arquivo existente do Home Assistant ou tabelas do Postgres.

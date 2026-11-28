@@ -1,6 +1,6 @@
 # Inventário de arquivos do OmegaDrakon (Fase 1)
 
-Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
+Gerado em **2026-11-28T16:01:42-0300** por `tools/inventario_arquivos.py` (somente leitura — nada foi movido ou apagado).
 
 - Raiz: `/home/alex/OmegaDrakon`
 - Artefatos de build (excluídos): `app/build`, `app/.dart_tool`, `.dart_tool`, `build`
@@ -10,7 +10,7 @@ Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somen
 
 | Arquivos | Tamanho | Compactados |
 |---:|---:|---:|
-| 3.745 | 5.8 GB | 23 |
+| 3.744 | 5.8 GB | 23 |
 
 ## Por pasta (1º nível)
 
@@ -26,13 +26,13 @@ Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somen
 | `iniciar` | 2,8 MB | 67 | 28/11/2026 |
 | `core` | 2,7 MB | 106 | 26/11/2026 |
 | `integrations` | 2,4 MB | 88 | 26/11/2026 |
-| `docs` | 1,5 MB | 35 | 28/11/2026 |
+| `docs` | 1,5 MB | 36 | 28/11/2026 |
 | `tools` | 1,4 MB | 78 | 28/11/2026 |
 | `app` | 1,2 MB | 87 | 26/11/2026 |
 | `runtime` | 502,0 KB | 46 | 26/11/2026 |
 | `.od_repair_backups` | 492,9 KB | 10 | 18/11/2026 |
 | `memory` | 414,1 KB | 20 | 25/11/2026 |
-| `(raiz)` | 344,1 KB | 16 | 28/11/2026 |
+| `(raiz)` | 341,4 KB | 14 | 28/11/2026 |
 | `.od_sandbox` | 314,6 KB | 6 | 04/11/2026 |
 | `.od_backups` | 217,0 KB | 2 | 24/10/2026 |
 | `.crush` | 183,8 KB | 4 | 26/11/2026 |
@@ -74,7 +74,7 @@ Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somen
 | `tests` | 3,3 MB | 151 | 28/11/2026 | 02/09/2026 |
 | `iniciar` | 2,8 MB | 67 | 28/11/2026 | 05/09/2026 |
 | `site/vendor` | 2,1 MB | 16 | 26/11/2026 | 12/11/2026 |
-| `docs` | 1,5 MB | 35 | 28/11/2026 | 02/09/2026 |
+| `docs` | 1,5 MB | 36 | 28/11/2026 | 02/09/2026 |
 | `core/__pycache__` | 1,4 MB | 45 | 26/11/2026 | 04/09/2026 |
 | `core` | 1,2 MB | 45 | 26/11/2026 | 02/09/2026 |
 | `integrations/api` | 1,0 MB | 8 | 26/11/2026 | 03/09/2026 |
@@ -86,8 +86,8 @@ Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somen
 | `integrations` | 383,3 KB | 16 | 26/11/2026 | 17/10/2026 |
 | `app/assets` | 368,8 KB | 1 | 09/10/2026 | 09/10/2026 |
 | `app/lib` | 345,7 KB | 21 | 26/11/2026 | 10/09/2026 |
-| `(raiz)` | 344,1 KB | 16 | 28/11/2026 | 07/09/2026 |
 | `tools/__pycache__` | 342,4 KB | 18 | 28/11/2026 | 03/09/2026 |
+| `(raiz)` | 341,4 KB | 14 | 28/11/2026 | 07/09/2026 |
 | `tools` | 292,6 KB | 22 | 28/11/2026 | 03/09/2026 |
 | `app/test` | 242,6 KB | 23 | 26/11/2026 | 10/09/2026 |
 | `runtime/__pycache__` | 237,3 KB | 10 | 26/11/2026 | 21/09/2026 |
@@ -99,7 +99,7 @@ Gerado em **2026-11-28T15:55:10-0300** por `tools/inventario_arquivos.py` (somen
 
 ## Duplicatas por hash (SHA-256)
 
-- Arquivos hasheados: **566** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
+- Arquivos hasheados: **568** (só grupos com mesmo tamanho; arquivos acima de 200 MB ficam de fora)
 - Grupos duplicados: **34**
 - Espaço recuperável: **54,6 KB**
 
@@ -164,8 +164,8 @@ python3 tools/inventario_arquivos.py --buscar nicky
 
 ## Pontos de arrumação que já aparecem
 
-- Arquivos soltos na raiz: **16** — `.aider.chat.history.md`, `.aider.input.history`, `.coverage`, `.coveragerc`, `.env`, `.gitignore`, `instrucoes_projeto.txt`, `limitacoes.txt`, `orquestrador.py`, `pedido.txt`, `pyproject.toml`, `pytest.ini`, `requirements-dev.txt`, `requirements.txt`, `txt.txt`, `vault_env_mirror.py`
-- Arquivos vazios: **8** — `limitacoes.txt`, `pedido.txt`, `data/od.db`, `data/memory.db-wal`, `data/refs_todo/NV/NV v1.9.X/tests/__init__.py`, `data/refs_todo/NV/NV v1.9.X/database/__init__.py`, `data/refs_todo/NV/NV v1.9.X/database/repositories/__init__.py`, `.crush/init`
+- Arquivos soltos na raiz: **14** — `.aider.chat.history.md`, `.aider.input.history`, `.coverage`, `.coveragerc`, `.env`, `.gitignore`, `limitacoes.txt`, `orquestrador.py`, `pyproject.toml`, `pytest.ini`, `requirements-dev.txt`, `requirements.txt`, `txt.txt`, `vault_env_mirror.py`
+- Arquivos vazios: **7** — `limitacoes.txt`, `data/od.db`, `data/memory.db-wal`, `data/refs_todo/NV/NV v1.9.X/tests/__init__.py`, `data/refs_todo/NV/NV v1.9.X/database/__init__.py`, `data/refs_todo/NV/NV v1.9.X/database/repositories/__init__.py`, `.crush/init`
 - Nomes com espaço (até 1º nível): **398**
 
 ## Próximo passo (Fase 2 — decisão do dono)

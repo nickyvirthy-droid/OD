@@ -268,3 +268,40 @@ release.
 `docs/CHANGELOG.md` (entrada de 28/11), `docs/VERSIONAMENTO.md` (passo 9: a
 versão vigente em `site/` não se duplica em `backups/`) e
 `docs/ANALISE_SISTEMA_TODO.md` (checkbox do 4082). Sem restart e sem bump.
+
+## §7 — Raiz limpa: .txt e vazios tratados (28/11 ~16:48)
+
+**Dono:** *"Limpar arquivos vazios e os .txt soltos da raiz do projeto"*.
+
+**Autor:** Freebuff (Buffy).
+
+### Feito
+
+- **`pedido.txt` removido** (0 byte) — era a fila de pedidos removida em 08/10;
+  só aparece em comentários de código, nenhuma referência ativa.
+- **`instrucoes_projeto.txt` movido** para
+  `docs/ORQUESTRADOR_INSTRUCOES_ORIGINAIS_2026-09-30.txt` — é o prompt original
+  que gerou o `orquestrador.py`; conteúdo preservado, raiz sem ele (não era
+  rastreado nem citado por código).
+
+Raiz agora tem 4 `.txt`: `limitacoes.txt`, `requirements.txt`,
+`requirements-dev.txt` e `txt.txt`.
+
+### Não removido — e o motivo (medido)
+
+- **`limitacoes.txt`** — é **rastreado no git** e é a "Casa de Limitações"
+  (`core/limitacoes.py`, `tests/conftest.py`); **vazio é o estado normal**.
+- **`data/od.db`** (0 B) — caminho do SQLite de fallback
+  (`core/chat_audit.py`, `runtime/launcher.py`).
+- **`data/memory.db-wal`** (0 B) — WAL de banco vivo: **nunca** apagar.
+- **`__init__.py` vazios** em `data/refs_todo/NV/...` — marcadores de pacote do
+  projeto de referência.
+- **`.crush/init`** — marcador de ferramenta.
+- Build (`.dart_tool`, `app/build`, `.gradle`) — regenerável e já fora do
+  inventário.
+
+### Resultado
+
+Inventário: **3.744 arquivos · 5,8 GB · 34 grupos duplicados (54,6 KB)**;
+**14 arquivos soltos na raiz** (antes 16). Testes do inventário: 11 passed.
+Nenhum arquivo rastreado foi removido. Sem restart e sem bump.
